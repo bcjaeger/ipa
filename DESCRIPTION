@@ -12,3 +12,5 @@ LazyData: true
 Suggests: 
     tibble,
     testthat
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 6.1.1
