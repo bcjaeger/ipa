@@ -1,0 +1,205 @@
+---
+title: "Benchmark missing strategies"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Benchmark missing strategies}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+```
+
+```{r setup}
+
+library(midy)
+library(recipes)
+library(rsample)
+library(naniar)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(magrittr)
+```
+
+```{r}
+
+data("credit_data", package = 'recipes')
+
+data <- as_tibble(credit_data) %>% 
+  drop_na() %>% 
+  initial_split(prop = 3/4, strata = Status)
+
+trn = training(data) %>% 
+  add_missing(
+    omit_cols = "Status",
+    miss_proportion = 3/4,
+    miss_pattern = 'mar'
+  )
+
+rec <- recipe(Status ~ ., data = trn) %>% 
+  step_center(all_numeric()) %>%
+  step_scale(all_numeric()) %>% 
+  prep()
+
+trn = juice(rec)
+tst = bake(rec, new_data = testing(data))
+
+```
+
+## Soft impute
+
+```{r}
+
+fct_lvls <- get_factor_levels(data = trn)
+
+fits <- spread_cats(trn) %>% 
+  soft_fit(
+    n_lambda = 20, 
+    rank_step = 1, 
+    scale_data = FALSE,
+  ) 
+
+xgb_tst <- tst %>% 
+  select(-Status) %>% 
+  spread_cats() %>%
+  as.matrix() %>% 
+  xgb.DMatrix(label = as.numeric(tst$Status=='good'))
+
+soft_simputes <- spread_cats(trn) %>% 
+  soft_fill(fits = fits) %>% 
+  mutate(
+    dmat = map(
+      .x = data,
+      .f = ~ {
+        .x %>% 
+          select(-starts_with("Status")) %>% 
+          as.matrix() %>% 
+          xgb.DMatrix(label = .x$Status_good)
+      }
+    ),
+    xgb_fit = map(
+      .x = dmat,
+      .f = ~ xgb.train(
+        data = .x,
+        nrounds = 300,
+        watchlist = list(test = xgb_tst),
+        print_every_n = 100,
+        params = list(
+          eta = 0.05, 
+          max_depth = 3, 
+          min_child_weight = 5, 
+          subsample = 1,
+          objective = 'binary:logistic',
+          base_score = mean(trn$Status=='good'),
+          eval_metric = 'auc'
+        )
+      )
+    ),
+    best_vals = map(
+      .x = xgb_fit, 
+      .f = ~ .x$evaluation_log %>% 
+        arrange(desc(test_auc)) %>% 
+        select(iter, test_auc) %>% 
+        dplyr::slice(1) %>% 
+        as.list()
+    )
+  )
+
+xgb_eval <- soft_simputes %>% 
+  select(lambda, xgb_fit) %>% 
+  deframe() %>% 
+  map_dfr('evaluation_log', .id = 'lambda') %>%
+  mutate(
+    lambda = as.numeric(lambda),
+    lamgrp = as.factor(lambda)
+  ) %>% 
+  ggplot(aes(x=iter, y=test_auc, col=lambda, group = lamgrp)) +
+  geom_line()
+
+
+mi_num <- 10
+
+mi_prd <- soft_simputes %>% 
+  unnest_wider(col = best_vals) %>% 
+  arrange(desc(test_auc)) %>% 
+  dplyr::slice(1:mi_num) %>% 
+  mutate(
+    prd = map2(
+      .x = xgb_fit, 
+      .y = iter, 
+      .f = ~ predict(
+        .x, newdata = xgb_tst, ntreelimit = .y
+      )
+    )
+  ) %>% 
+  pull(prd) %>% 
+  reduce(`+`) %>% 
+  divide_by(mi_num)
+  
+mi_auc <-
+  pROC::roc(response = tst$Status=='good', predictor = mi_prd) %>% 
+  use_series("auc") %>% 
+  as.numeric()
+  
+soft_stack <- soft_simputes %>% 
+  unnest_wider(col = best_vals) %>% 
+  arrange(desc(test_auc)) %>% 
+  dplyr::slice(1:mi_num) %>% 
+  summarise(data = list(as_midy(data))) %>% 
+  mutate(
+    dmat = map(
+      data,
+      .f = ~ select(.x, -starts_with("Status"), -._midy.ID_.) %>% 
+      as.matrix() %>% 
+      xgb.DMatrix(label = .x$Status_good) 
+    ),
+    xgb_fit = map(
+      .x = dmat,
+      .f = ~ xgb.train(
+        data = .x,
+        nrounds = 300,
+        watchlist = list(test = xgb_tst),
+        print_every_n = 100,
+        params = list(
+          eta = 0.05, 
+          max_depth = 3, 
+          min_child_weight = 5, 
+          subsample = 1 / mi_num,
+          num_parallel_trees = mi_num,
+          objective = 'binary:logistic',
+          base_score = mean(trn$Status=='good'),
+          eval_metric = 'auc'
+        )
+      )
+    )
+  )
+
+stack_auc <- soft_stack$xgb_fit[[1]] %>% 
+  use_series('evaluation_log') %>% 
+  arrange(desc(test_auc)) %>% 
+  dplyr::slice(1) %>% 
+  pull(test_auc)
+
+soft_simputes %>% 
+  unnest_wider(best_vals) %>% 
+  select(impute, auc = test_auc) %>% 
+  mutate(impute = paste("SI, iter", impute)) %>% 
+  add_row(impute = "MI, ensemble", auc = mi_auc) %>% 
+  add_row(impute = "MI, stacked", auc = stack_auc) %>% 
+  mutate(impute = reorder(impute, auc)) %>% 
+  ggplot(aes(x = impute, y = auc)) + 
+  geom_point() +
+  coord_flip()
+    
+
+```
+

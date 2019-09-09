@@ -1,0 +1,208 @@
+---
+title: "Tuning Soft Imputation"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Tuning Soft Imputation}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+```{r, include = FALSE}
+
+rm(list=ls())
+
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7, 
+  fig.height = 5
+)
+
+
+library(midy)
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(tibble)
+library(magrittr)
+
+
+.theme <- theme_bw(base_size = 10) + 
+  theme(
+    plot.title = element_text(
+      face = "bold",
+      size = rel(1),
+      hjust = 0.5
+    ),
+    text = element_text(),
+    panel.background = element_rect(colour = NA),
+    plot.background = element_rect(fill = "transparent",
+      colour = NA),
+    panel.border = element_rect(colour = "black"),
+    legend.key.size = unit(3, "line"),
+    legend.key.height = unit(3,"line"),
+    axis.title = element_text(face = "bold",size = rel(1)),
+    axis.title.y = element_text(angle = 90,vjust = 2),
+    axis.title.x = element_text(vjust = -0.2),
+    axis.text = element_text(size = rel(1)),
+    axis.line = element_blank(),
+    axis.ticks = element_line(),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.key = element_rect(colour = NA),
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.title = element_text(face = "italic"),
+    legend.text = element_text(size = rel(1)),
+    plot.margin = unit(c(10,5, 5, 5),  "mm"),
+    strip.background = element_rect(colour = "black", fill = "#f0f0f0"),
+    strip.text = element_text(face = "bold")
+  )
+
+theme_set(.theme)
+
+```
+
+This example shows how the `midy` package works and how it may improve the accuracy of predictive models. 
+
+## Simulation parameters
+
+We will work with simulated data so that it is easy to assess the accuracy of multiple `xgboost` models. First, we'll load the packages we need for the analysis.
+
+Next, we'll set simulation parameters
+
+```{r params}
+
+# random seed for reproducing these results
+set.seed(329)
+
+# simulation parameters (these are explained below)
+ncov = 25
+nint = 0
+error_sd = 1/10
+tst_miss = 0
+trn_miss = 9/10
+nobs = 100000
+split_prop = 1/20
+rho = 1/2
+
+```
+
+As this is a simulation example, we'll need to set a few parameters, describe the context we are simulating data for, and then generate our data. Suppose that
+
+- $Y = X\beta + \epsilon$, where $Y$ is a continuous outcome, $X$ is a matrix with `ncov` = `r ncov` covariates, $\beta$ is a vector containing coefficients that correspond to each column in $X$, and $\epsilon$ is a random error term with standard deviation = `r error_sd`. `nint` = `r nint` is the number of interactions between the columns in $X$ that impact the value of $Y$.
+
+- Columns in $X$ follow an autoregressive correlation structure characterized by a correlation constant (`rho` = `r rho`) such that corr$(x_i, x_j)$ =  `rho`$^{\left|i-j\right|}$, where $i$ and $j$ indicate column indices in $X$.
+
+- We sample a proportion of these data (`split_prop` = `r split_prop`) from a population of size `nobs` = `r format(nobs, big.mark=',')`. 
+
+- A proportion (`trn_miss` = `r trn_miss`) of the values in our sample are missing at random (i.e., the missing status of a given variable is related to other variables we measured).
+
+- We want to identify a strategy to handle these missing values that will optimize the accuracy of a gradient boosted decision tree ensemble, which will be constructed using `xgboost`. 
+
+- We will test the accuracy of each `xgboost` model by using it to predict $Y \mid X$ among the full population (minus the observations in our training data).
+
+In the following code, I set the parameters described above and use `gen_simdata` to create a set of 50,000 observations (with 2,500 in our training sample)
+
+```{r}
+
+sim_data <- gen_simdata(
+  problem_type = 'regression', # continuous outcome.
+  error_sd = error_sd,         # standard deviation of error.
+  ncov = ncov,                 # number of predictors.
+  nint = nint,                 # number of interactions.
+  rho = rho,                   # autoregression constant.
+  nobs = nobs,                 # total No. of observations.
+  split_prop = split_prop,     # proportion used to train model.
+  miss_pattern = 'mar',        # data are missing at random.
+  trn_miss_prop = trn_miss,    # proportion of missing training data.
+  tst_miss_prop = tst_miss     # proportion of missing training data.
+)
+
+# save the vector of beta coefficients
+betas <- sim_data$beta
+# remove the beta coefficients from the data object
+sim_data = sim_data[-1]
+
+trn = sim_data$training
+tst = sim_data$testing
+
+```
+
+```{r}
+
+naniar::vis_miss(trn)
+
+```
+
+
+
+```{r}
+
+fits <- soft_fit(
+  data = trn,
+  n_lambda = 20, 
+  rank_step = 1, 
+  scale_data = FALSE
+) 
+
+soft_imp <- soft_fill(trn, fits = fits)
+
+soft_imp
+
+```
+
+
+
+```{r}
+
+mse <- function(x,y) mean((x-y)^2)
+
+tst_y = tst$response
+
+ref_rmse <- sqrt(mse(tst_y, mean(tst_y)))
+
+ref_imp <- trn %>% 
+  map_dfc(.f = ~{
+    .x[is.na(.x)] <- mean(.x, na.rm=TRUE)
+    .x
+  })
+
+ref_mdl <- lm(response ~ ., data = ref_imp)
+ref_prd <- predict(ref_mdl, newdata = tst)
+ref_rsq <- 1 - sqrt(mse(tst_y, ref_prd)) / ref_rmse
+
+soft_imp %<>% 
+  mutate(
+    mdl = map(data, .f = ~ lm(response ~ ., data = .x)),
+    trn_rsq = map_dbl(mdl, .f = ~ summary(.x)$r.squared),
+    tst_prd = map(mdl, .f = ~ predict(.x, newdata = tst)),
+    tst_rsq = map_dbl(tst_prd, .f = ~1 - sqrt(mse(.x, tst_y)) / ref_rmse),
+  )
+
+soft_imp %>% 
+  select(impute, ends_with('rsq')) %>% 
+  gather(variable, value, -impute) %>% 
+  mutate(
+    variable = recode(
+      variable, 
+      trn_rsq = 'Training',
+      tst_rsq = 'Testing'
+    )
+  ) %>% 
+  ggplot(aes(x=impute, y=value, fill = variable)) +
+  geom_line(linetype = 2) +
+  geom_point(shape = 21, col = 'black', size = 3) + 
+  geom_hline(yintercept = ref_rsq) + 
+  labs(
+    fill = 'Data', 
+    x = 'Imputed dataset',
+    y = 'R-squared statistic'
+  )
+
+```
+
+
+
