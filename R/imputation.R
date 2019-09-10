@@ -121,6 +121,90 @@ soft_fit <- function(
 
 }
 
+#' k-nearest-neighbor (knn) imputation
+#' @export
+
+knn_fit <- function(
+  data,
+  vars = NULL,
+  k_neighbors = 12,
+  k_step = 2,
+  ...
+){
+
+  if(k_neighbors %% k_step != 0){
+    stop("k_step should evenly divide k_neighbors", call. = FALSE)
+  }
+
+  n_step <- k_neighbors / k_step
+
+  .vars <- vars %||% colnames(data)
+
+  .dots <- list(...) %>%
+    check_dots(
+      valid_args = c("eps", "weights", "ignore_case", "nthread")
+    )
+
+  .dots$x <- .dots$y <- data[, .vars]
+  .dots$n <- nrow(data)
+
+  gower <- do.call(gower_topn, args = .dots)
+
+  obs_index <- map(data, ~which(!is.na(.x)))
+
+  imputes <- tibble(
+    row_index = which(!complete.cases(data)),
+    col_index = map(row_index, ~which(is.na(data[.x, ])))
+  ) %>%
+    unnest(col = col_index) %>%
+    mutate(
+      vals = map2(
+        .x = row_index,
+        .y = col_index,
+        .f = ~ {
+          .rows <- intersect(gower$index[,.x], obs_index[[.y]])
+          .stop <- min(k_neighbors, length(.rows))
+          .vals <- data[.rows[1:.stop], .y, drop=TRUE]
+          .gwrd <- gower$distance[obs_index[[.y]], .x][1:.stop]
+          list(values = .vals, gower_d = .gwrd)
+        }
+      )
+    ) %>%
+    unnest_wider(col = vals) %>%
+    add_class("fit_knn")
+
+  output <- vector(mode='list', length = n_step)
+
+  for( i in seq_along(output) ){
+
+    output[[i]] <- data
+    n_neighbors <- i * k_step
+
+    for(j in 1:nrow(imputes)){
+
+      output[[i]][imputes$row_index[j], imputes$col_index[j]] <-
+        if(is.numeric(imputes$values[[j]])){
+
+          mean(imputes$values[[j]][1:n_neighbors])
+
+        } else {
+
+          names(which.max(table(imputes$values[[j]][1:n_neighbors])))
+
+        }
+
+    }
+
+  }
+
+  output %>%
+    format_data_list() %>%
+    mutate(k_neighbors = seq(k_step, k_neighbors, by = k_step)) %>%
+    select(impute, k_neighbors, data)
+
+}
+
+
 #'  soft imputation.
 #'
 #' @description an adaptation of the soft impute algorithm for
@@ -162,48 +246,15 @@ soft_fill <- function(
     mutate(
       lambda = map_dbl(fits, ~attr(.x, 'lambda')),
       rank = map_dbl(fits, ~attr(.x, 'rank'))
-    )
+    ) %>%
+    select(impute, lambda, rank, data)
 
   output
 
 }
 
 
-nn_index <- function(miss_data, ref_data, vars, K, opt) {
-  gower_topn(
-    ref_data[, vars],
-    miss_data[, vars],
-    n = K,
-    nthread = opt$nthread,
-    eps = opt$eps
-  )$index
-}
 
-nn_pred <- function(index, dat) {
-  dat <- dat[index, ]
-  dat <- getElement(dat, names(dat))
-  dat <- dat[!is.na(dat)]
-  est <- if (is.factor(dat) | is.character(dat))
-    mode_est(dat)
-  else
-    mean(dat)
-  est
-}
-
-#' from data list to tibble
-
-format_data_list <- function(list){
-  map(list, as_tibble) %>%
-    set_names(1:length(list)) %>%
-    enframe(name = 'impute', value = 'data') %>%
-    mutate(impute = as.integer(impute))
-}
-
-#' add class to an object
-add_class <- function(object, new_class){
-  class(object) %<>% c(deparse(substitute(new_class)))
-  object
-}
 
 
 #' transfer factor levels

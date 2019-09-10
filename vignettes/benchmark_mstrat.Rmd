@@ -11,7 +11,9 @@ vignette: >
 
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>"
+  comment = "#>",
+  fig.height = 10,
+  fig.width = 7
 )
 
 ```
@@ -28,6 +30,8 @@ library(dplyr)
 library(purrr)
 library(tibble)
 library(magrittr)
+library(xgboost)
+
 ```
 
 ```{r}
@@ -53,29 +57,40 @@ rec <- recipe(Status ~ ., data = trn) %>%
 trn = juice(rec)
 tst = bake(rec, new_data = testing(data))
 
-```
-
-## Soft impute
-
-```{r}
-
-fct_lvls <- get_factor_levels(data = trn)
-
-fits <- spread_cats(trn) %>% 
-  soft_fit(
-    n_lambda = 20, 
-    rank_step = 1, 
-    scale_data = FALSE,
-  ) 
-
 xgb_tst <- tst %>% 
   select(-Status) %>% 
   spread_cats() %>%
   as.matrix() %>% 
   xgb.DMatrix(label = as.numeric(tst$Status=='good'))
 
-soft_simputes <- spread_cats(trn) %>% 
-  soft_fill(fits = fits) %>% 
+```
+
+## Imputations
+
+```{r}
+
+fct_lvls <- get_factor_levels(data = trn)
+
+soft_fits <- spread_cats(trn) %>% 
+  soft_fit(
+    n_lambda = 20, 
+    rank_step = 1, 
+    scale_data = FALSE,
+  ) 
+
+knn_imputes <- knn_fit(trn, k_neighbors = 40, k_step = 2) %>% 
+  mutate(data=map(data, spread_cats))
+
+soft_imputes <- spread_cats(trn) %>% 
+  soft_fill(fits = soft_fits)
+
+
+imputes <- list(
+  knn = knn_imputes,
+  soft = soft_imputes
+) %>% 
+  bind_rows(.id = 'algo') %>% 
+  select(algo, impute, data) %>% 
   mutate(
     dmat = map(
       .x = data,
@@ -90,11 +105,11 @@ soft_simputes <- spread_cats(trn) %>%
       .x = dmat,
       .f = ~ xgb.train(
         data = .x,
-        nrounds = 300,
+        nrounds = 500,
         watchlist = list(test = xgb_tst),
         print_every_n = 100,
         params = list(
-          eta = 0.05, 
+          eta = 0.075, 
           max_depth = 3, 
           min_child_weight = 5, 
           subsample = 1,
@@ -114,21 +129,24 @@ soft_simputes <- spread_cats(trn) %>%
     )
   )
 
-xgb_eval <- soft_simputes %>% 
-  select(lambda, xgb_fit) %>% 
-  deframe() %>% 
-  map_dfr('evaluation_log', .id = 'lambda') %>%
-  mutate(
-    lambda = as.numeric(lambda),
-    lamgrp = as.factor(lambda)
-  ) %>% 
-  ggplot(aes(x=iter, y=test_auc, col=lambda, group = lamgrp)) +
-  geom_line()
+xgb_eval <- imputes %>% 
+  select(algo, impute, xgb_fit) %>% 
+  mutate(eval_log = map(xgb_fit, 'evaluation_log')) %>% 
+  select(-xgb_fit) %>% 
+  unnest(col = eval_log) %>% 
+  ggplot(aes(x=iter, y=test_auc, col=impute, group = impute)) +
+  geom_line() + 
+  facet_wrap(~algo)
 
+
+```
+
+
+```{r}
 
 mi_num <- 10
 
-mi_prd <- soft_simputes %>% 
+mi_prd <- imputes %>% 
   unnest_wider(col = best_vals) %>% 
   arrange(desc(test_auc)) %>% 
   dplyr::slice(1:mi_num) %>% 
@@ -150,7 +168,7 @@ mi_auc <-
   use_series("auc") %>% 
   as.numeric()
   
-soft_stack <- soft_simputes %>% 
+soft_stack <- imputes %>% 
   unnest_wider(col = best_vals) %>% 
   arrange(desc(test_auc)) %>% 
   dplyr::slice(1:mi_num) %>% 
@@ -166,11 +184,11 @@ soft_stack <- soft_simputes %>%
       .x = dmat,
       .f = ~ xgb.train(
         data = .x,
-        nrounds = 300,
+        nrounds = 500,
         watchlist = list(test = xgb_tst),
         print_every_n = 100,
         params = list(
-          eta = 0.05, 
+          eta = 0.075, 
           max_depth = 3, 
           min_child_weight = 5, 
           subsample = 1 / mi_num,
@@ -189,10 +207,10 @@ stack_auc <- soft_stack$xgb_fit[[1]] %>%
   dplyr::slice(1) %>% 
   pull(test_auc)
 
-soft_simputes %>% 
+imputes %>% 
   unnest_wider(best_vals) %>% 
-  select(impute, auc = test_auc) %>% 
-  mutate(impute = paste("SI, iter", impute)) %>% 
+  select(algo, impute, auc = test_auc) %>% 
+  mutate(impute = paste(algo, "iter", impute)) %>% 
   add_row(impute = "MI, ensemble", auc = mi_auc) %>% 
   add_row(impute = "MI, stacked", auc = stack_auc) %>% 
   mutate(impute = reorder(impute, auc)) %>% 

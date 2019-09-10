@@ -25,4 +25,19 @@ check_dots <- function(.dots, valid_args){
 
 }
 
+#' from data list to tibble
+
+format_data_list <- function(list){
+  map(list, as_tibble) %>%
+    set_names(1:length(list)) %>%
+    enframe(name = 'impute', value = 'data') %>%
+    mutate(impute = as.integer(impute))
+}
+
+#' add class to an object
+add_class <- function(object, new_class){
+  class(object) %<>% c(new_class)
+  object
+}
+
 

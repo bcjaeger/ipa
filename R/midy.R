@@ -21,6 +21,7 @@
 #'
 #' @import purrr
 #' @import dplyr
+#' @importFrom gower gower_topn
 #' @importFrom xgboost xgb.DMatrix xgboost xgb.train xgb.cv
 #' @importFrom simsurv simsurv
 #' @importFrom recipes prep bake juice recipe step_dummy all_nominal
