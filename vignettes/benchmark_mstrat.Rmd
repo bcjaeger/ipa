@@ -29,195 +29,311 @@ library(tidyr)
 library(dplyr)
 library(purrr)
 library(tibble)
+library(pROC)
 library(magrittr)
+library(DescTools)
 library(xgboost)
 
 ```
+
+# Credit data
 
 ```{r}
 
 data("credit_data", package = 'recipes')
 
-data <- as_tibble(credit_data) %>% 
-  drop_na() %>% 
-  initial_split(prop = 3/4, strata = Status)
+set.seed(329)
 
-trn = training(data) %>% 
-  add_missing(
-    omit_cols = "Status",
-    miss_proportion = 3/4,
-    miss_pattern = 'mar'
+data <- drop_na(as_tibble(credit_data)) %>% 
+  initial_split(prop = 2/3, strata = Status)
+
+derivation <- training(data)
+validation <- testing(data)
+
+library(ranger)
+
+.eval_classif <- function(
+  data_trn, 
+  data_tst
+){
+  
+  model <- ranger(
+      formula = Status ~ .,
+      data = data_trn,
+      probability = TRUE,
+      num.trees = 1000
+    )
+  predictions <- predict(model, data = data_tst)
+  predictions <- as.numeric(predictions$predictions[,2])
+  
+  # Compute AUC in new data
+  auc = suppressMessages(
+      roc(
+        response = as.numeric(data_tst$Status == 'good'),
+        predictor = predictions
+      ) %>% 
+      use_series('auc') %>% 
+      as.numeric()
   )
+  
+  bri = DescTools::BrierScore(
+    resp = as.numeric(data_tst$Status == 'good'),
+    pred = predictions,
+    scaled = TRUE
+  )
+  
+  c(auc = auc, bri = bri)
+  
+}
 
-rec <- recipe(Status ~ ., data = trn) %>% 
-  step_center(all_numeric()) %>%
-  step_scale(all_numeric()) %>% 
+
+```
+
+# Before amputation
+
+If there were no missing values...
+
+```{r}
+
+performance_orig <- .eval_classif(
+  data_trn = derivation, 
+  data_tst = validation
+)
+
+performance_orig
+
+```
+
+# Amputation
+
+Suppose our derivation set had a fairly large amount of missing data and, by some small miracle, the validation set had no missing (I'm saving that case for another vignette).
+
+```{r}
+
+derivation %<>% add_missing(
+  omit_cols = 'Status',
+  miss_proportion = .99,
+  miss_pattern = 'mar'
+)
+
+vis_miss(derivation)
+
+```
+
+# K-nearest-neighbors
+
+Imputation with k-nearest-neighbors has become a widely used strategy to handle missing values. The `recipes` package provides an intuitive grammar to work this step into a machine learning workflow:
+
+```{r}
+
+# create the recipe
+reci <- recipe(Status ~ ., data = derivation) %>% 
+  step_knnimpute(all_predictors(), neighbors = 5) %>%
   prep()
 
-trn = juice(rec)
-tst = bake(rec, new_data = testing(data))
+# create a training dataset based on the recipe above
+data_trn <- juice(reci)
 
-xgb_tst <- tst %>% 
-  select(-Status) %>% 
-  spread_cats() %>%
-  as.matrix() %>% 
-  xgb.DMatrix(label = as.numeric(tst$Status=='good'))
+# create a testing dataset based on the recipe above
+data_tst <- bake(reci, new_data = validation)
+
+# See how well our glm predicts outcomes using the
+# k-nearest-neighbor imputed dataset
+knn_5 <- .eval_classif(data_trn, data_tst)
+
 
 ```
 
-## Imputations
+# How many neighbors?
+
+Sometimes we need $k$ = 1 neighbor, or 5, or 10, to get an ideal set of imputed values. However, it isn't initially clear which value of $k$ will work best for this problem. The `knn_fit` function is designed to answer this question. Instead of using a single value of $k$ in its nearest neighbor routine, `knn_fit` computes imputed values for a sequence of neighbor values, and returns each corresponding data set in a `tibble`. 
+
+## Cross-validation set up
+
+We can combine `knn_fit` with the tools in `rsample` to run a benchmarking experiment where each value of $k$ is used to impute a dataset, and that dataset is then used as training data for a `glm`, which is finally applied to predict values in a testing (not `validation`) dataset. First we'll make the cross-validation splits:
 
 ```{r}
 
-fct_lvls <- get_factor_levels(data = trn)
+# set up 10-fold CV training/testing data 
+# based on the derivation sample.
 
-soft_fits <- spread_cats(trn) %>% 
-  soft_fit(
-    n_lambda = 20, 
-    rank_step = 1, 
-    scale_data = FALSE,
+analysis <- vfold_cv(derivation, v = 5) %>% 
+  transmute(
+    # grab training/testing data from splits
+    training = map(splits, ~.x$data[.x$in_id, ]),
+    testing = map(splits, ~.x$data[-.x$in_id, ])
   ) 
 
-knn_imputes <- knn_fit(trn, k_neighbors = 40, k_step = 2) %>% 
-  mutate(data=map(data, spread_cats))
+analysis
 
-soft_imputes <- spread_cats(trn) %>% 
-  soft_fill(fits = soft_fits)
+```
 
+And now, for each row in `analysis`,
 
-imputes <- list(
-  knn = knn_imputes,
-  soft = soft_imputes
-) %>% 
-  bind_rows(.id = 'algo') %>% 
-  select(algo, impute, data) %>% 
-  mutate(
-    dmat = map(
-      .x = data,
-      .f = ~ {
-        .x %>% 
-          select(-starts_with("Status")) %>% 
-          as.matrix() %>% 
-          xgb.DMatrix(label = .x$Status_good)
-      }
-    ),
-    xgb_fit = map(
-      .x = dmat,
-      .f = ~ xgb.train(
-        data = .x,
-        nrounds = 500,
-        watchlist = list(test = xgb_tst),
-        print_every_n = 100,
-        params = list(
-          eta = 0.075, 
-          max_depth = 3, 
-          min_child_weight = 5, 
-          subsample = 1,
-          objective = 'binary:logistic',
-          base_score = mean(trn$Status=='good'),
-          eval_metric = 'auc'
-        )
-      )
-    ),
-    best_vals = map(
-      .x = xgb_fit, 
-      .f = ~ .x$evaluation_log %>% 
-        arrange(desc(test_auc)) %>% 
-        select(iter, test_auc) %>% 
-        dplyr::slice(1) %>% 
-        as.list()
+1. apply `knn_fit` to create 20 imputed `training` sets.
+2. apply `.eval_classif` to evaluate the `glm` fitted to each imputed set.
+
+```{r}
+
+# step 1
+analysis %<>% mutate(
+  cv_rslt = map2(
+    .x = training, 
+    .y = testing,
+    .f = ~ knn_fit( 
+      data = .x, 
+      outcome = 'Status', 
+      n_impute = 20, 
+      step_size = 2,
+      verbose = FALSE
     )
   )
-
-xgb_eval <- imputes %>% 
-  select(algo, impute, xgb_fit) %>% 
-  mutate(eval_log = map(xgb_fit, 'evaluation_log')) %>% 
-  select(-xgb_fit) %>% 
-  unnest(col = eval_log) %>% 
-  ggplot(aes(x=iter, y=test_auc, col=impute, group = impute)) +
-  geom_line() + 
-  facet_wrap(~algo)
-
+)
+  
+analysis
 
 ```
 
 
 ```{r}
 
-mi_num <- 10
+# step 2
+mm_impute <- function(data){
+  imp_vals <- map(data, .f = ~ {
+    if(is.factor(.x)){
+      tb = table(.x)
+      names(tb)[which.max(tb)]
+    } else {
+      mean(.x, na.rm = TRUE)
+    }
+  })
+  for(i in names(data)){
+    data[[i]][is.na(data[[i]])] <- imp_vals[[i]]
+  }
+  data
+}
 
-mi_prd <- imputes %>% 
-  unnest_wider(col = best_vals) %>% 
-  arrange(desc(test_auc)) %>% 
-  dplyr::slice(1:mi_num) %>% 
+
+cv_rslts <- analysis %>% 
+  select(cv_rslt, testing) %>% 
+  unnest(cols = cv_rslt) %>% 
   mutate(
-    prd = map2(
-      .x = xgb_fit, 
-      .y = iter, 
-      .f = ~ predict(
-        .x, newdata = xgb_tst, ntreelimit = .y
-      )
-    )
-  ) %>% 
-  pull(prd) %>% 
-  reduce(`+`) %>% 
-  divide_by(mi_num)
-  
-mi_auc <-
-  pROC::roc(response = tst$Status=='good', predictor = mi_prd) %>% 
-  use_series("auc") %>% 
-  as.numeric()
-  
-soft_stack <- imputes %>% 
-  unnest_wider(col = best_vals) %>% 
-  arrange(desc(test_auc)) %>% 
-  dplyr::slice(1:mi_num) %>% 
-  summarise(data = list(as_midy(data))) %>% 
-  mutate(
-    dmat = map(
-      data,
-      .f = ~ select(.x, -starts_with("Status"), -._midy.ID_.) %>% 
-      as.matrix() %>% 
-      xgb.DMatrix(label = .x$Status_good) 
-    ),
-    xgb_fit = map(
-      .x = dmat,
-      .f = ~ xgb.train(
-        data = .x,
-        nrounds = 500,
-        watchlist = list(test = xgb_tst),
-        print_every_n = 100,
-        params = list(
-          eta = 0.075, 
-          max_depth = 3, 
-          min_child_weight = 5, 
-          subsample = 1 / mi_num,
-          num_parallel_trees = mi_num,
-          objective = 'binary:logistic',
-          base_score = mean(trn$Status=='good'),
-          eval_metric = 'auc'
-        )
-      )
+    eval = map2(
+      .x = data,
+      .y = testing, 
+      .f = ~.eval_classif(.x, mm_impute(.y))
     )
   )
 
-stack_auc <- soft_stack$xgb_fit[[1]] %>% 
-  use_series('evaluation_log') %>% 
-  arrange(desc(test_auc)) %>% 
-  dplyr::slice(1) %>% 
-  pull(test_auc)
+cv_smry <- cv_rslts %>% 
+  unnest_wider(col = eval) %>% 
+  select(impute, neighbors, bri, auc) %>% 
+  group_by(neighbors) %>% 
+  summarize_all(mean)
 
-imputes %>% 
-  unnest_wider(best_vals) %>% 
-  select(algo, impute, auc = test_auc) %>% 
-  mutate(impute = paste(algo, "iter", impute)) %>% 
-  add_row(impute = "MI, ensemble", auc = mi_auc) %>% 
-  add_row(impute = "MI, stacked", auc = stack_auc) %>% 
-  mutate(impute = reorder(impute, auc)) %>% 
-  ggplot(aes(x = impute, y = auc)) + 
-  geom_point() +
-  coord_flip()
-    
+cv_smry 
 
 ```
 
+Choosing the neighbor count that maximized cross-validated AUC:
+
+```{r}
+
+neighbor_vals <- cv_smry %>%
+  arrange(desc(auc)) %>% 
+  dplyr::slice(1:5) %>% 
+  pull(neighbors)
+
+neighbor_cv <- neighbor_vals[1]
+
+reci <- recipe(Status ~ ., data = derivation) %>% 
+  step_knnimpute(all_predictors(), neighbors = neighbor_cv) %>%
+  prep()
+
+data_trn <- juice(reci)
+data_tst <- bake(reci, new_data = validation)
+
+knn_cv <- .eval_classif(data_trn, data_tst)
+
+```
+
+# Multiple imputation
+
+```{r}
+
+knn_mi <- knn_fit(
+  data = derivation, 
+  outcome = 'Status', 
+  neighbor_sequence = neighbor_vals
+)
+
+mdl_mi <- map(
+  .x = knn_mi$data,
+  .f = ~ glm(Status ~ ., family = binomial, 
+    data = select(.x, -ends_with('imp')))
+)
+
+prd_mi <- map_dfc(
+  .x = mdl_mi, 
+  .f = predict, 
+  newdata = validation,
+  type = 'response'
+) %>%
+  apply(1, mean)
+
+knn_ens <- c(
+  auc = roc(
+    response = validation$Status=='good', 
+    predictor = prd_mi
+  ) %>% 
+    use_series("auc") %>% 
+    as.numeric(),
+  bri = BrierScore(
+    resp = as.numeric(validation$Status=='good'), 
+    pred = prd_mi, 
+    scale = TRUE
+  )
+)
+
+knn_ens
+
+
+
+
+```
+
+# Summary
+
+This article has shown how to use `fit` and `fill` functions to experiment with different strategies to handle missing data and then apply that strategy in a modeling workflow. Results that we have shown along the way demonstrate how careful selection of hyper-parameters for missing data algorithms (i.e., k-nearest-neighbors) and ensembling or stacking imputed datasets can help to increase the accuracy of your model's predictions. The table below summarizes the cases we covered: 
+
+
+```{r}
+
+fnl <- list(
+  `Original data (no missing)` = performance_orig,
+  `Default k-nearest neighbor imputation` = knn_5,
+  `Tuning k with cross-validation` = knn_cv,
+  `Ensembling the top 5 values of k` = knn_ens
+) %>% 
+  map(as_tibble) %>% 
+  map(mutate, variable = c("AUC", "Brier Score (scaled)")) %>% 
+  bind_rows(.id = 'Missing strategy') %>% 
+  mutate(`Missing strategy` = forcats::fct_inorder(`Missing strategy`)) %>% 
+  spread(variable, value)
+
+fnl
+
+```
+
+
+<!-- # Data stacking -->
+
+<!-- Pooling models is fundamentally important for statistical inference, but isn't a necessity when it comes to predictive models. In fact, it could be argued that stacking data and fitting one predictive model makes it *easier* to interpret the model compared to interpreting an ensemble of models. Additionally, a model based on stacked data might just be more prognostic than an ensemble of models based on separate imputations. -->
+
+```{r}
+
+# mdl_stk <- bind_rows(knn_mi$data)
+# 
+# knn_stk <- .eval_classif(mdl_stk, data_tst)
+
+```

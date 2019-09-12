@@ -4,17 +4,17 @@
 \alias{soft_fit}
 \title{soft imputation.}
 \usage{
-soft_fit(data, n_lambda = 10, scale_lambda = 0.95,
-  lambda_sequence = NULL, rank_step = 1, scale_data = TRUE,
+soft_fit(data, outcome, n_impute = 10, step_size = 1,
+  scale_data = TRUE, scale_lambda = 0.95, lambda_sequence = NULL,
   verbose = TRUE, ...)
 }
 \arguments{
 \item{data}{data.frame or matrix}
 
-\item{n_lambda}{An integer indicating the number of multiply imputed
+\item{n_impute}{An integer indicating the number of multiply imputed
 datasets to create.}
 
-\item{rank_step}{An integer indicating the number by which to increase
+\item{step_size}{An integer indicating the number by which to increase
 the maximum rank of the softImpute solution after each iteration.}
 
 \item{verbose}{\code{TRUE} or \code{FALSE}. if \code{TRUE}, output will be

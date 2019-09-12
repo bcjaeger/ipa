@@ -141,40 +141,44 @@ naniar::vis_miss(trn)
 
 ```{r}
 
-fits <- soft_fit(
-  data = trn,
-  n_lambda = 20, 
-  rank_step = 1, 
-  scale_data = FALSE
-) 
-
-soft_imp <- soft_fill(trn, fits = fits)
-
-soft_imp
+soft_imputes <- trn %>%
+  soft_fit(
+    outcome = 'response', 
+    n_impute = 20, 
+    step_size = 1, 
+    scale_data = TRUE
+  ) %>% 
+  soft_fill(new_data = trn)
 
 ```
 
+## Standard approach
 
+A traditional approach to develop a predictive model with linear regression is to impute missing values of continuous variables using the mean observed value. 
 
 ```{r}
 
 mse <- function(x,y) mean((x-y)^2)
 
-tst_y = tst$response
+mean_imputer <- function(x) {
+  x[is.na(x)] <- mean(x, na.rm=TRUE)
+  x
+}
+
+tst_y <- tst$response
 
 ref_rmse <- sqrt(mse(tst_y, mean(tst_y)))
-
-ref_imp <- trn %>% 
-  map_dfc(.f = ~{
-    .x[is.na(.x)] <- mean(.x, na.rm=TRUE)
-    .x
-  })
-
+ref_imp <- trn %>% map_dfc(.f = mean_imputer)
 ref_mdl <- lm(response ~ ., data = ref_imp)
 ref_prd <- predict(ref_mdl, newdata = tst)
 ref_rsq <- 1 - sqrt(mse(tst_y, ref_prd)) / ref_rmse
 
-soft_imp %<>% 
+```
+
+
+```{r}
+
+soft_imputes %<>% 
   mutate(
     mdl = map(data, .f = ~ lm(response ~ ., data = .x)),
     trn_rsq = map_dbl(mdl, .f = ~ summary(.x)$r.squared),
@@ -182,7 +186,7 @@ soft_imp %<>%
     tst_rsq = map_dbl(tst_prd, .f = ~1 - sqrt(mse(.x, tst_y)) / ref_rmse),
   )
 
-soft_imp %>% 
+soft_imputes %>% 
   select(impute, ends_with('rsq')) %>% 
   gather(variable, value, -impute) %>% 
   mutate(

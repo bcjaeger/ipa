@@ -4,8 +4,9 @@
 \alias{knn_fit}
 \title{k-nearest-neighbor (knn) imputation}
 \usage{
-knn_fit(data, vars = NULL, k_neighbors = 12, k_step = 2, ...)
+knn_fit(data, outcome, n_impute = 10, step_size = 1,
+  neighbor_sequence = NULL, verbose = TRUE, ...)
 }
 \description{
-k-nearest-neighbor (knn) imputation
+Adapted from Max Kuhn's knn imputation functions in recipes
 }

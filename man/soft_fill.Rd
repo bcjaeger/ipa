@@ -4,12 +4,12 @@
 \alias{soft_fill}
 \title{soft imputation.}
 \usage{
-soft_fill(data, fits)
+soft_fill(fits, new_data)
 }
 \arguments{
-\item{data}{object to be imputed}
-
 \item{fits}{an object returned from \code{\link[=soft_fit]{soft_fit()}}}
+
+\item{new_data}{object to be imputed}
 }
 \value{
 a \link[tibble:tibble-package]{tibble} comprising the

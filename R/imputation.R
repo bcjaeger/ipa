@@ -7,10 +7,10 @@
 #'
 #' @param data data.frame or matrix
 #'
-#' @param n_lambda An integer indicating the number of multiply imputed
+#' @param n_impute An integer indicating the number of multiply imputed
 #'   datasets to create.
 #'
-#' @param rank_step An integer indicating the number by which to increase
+#' @param step_size An integer indicating the number by which to increase
 #'   the maximum rank of the softImpute solution after each iteration.
 #'
 #' @param verbose `TRUE` or `FALSE`. if `TRUE`, output will be
@@ -36,23 +36,32 @@
 #'
 
 # data = trn
-# n_lambda = 20
-# rank_step = 1
+# n_impute = 20
+# step_size = 1
 # scale_data = FALSE
 # .dots = list()
 
 soft_fit <- function(
   data,
-  n_lambda = 10,
+  outcome,
+  n_impute = 10,
+  step_size = 1,
+  scale_data = TRUE,
   scale_lambda = 0.95,
   lambda_sequence = NULL,
-  rank_step = 1,
-  scale_data = TRUE,
   verbose = TRUE,
   ...
 ){
 
-  numeric_cols <- map_lgl(data, is.numeric)
+  if(!(outcome %in% names(data))){
+    stop('outcome is not in the data')
+  }
+
+  new_data <- data
+
+  new_data[, outcome] = NULL
+
+  numeric_cols <- map_lgl(new_data, is.numeric)
 
   if(!all(numeric_cols)){
 
@@ -76,16 +85,16 @@ soft_fit <- function(
       )
     )
 
-  lam0 <- lambda0(x = data) * scale_lambda
-  lamseq <- lambda_sequence %||% seq(lam0, 1, length = n_lambda)
-  n_lambda <- n_lambda %||% length(lamseq)
+  lam0 <- lambda0(x = new_data) * scale_lambda
+  lamseq <- lambda_sequence %||% seq(lam0, 1, length = n_impute)
+  n_impute <- n_impute %||% length(lamseq)
 
   fits = as.list(lamseq)
   ranks = as.integer(lamseq)
-  rank.max = rank_max = min(dim(data)) - 1
+  rank.max = rank_max = min(dim(new_data)) - 1
   warm = NULL
 
-  .dots$x <- as.matrix(data)
+  .dots$x <- as.matrix(new_data)
 
   if(scale_data) .dots$x %<>% biScale()
 
@@ -98,7 +107,7 @@ soft_fit <- function(
     fiti <- do.call(softImpute, args = .dots)
 
     attr(fiti, 'rank') <- ranks[i] <- sum(round(fiti$d, 4) > 0)
-    rank.max = min(ranks[i] + rank_step, rank_max)
+    rank.max = min(ranks[i] + step_size, rank_max)
     warm = fiti
     fits[[i]] = fiti
 
@@ -106,7 +115,7 @@ soft_fit <- function(
 
       print(
         glue(
-          "fit {i} of {n_lambda}: \\
+          "fit {i} of {n_impute}: \\
           lambda = {format(round(lamseq[i], 3),nsmall=3)}, \\
           rank.max = {rank.max} \\
           rank.fit = {ranks[i]}"
@@ -121,88 +130,261 @@ soft_fit <- function(
 
 }
 
+
+#' mode estimation
+#'
+#' (copied from recipes)
+#'
+mode_est <- function (x)
+{
+  if (!is.character(x) & !is.factor(x))
+    stop(
+      "The data should be character or factor to compute the mode.",
+      call. = FALSE
+    )
+
+  tab <- table(x)
+  modes <- names(tab)[tab == max(tab)]
+  sample(modes, size = 1)
+
+}
+
+#' aggregate knn values
+
+knn_aggr <- function(x){
+
+  if(is.numeric(x)){
+
+    mean(x, na.rm = TRUE)
+
+  } else if (is.character(x) || is.factor(x)) {
+
+    mode_est(x)
+
+  }
+
+}
+
+nn_pred <- function(index, dat, k) {
+  dat <- dat[index[1:k], ]
+  dat <- getElement(dat, names(dat))
+  dat <- dat[!is.na(dat)]
+  est <- if (is.factor(dat) | is.character(dat))
+    mode_est(dat)
+  else
+    mean(dat)
+  est
+}
+
 #' k-nearest-neighbor (knn) imputation
+#' @export
+
+knn_fill <- function(
+  data,
+  new_data,
+  outcome,
+  n_impute = 10,
+  step_size = 1,
+  neighbor_sequence = NULL,
+  verbose = TRUE,
+  ...
+) {
+
+  .dots <- list(...) %>%
+    check_dots(valid_args = c('eps', 'nthread'))
+
+  if( !('eps' %in% names(.dots)) ){
+    .dots$eps <- 1e-08
+  }
+
+  if( !('nthread' %in% names(.dots)) ){
+    .dots$nthread <- getOption("gd_num_thread")
+  }
+
+
+  if(nrow(data) == 0 || ncol(data)==0){
+    stop("data is empty", call.=FALSE)
+  }
+
+  if(nrow(new_data) == 0 || ncol(new_data)==0){
+    stop("new_data is empty", call.=FALSE)
+  }
+
+  neighbor_sequence <- neighbor_sequence %||%
+    seq(
+      from = step_size,
+      to = n_impute,
+      by = step_size
+    )
+
+  output <- knn_work(
+    ref_data = data,
+    new_data = new_data,
+    outcome = outcome,
+    neighbor_sequence = neighbor_sequence,
+    nthread = .dots$nthread,
+    epsilon = .dots$eps,
+    verbose = verbose
+  )
+
+}
+
+#' k-nearest-neighbor (knn) imputation
+#' @description  Adapted from Max Kuhn's knn imputation functions in recipes
 #' @export
 
 knn_fit <- function(
   data,
-  vars = NULL,
-  k_neighbors = 12,
-  k_step = 2,
+  outcome,
+  n_impute = 10,
+  step_size = 1,
+  neighbor_sequence = NULL,
+  verbose = TRUE,
   ...
-){
-
-  if(k_neighbors %% k_step != 0){
-    stop("k_step should evenly divide k_neighbors", call. = FALSE)
-  }
-
-  n_step <- k_neighbors / k_step
-
-  .vars <- vars %||% colnames(data)
+) {
 
   .dots <- list(...) %>%
-    check_dots(
-      valid_args = c("eps", "weights", "ignore_case", "nthread")
-    )
+    check_dots(valid_args = c('eps', 'nthread'))
 
-  .dots$x <- .dots$y <- data[, .vars]
-  .dots$n <- nrow(data)
-
-  gower <- do.call(gower_topn, args = .dots)
-
-  obs_index <- map(data, ~which(!is.na(.x)))
-
-  imputes <- tibble(
-    row_index = which(!complete.cases(data)),
-    col_index = map(row_index, ~which(is.na(data[.x, ])))
-  ) %>%
-    unnest(col = col_index) %>%
-    mutate(
-      vals = map2(
-        .x = row_index,
-        .y = col_index,
-        .f = ~ {
-          .rows <- intersect(gower$index[,.x], obs_index[[.y]])
-          .stop <- min(k_neighbors, length(.rows))
-          .vals <- data[.rows[1:.stop], .y, drop=TRUE]
-          .gwrd <- gower$distance[obs_index[[.y]], .x][1:.stop]
-          list(values = .vals, gower_d = .gwrd)
-        }
-      )
-    ) %>%
-    unnest_wider(col = vals) %>%
-    add_class("fit_knn")
-
-  output <- vector(mode='list', length = n_step)
-
-  for( i in seq_along(output) ){
-
-    output[[i]] <- data
-    n_neighbors <- i * k_step
-
-    for(j in 1:nrow(imputes)){
-
-      output[[i]][imputes$row_index[j], imputes$col_index[j]] <-
-        if(is.numeric(imputes$values[[j]])){
-
-          mean(imputes$values[[j]][1:n_neighbors])
-
-        } else {
-
-          names(which.max(table(imputes$values[[j]][1:n_neighbors])))
-
-        }
-
-    }
-
+  if( !('eps' %in% names(.dots)) ){
+    .dots$eps <- 1e-08
   }
 
-  output %>%
-    format_data_list() %>%
-    mutate(k_neighbors = seq(k_step, k_neighbors, by = k_step)) %>%
-    select(impute, k_neighbors, data)
+  if( !('nthread' %in% names(.dots)) ){
+    .dots$nthread <- getOption("gd_num_thread")
+  }
+
+
+  if(nrow(data) == 0 || ncol(data)==0){
+    stop("data is empty", call.=FALSE)
+  }
+
+  neighbor_sequence <- neighbor_sequence %||%
+    seq(
+      from = step_size,
+      to = n_impute,
+      by = step_size
+    )
+
+  output <- knn_work(
+    ref_data = data,
+    outcome = outcome,
+    neighbor_sequence = neighbor_sequence,
+    nthread = .dots$nthread,
+    epsilon = .dots$eps,
+    verbose = verbose
+  )
 
 }
+
+
+
+knn_work <- function(
+  ref_data,
+  new_data = NULL,
+  outcome,
+  neighbor_sequence,
+  nthread = 1,
+  epsilon = 1e-08,
+  verbose = TRUE
+) {
+
+  new_data <- new_data %||% ref_data
+
+  n_impute <- length(neighbor_sequence)
+
+  missing_rows <- !complete.cases(new_data)
+  if (!any(missing_rows))
+    return(new_data)
+
+  fits <- vector(mode = 'list', length = n_impute)
+
+  for( i in seq(n_impute) ){
+    fits[[i]] <- new_data
+  }
+
+  for ( i in seq(ncol(ref_data)) ) {
+
+    imp_var <- names(new_data)[i]
+    missing_rows <- !complete.cases(new_data[, imp_var])
+
+    if ( any(missing_rows) ) {
+
+      preds <- names(new_data)[-i]
+      preds <- preds[-which(preds==outcome)]
+      imp_data <- new_data[missing_rows, preds, drop = FALSE]
+
+      ## do a better job of checking this:
+      if (all(is.na(imp_data))) {
+
+        warning(
+          "All predictors are missing; cannot impute",
+          call. = FALSE
+        )
+
+      } else {
+
+        imp_var_complete <- !is.na(ref_data[[imp_var]])
+        n_complete <- sum(imp_var_complete)
+
+        n <- min(
+          n_complete,
+          max(neighbor_sequence)
+        )
+
+        if(verbose){
+
+          nthings <- min(length(preds), 4)
+
+          print(
+            glue(
+              "imputing {imp_var} (nobs = {n_complete}) using \\
+              {glue_collapse(preds[1:nthings], sep = ', ')}, \\
+              and others"
+            )
+          )
+
+        }
+
+        nn_index <- gower_topn(
+          x = imp_data[, preds],
+          y = ref_data[imp_var_complete, preds],
+          n = n,
+          nthread = nthread,
+          eps = epsilon
+        )$index
+
+        pred_vals <- map(
+          .x = neighbor_sequence,
+          .f = ~ {
+
+            if(verbose){
+              print(glue("computing values using {.x} neighbors"))
+            }
+
+            apply(
+              X = nn_index,
+              MARGIN = 2,
+              FUN = nn_pred,
+              dat = ref_data[imp_var_complete, imp_var],
+              k = .x
+            )
+
+          }
+        )
+
+        for(j in 1:n_impute){
+          fits[[j]][missing_rows, imp_var] <- pred_vals[[j]]
+        }
+
+      }
+    }
+  }
+
+  fits
+
+}
+
 
 
 #'  soft imputation.
@@ -210,9 +392,9 @@ knn_fit <- function(
 #' @description an adaptation of the soft impute algorithm for
 #'   multiply imputed data.
 #'
-#' @param data object to be imputed
-#'
 #' @param fits an object returned from [soft_fit()]
+#'
+#' @param new_data object to be imputed
 #'
 #' @note see [softimpute][softImpute::softImpute()] for a more
 #'   descriptive summary of the `softImpute` algorithm.
@@ -232,29 +414,20 @@ knn_fit <- function(
 #'
 
 soft_fill <- function(
-  data,
-  fits
+  fits,
+  new_data
 ) {
 
-  data %<>% as.matrix()
+  new_data %<>% as.matrix()
 
   output <- map(
     .x = fits,
-    .f = ~ softImpute::complete(data, object = .x, unscale = TRUE)
-  ) %>%
-    format_data_list() %>%
-    mutate(
-      lambda = map_dbl(fits, ~attr(.x, 'lambda')),
-      rank = map_dbl(fits, ~attr(.x, 'rank'))
-    ) %>%
-    select(impute, lambda, rank, data)
+    .f = ~ softImpute::complete(new_data, object = .x, unscale = TRUE)
+  )
 
   output
 
 }
-
-
-
 
 
 #' transfer factor levels
@@ -397,3 +570,12 @@ as_mi <- function(data){
 
 
 
+# format_data_list(fits) %>%
+#   mutate(neighbors = neighbor_sequence)
+#
+# format_data_list() %>%
+#   mutate(
+#     lambda = map_dbl(fits, ~attr(.x, 'lambda')),
+#     rank = map_dbl(fits, ~attr(.x, 'rank'))
+#   ) %>%
+#   select(impute, lambda, rank, data)
