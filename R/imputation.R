@@ -165,15 +165,21 @@ knn_aggr <- function(x){
 
 }
 
-nn_pred <- function(index, dat, k) {
+nn_pred <- function(index, dat, k, random = FALSE) {
   dat <- dat[index[1:k], ]
   dat <- getElement(dat, names(dat))
   dat <- dat[!is.na(dat)]
-  est <- if (is.factor(dat) | is.character(dat))
-    mode_est(dat)
-  else
-    mean(dat)
-  est
+
+  if(random){
+    return(sample(dat, 1))
+  }
+
+  if (is.factor(dat) | is.character(dat)){
+    return(mode_est(dat))
+  }
+
+  mean(dat)
+
 }
 
 #' k-nearest-neighbor (knn) imputation
