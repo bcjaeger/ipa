@@ -149,23 +149,9 @@ mode_est <- function (x)
 
 }
 
-#' aggregate knn values
-
-knn_aggr <- function(x){
-
-  if(is.numeric(x)){
-
-    mean(x, na.rm = TRUE)
-
-  } else if (is.character(x) || is.factor(x)) {
-
-    mode_est(x)
-
-  }
-
-}
 
 nn_pred <- function(index, dat, k, random = FALSE) {
+
   dat <- dat[index[1:k], ]
   dat <- getElement(dat, names(dat))
   dat <- dat[!is.na(dat)]
@@ -282,7 +268,6 @@ knn_fit <- function(
   )
 
 }
-
 
 
 knn_work <- function(
@@ -495,30 +480,20 @@ transfer_factor_levels <- function(to, from){
 }
 
 
-#' Prepare `si`/`mi`/`midy` data
+#' Prepare data stacks/lists
 #'
-#' @description `si` objects are singly imputed dataframes where
-#'   missing values are filled in with a model's predicted value.
-#'   `mi` and `midy` objects are dataframes comprising multiply imputed
+#' @description stacked dataframes comprising multiply imputed
 #'   dataframes stacked on top of one another. Imputed values in
-#'   `mi` and `midy` objects are a model prediction + random noise.
+#'   these objects are usually a model prediction + random noise.
 #'   The additional noise creates diversity among the multiple
-#'   dataframes. Data in `mi` objects are sorted by `._mi.ID_.`,
-#'   which identifies dataframes. Data in `midy` objects are sorted
-#'   by `._midy.ID_.`, which identifies rows in the original (unimputed)
-#'   data.
+#'   dataframes. Data lists are similar, but data frames are kept
+#'   separate and one model is fit for each data set.
 #'
 #'   These functions create ID variables and attach classes and attributes
 #'   that are used to direct downstream analyses.
 #'
 #' @param data This argument should be a list a list of
-#'   imputed dataframes, each having the same number of rows and columns,
-#'   for `as_midy` and `as_mi`. For `as_si`, this argument should be
-#'   a data frame with imputed values.
-#'
-#' @note Imputed dataframes are copies of an original dataframe,
-#'   with cells that originally had missing values filled in
-#'   with a plausible estimate.
+#'   imputed dataframes, each having the same number of rows and columns.
 #'
 #' @export
 #'
@@ -528,25 +503,25 @@ transfer_factor_levels <- function(to, from){
 #'   df2 = data.frame(a = 2:4, b = letters[2:4])
 #' )
 #'
-#' as_midy(data_list)
+#' as_data_stack(data_list)
 #'
 #' as_mi(data_list)
 #'
 #' as_si(data_list[[1]])
 
-as_midy <- function(data){
+as_data_stack <- function(data){
 
     nimpute <- length(data)
 
     data %<>% map(
       .f = ~ .x %>%
         ungroup() %>%
-        mutate(._midy.ID_. = 1:n())
+        mutate(._ID_. = 1:n())
     ) %>%
       bind_rows() %>%
       as_tibble() %>%
-      arrange(._midy.ID_.) %>%
-      select(._midy.ID_., everything()) %>%
+      arrange(._ID_.) %>%
+      select(._ID_., everything()) %>%
       set_miss_strat(miss_strat = 'midy')
 
     attr(data, 'nimpute') <- nimpute
@@ -555,16 +530,16 @@ as_midy <- function(data){
 
 }
 
-#' @rdname as_midy
+#' @rdname as_data_stack
 #' @export
-as_mi <- function(data){
+as_data_list <- function(data){
 
   nimpute <- length(data)
 
   data %<>%
-    bind_rows(.id = '._mi.ID_.') %>%
+    bind_rows(.id = '._ID_.') %>%
     as_tibble() %>%
-    select(._mi.ID_., everything()) %>%
+    select(._ID_., everything()) %>%
     set_miss_strat(miss_strat = 'mi')
 
   attr(data, 'nimpute') <- nimpute

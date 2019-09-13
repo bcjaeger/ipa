@@ -87,8 +87,8 @@ get_miss_strat <- function(object){
 
   cls <- c(
     si = inherits(object, paste0('si_', types)),
-    mi = inherits(object, paste0('mi_', types)),
-    midy = inherits(object, paste0('midy_', types))
+    list = inherits(object, paste0('list_', types)),
+    stack = inherits(object, paste0('stack_', types))
   )
 
   if (sum(cls) > 1) {

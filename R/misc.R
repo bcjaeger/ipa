@@ -48,9 +48,14 @@ add_attrs <- function(object, ...){
 }
 
 #' add class to an object
-add_class <- function(object, new_class){
+add_class_first <- function(object, new_class){
   class(object) %<>% c(new_class)
   object
 }
 
+#' add class to an object
+add_class_last <- function(object, new_class){
+  class(object) %<>% c(., new_class)
+  object
+}
 

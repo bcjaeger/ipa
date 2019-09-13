@@ -4,7 +4,8 @@
 \alias{knn_fill}
 \title{k-nearest-neighbor (knn) imputation}
 \usage{
-knn_fill(fits, new_data)
+knn_fill(data, new_data, outcome, n_impute = 10, step_size = 1,
+  neighbor_sequence = NULL, verbose = TRUE, ...)
 }
 \description{
 k-nearest-neighbor (knn) imputation
