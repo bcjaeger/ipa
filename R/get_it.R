@@ -112,3 +112,21 @@ get_miss_strat <- function(object){
 
 }
 
+
+
+get_status <- function(mgb_surv_label){
+
+  out <- rep(0, length(mgb_surv_label))
+  out[mgb_surv_label > 0] = 1
+  out
+
+}
+
+get_time <- function(mgb_surv_label){
+
+  abs(mgb_surv_label)
+
+}
+
+
+

@@ -295,11 +295,13 @@ add_missing <- function(
   )
 
   for(f in names(fctrs)){
-    miss_df[[f]] %<>%
-      factor(
-        levels = 1:length(fctrs[[f]]),
-        labels = fctrs[[f]]
-      )
+    if(is.numeric(miss_df[[f]])){
+      miss_df[[f]] %<>%
+        factor(
+          levels = 1:length(fctrs[[f]]),
+          labels = fctrs[[f]]
+        )
+    }
   }
 
   miss_df

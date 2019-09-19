@@ -60,7 +60,7 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(
     "value",
     "params",
     "level",
-    "nimpute",
+    "n_impute",
     "variable",
     "miss_stat",
     "importance",

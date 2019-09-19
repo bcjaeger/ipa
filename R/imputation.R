@@ -35,11 +35,16 @@
 #' @export
 #'
 
-# data = trn
+# data = data$train %>% spread_cats()
+# outcome = c("time","status")
 # n_impute = 20
 # step_size = 1
-# scale_data = FALSE
+# scale_data = T
+# scale_iter = 20
 # .dots = list()
+# scale_lambda = 0.95
+# lambda_sequence = NULL
+# verbose = TRUE
 
 soft_fit <- function(
   data,
@@ -47,13 +52,14 @@ soft_fit <- function(
   n_impute = 10,
   step_size = 1,
   scale_data = TRUE,
+  scale_iter = 20,
   scale_lambda = 0.95,
   lambda_sequence = NULL,
   verbose = TRUE,
   ...
 ){
 
-  if(!(outcome %in% names(data))){
+  if(!all(outcome %in% names(data))){
     stop('outcome is not in the data')
   }
 
@@ -96,7 +102,15 @@ soft_fit <- function(
 
   .dots$x <- as.matrix(new_data)
 
-  if(scale_data) .dots$x %<>% biScale()
+  if(scale_data){
+
+    if(verbose){
+      message("Applying biScale() to data")
+    }
+
+    .dots$x %<>% biScale(maxit = scale_iter, trace = verbose)
+
+  }
 
   for( i in seq_along(lamseq) ){
 
@@ -113,7 +127,7 @@ soft_fit <- function(
 
     if(verbose){
 
-      print(
+      message(
         glue(
           "fit {i} of {n_impute}: \\
           lambda = {format(round(lamseq[i], 3),nsmall=3)}, \\
@@ -127,6 +141,49 @@ soft_fit <- function(
   }
 
   fits
+
+}
+
+
+#'  soft imputation.
+#'
+#' @description an adaptation of the soft impute algorithm for
+#'   multiply imputed data.
+#'
+#' @param fits an object returned from [soft_fit()]
+#'
+#' @param new_data object to be imputed
+#'
+#' @note see [softimpute][softImpute::softImpute()] for a more
+#'   descriptive summary of the `softImpute` algorithm.
+#'
+#' @return a [tibble][tibble::tibble-package] comprising the
+#'   multiply imputed data, which are identified by the `.impute`
+#'   column
+#'
+#' @author Trevor Hastie, Rahul Mazumder
+#'
+#' @references Rahul Mazumder, Trevor Hastie and Rob Tibshirani (2010)
+#'   Spectral Regularization Algorithms for Learning Large Incomplete
+#'   Matrices, http://www.stanford.edu/~hastie/Papers/mazumder10a.pdf
+#'   *Journal of Machine Learning Research* 11 (2010) 2287-2322
+#'
+#' @export
+#'
+
+soft_fill <- function(
+  fits,
+  new_data
+) {
+
+  new_data %<>% as.matrix()
+
+  output <- map(
+    .x = fits,
+    .f = ~ softImpute::complete(new_data, object = .x, unscale = TRUE)
+  )
+
+  output
 
 }
 
@@ -148,7 +205,6 @@ mode_est <- function (x)
   sample(modes, size = 1)
 
 }
-
 
 nn_pred <- function(index, dat, k, random = FALSE) {
 
@@ -205,7 +261,7 @@ knn_fill <- function(
   neighbor_sequence <- neighbor_sequence %||%
     seq(
       from = step_size,
-      to = n_impute,
+      to = n_impute * step_size,
       by = step_size
     )
 
@@ -302,7 +358,7 @@ knn_work <- function(
     if ( any(missing_rows) ) {
 
       preds <- names(new_data)[-i]
-      preds <- preds[-which(preds==outcome)]
+      preds <- preds[-which(preds %in% outcome)]
       imp_data <- new_data[missing_rows, preds, drop = FALSE]
 
       ## do a better job of checking this:
@@ -375,179 +431,6 @@ knn_work <- function(
   fits
 
 }
-
-
-
-#'  soft imputation.
-#'
-#' @description an adaptation of the soft impute algorithm for
-#'   multiply imputed data.
-#'
-#' @param fits an object returned from [soft_fit()]
-#'
-#' @param new_data object to be imputed
-#'
-#' @note see [softimpute][softImpute::softImpute()] for a more
-#'   descriptive summary of the `softImpute` algorithm.
-#'
-#' @return a [tibble][tibble::tibble-package] comprising the
-#'   multiply imputed data, which are identified by the `.impute`
-#'   column
-#'
-#' @author Trevor Hastie, Rahul Mazumder
-#'
-#' @references Rahul Mazumder, Trevor Hastie and Rob Tibshirani (2010)
-#'   Spectral Regularization Algorithms for Learning Large Incomplete
-#'   Matrices, http://www.stanford.edu/~hastie/Papers/mazumder10a.pdf
-#'   *Journal of Machine Learning Research* 11 (2010) 2287-2322
-#'
-#' @export
-#'
-
-soft_fill <- function(
-  fits,
-  new_data
-) {
-
-  new_data %<>% as.matrix()
-
-  output <- map(
-    .x = fits,
-    .f = ~ softImpute::complete(new_data, object = .x, unscale = TRUE)
-  )
-
-  output
-
-}
-
-
-#' transfer factor levels
-#'
-#' @description take the factor levels in training data
-#'   and copy them over to testing data. This is an important
-#'   pre-processing step for data splits that may have
-#'   different factor levels in training and testing sets.
-#'
-#' @param to the data that factor levels are transferred to
-#' @param from the data that factor levels are transferred from
-#'
-#' @note `to` and `from` must have the same factor columns. For example,
-#'   if `to` has a factor named `A` and `from` does not have a factor
-#'   of the same name, the function will stop and tell you which
-#'   factor variables are missing.
-#'
-#' @export
-#'
-transfer_factor_levels <- function(to, from){
-
-  # check that the two frames have the same factor variables
-
-  fctrs_to <- get_factors(to)
-  fctrs_from <- get_factors(from)
-
-  fctrs_only_in_to <- setdiff(fctrs_to, fctrs_from)
-  fctrs_only_in_from <- setdiff(fctrs_from, fctrs_to)
-
-  if(!is_empty(fctrs_only_in_to)){
-    stop(
-      paste(
-        "to some factors that are not in from:",
-        list_things(fctrs_only_in_to)
-      )
-    )
-  }
-
-  if(!is_empty(fctrs_only_in_from)){
-    stop(
-      paste(
-        "from has some factors are not in to:",
-        list_things(fctrs_only_in_from)
-      )
-    )
-  }
-
-  levels_from <- map(
-    .x = set_names(fctrs_from, fctrs_from),
-    .f = ~ levels(from[[.x]])
-  )
-
-  for(f in names(levels_from)){
-    to[[f]] %<>% factor(levels = levels_from[[f]])
-  }
-
-  return(to)
-
-}
-
-
-#' Prepare data stacks/lists
-#'
-#' @description stacked dataframes comprising multiply imputed
-#'   dataframes stacked on top of one another. Imputed values in
-#'   these objects are usually a model prediction + random noise.
-#'   The additional noise creates diversity among the multiple
-#'   dataframes. Data lists are similar, but data frames are kept
-#'   separate and one model is fit for each data set.
-#'
-#'   These functions create ID variables and attach classes and attributes
-#'   that are used to direct downstream analyses.
-#'
-#' @param data This argument should be a list a list of
-#'   imputed dataframes, each having the same number of rows and columns.
-#'
-#' @export
-#'
-#' @examples
-#' data_list <- list(
-#'   df1 = data.frame(a = 1:3, b = letters[1:3]),
-#'   df2 = data.frame(a = 2:4, b = letters[2:4])
-#' )
-#'
-#' as_data_stack(data_list)
-#'
-#' as_mi(data_list)
-#'
-#' as_si(data_list[[1]])
-
-as_data_stack <- function(data){
-
-    nimpute <- length(data)
-
-    data %<>% map(
-      .f = ~ .x %>%
-        ungroup() %>%
-        mutate(._ID_. = 1:n())
-    ) %>%
-      bind_rows() %>%
-      as_tibble() %>%
-      arrange(._ID_.) %>%
-      select(._ID_., everything()) %>%
-      set_miss_strat(miss_strat = 'midy')
-
-    attr(data, 'nimpute') <- nimpute
-
-    data
-
-}
-
-#' @rdname as_data_stack
-#' @export
-as_data_list <- function(data){
-
-  nimpute <- length(data)
-
-  data %<>%
-    bind_rows(.id = '._ID_.') %>%
-    as_tibble() %>%
-    select(._ID_., everything()) %>%
-    set_miss_strat(miss_strat = 'mi')
-
-  attr(data, 'nimpute') <- nimpute
-
-  data
-
-}
-
 
 
 

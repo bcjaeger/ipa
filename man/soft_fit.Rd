@@ -5,8 +5,8 @@
 \title{soft imputation.}
 \usage{
 soft_fit(data, outcome, n_impute = 10, step_size = 1,
-  scale_data = TRUE, scale_lambda = 0.95, lambda_sequence = NULL,
-  verbose = TRUE, ...)
+  scale_data = TRUE, scale_iter = 20, scale_lambda = 0.95,
+  lambda_sequence = NULL, verbose = TRUE, ...)
 }
 \arguments{
 \item{data}{data.frame or matrix}
