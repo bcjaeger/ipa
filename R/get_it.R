@@ -128,5 +128,28 @@ get_time <- function(mgb_surv_label){
 
 }
 
+#' @export
+get_compute_time <- function(mgb_booster, type){
+
+  if(!tolower(type) %in% c('overall', 'by_iter'))
+    stop("invalid type. Use 'overall' or 'by_iter'", call.=FALSE)
 
 
+  if(mgb_booster$miss_strat == 'mi'){
+
+    output <- map(mgb_booster$fit, 'compute_time') %>%
+      enframe() %>%
+      unnest_wider(value) %>%
+      pull(!!type) %>%
+      sum() %>%
+      as.numeric()
+
+  } else {
+
+    output <- as.numeric(mgb_booster$fit$compute_time[[tolower(type)]])
+
+  }
+
+  output
+
+}

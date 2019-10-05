@@ -30,6 +30,8 @@
 #'
 spread_cats <- function(data, factor_variables = NULL, ...){
 
+  if(!any(map_lgl(data, is.factor))) return(data)
+
   .dots <- list(...) %>%
     check_dots(
       valid_args =  c(

@@ -6,61 +6,6 @@ list_things <- function(things){
 
 }
 
-#' check inputs
-check_dots <- function(.dots, valid_args){
-
-  bad_args <- setdiff(names(.dots), valid_args)
-
-  if(!is_empty(bad_args)){
-    stop(
-      paste(
-        "The following arguments are unrecognized:",
-        list_things(bad_args)
-      ),
-      call. = FALSE
-    )
-  }
-
-  .dots
-
-}
-
-#' check missing strategy input
-check_miss_strat <- function(miss_strat){
-
-  valid_input <- miss_strat %in% c('si','mi','stacked')
-
-  if(!valid_input){
-    stop("miss_strat should be one of 'si', 'mi', or 'stacked'")
-  }
-
-}
-
-check_xgb_stack_args <- function(args, n_impute){
-
-  if( is.null(n_impute) ){
-    stop("n_impute needs to be specified", call. = FALSE)
-  }
-
-  if(!inherits(args$params, 'stacked_params')){
-    args$params %<>% stack_params(n_impute = n_impute)
-  }
-
-  if(!inherits(args$label, 'stacked_label')){
-    args$label %<>% stack_label(n_impute = n_impute)
-  }
-
-  if('folds' %in% names(args)){
-    if(!inherits(args$folds, 'stacked_folds')){
-      args$folds %<>% stack_folds(n_impute = n_impute)
-    }
-  }
-
-  args
-
-}
-
-
 #' from data list to tibble
 format_data_list <- function(list){
 

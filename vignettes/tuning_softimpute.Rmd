@@ -21,12 +21,15 @@ knitr::opts_chunk$set(
 
 
 library(midy)
+library(magrittr)
 library(ggplot2)
 library(tidyr)
 library(dplyr)
 library(purrr)
 library(tibble)
 library(magrittr)
+library(knitr)
+library(kableExtra)
 
 
 .theme <- theme_bw(base_size = 10) + 
@@ -82,10 +85,10 @@ set.seed(329)
 ncov = 25
 nint = 0
 error_sd = 1/10
-tst_miss = 0
+tst_miss = 9/10
 trn_miss = 9/10
-nobs = 100000
-split_prop = 1/20
+nobs = 1000
+split_prop = 2/3
 rho = 1/2
 
 ```
@@ -137,76 +140,165 @@ naniar::vis_miss(trn)
 
 ```
 
+The 5 steps of brewing beer and conducting imputation for predictive analytics (IPA):
 
+## Malt
+
+When a brew is initiated, the first step is to determine the type of wheat and prepare it for mashing. For the `ipa` package, this amounts to determining the type of imputation method and preparing it for use. In this case,
+
+- we choose `softImpute`
+
+- we designate `response` as the outcome. (important: outcome is not used for imputation)
 
 ```{r}
 
-soft_imputes <- trn %>%
-  soft_fit(
-    outcome = 'response', 
-    n_impute = 20, 
-    step_size = 1, 
-    scale_data = TRUE
-  ) %>% 
-  soft_fill(new_data = trn)
+brew <- soft_malt(training_data = trn, outcome = response)
+
+# peek at the brew contents
+enframe(brew)
 
 ```
 
-## Standard approach
+## Mash
 
-A traditional approach to develop a predictive model with linear regression is to impute missing values of continuous variables using the mean observed value. 
+The next step is to pair the malted wheat with hot water and mash it. In the `ipa` process, mashing is where an imputation method is paired with relevant parameters. 
 
 ```{r}
 
-mse <- function(x,y) mean((x-y)^2)
+brew <- soft_mash(brew, n_impute = 10, step_size = 2)
 
-mean_imputer <- function(x) {
-  x[is.na(x)] <- mean(x, na.rm=TRUE)
-  x
-}
-
-tst_y <- tst$response
-
-ref_rmse <- sqrt(mse(tst_y, mean(tst_y)))
-ref_imp <- trn %>% map_dfc(.f = mean_imputer)
-ref_mdl <- lm(response ~ ., data = ref_imp)
-ref_prd <- predict(ref_mdl, newdata = tst)
-ref_rsq <- 1 - sqrt(mse(tst_y, ref_prd)) / ref_rmse
+# Note how the pars object has now been populated 
+enframe(brew)
 
 ```
 
+## Boil
+
+During the boiling process, hops and spices are added to the wort and boiled, creating flavors for enjoyment. An `ipa` brew handles this step by adding training data to the analysis and then creating imputation models based on that data. Note that the training data has been in the `brew` object since step 1, and doesn't need to be explicitly added in this step.   
 
 ```{r}
 
-soft_imputes %<>% 
+brew <- boil(brew, verbose = TRUE, maxit = 500)
+
+# Note how the wort now has data in it
+enframe(brew)
+  
+```
+
+## Ferment
+
+To ferment the brew, yeast is added to the mixture as a catalyst. The flavors in the wort interact with the yeast and create alcohol. We ferment the `brew` object by adding data to the analysis. The imputation models interact with the data and create sets of complete (intoxicating) data. Notably, one may choose not to add `new_data`, and this would just impute the training data. However, if `new_data` is added, then one of two things will happen: 
+
+1. The imputation models are used to fill missing cells in the testing data.
+
+2. If the imputation models are incompatible with new data (as `softImpute` models are), then the testing data are imputed by identifying nearest neighbors in the *imputed training data.* This is not ideal, but is possibly our best option when we can't do 1.
+
+```{r}
+
+brew <- ferment(brew, new_data = tst)
+
+# Note how two columns have been added to the wort
+enframe(brew)
+
+# A closer look at the wort
+print(brew$wort)
+
+```
+
+## Bottle
+
+The mixture is stored in bottles and aged. After this step, the brew is ready to be enjoyed!
+
+The observed and imputed values are stored in lists and formatted as single/multiple/stacked data. After this step, the data are ready to be enjoyed (i.e., used to develop predictive models)!
+
+```{r}
+
+soft_dat <- bottle(brew, flavor = 'tibble')
+
+# Bottling generally just takes whatever is 
+# in the wort and adds the flavor of your choice
+# (tibble or matrix) to the imputed data columns
+
+soft_dat
+
+```
+
+## Pipes and brews
+
+The brewing steps can be linked up using the handy `%>%` operator
+
+```{r, eval = FALSE}
+
+soft_dat <- trn %>% 
+  soft_malt(outcome = response) %>% 
+  soft_mash(n_impute = 10, step_size = 2) %>%
+  boil(verbose = TRUE, maxit = 500) %>% 
+  ferment(new_data = tst) %>% 
+  bottle(flavor = 'tibble')
+
+```
+
+## Working with imputes
+
+Most predictive modeling work-flows use a single imputed dataset to train models, and will also use a single imputed testing set if needed. 
+
+Using the `bottle` function on a `brew` gives a `tibble` with lists of imputed training sets and testing sets, making it easy to identify which imputation parameters are providing the most accurate models. Let's see how we can use linear models on each of the 10 imputed datasets in our `soft_dat` object. 
+
+```{r}
+  
+# function to evaluate predictions
+mse <- function(x,y) mean( (x-y)^2 )
+
+# observed outcomes in testing data
+y_obs <- tst$response
+
+# Reference mean squared error
+## This is what our mean squared error would be
+## if we didn't use a model and instead predicted
+## values in the testing data using the mean of 
+## our observed outcomes in the training data.
+## We would hope that a model would do much better.
+
+ref_mse <- mse(
+  x = mean(trn$response),
+  y = y_obs
+)
+
+# 1. Fit a linear model to each training set.
+# 2. Compute predictions from each model in corresponding testing set.
+# 3. Evaluate the mse of those predictions.
+soft_lms <- map2_dbl(
+  .x = soft_dat$training,
+  .y = soft_dat$testing,
+  .f = ~ {
+    m <- lm(response ~ ., data = .x) # 1. (above) 
+    p <- predict(m, newdata = .y)    # 2. (above)
+    mse(p, y_obs)                    # 3. (above)
+  } 
+)
+
+tbl_dat <- soft_dat %>% 
+  select(impute, rank) %>% 
   mutate(
-    mdl = map(data, .f = ~ lm(response ~ ., data = .x)),
-    trn_rsq = map_dbl(mdl, .f = ~ summary(.x)$r.squared),
-    tst_prd = map(mdl, .f = ~ predict(.x, newdata = tst)),
-    tst_rsq = map_dbl(tst_prd, .f = ~1 - sqrt(mse(.x, tst_y)) / ref_rmse),
-  )
-
-soft_imputes %>% 
-  select(impute, ends_with('rsq')) %>% 
-  gather(variable, value, -impute) %>% 
-  mutate(
-    variable = recode(
-      variable, 
-      trn_rsq = 'Training',
-      tst_rsq = 'Testing'
-    )
+    testing_r2 = 1-soft_lms / ref_mse,
+    rel_increase = 100 * (testing_r2 / testing_r2[1] - 1)
   ) %>% 
-  ggplot(aes(x=impute, y=value, fill = variable)) +
-  geom_line(linetype = 2) +
-  geom_point(shape = 21, col = 'black', size = 3) + 
-  geom_hline(yintercept = ref_rsq) + 
-  labs(
-    fill = 'Data', 
-    x = 'Imputed dataset',
-    y = 'R-squared statistic'
+  mutate_if(is.numeric, round, 3)
+
+kable(
+  x = tbl_dat,
+  col.names = c(
+    'Impute', 
+    'Rank',
+    'Testing R-squared',
+    '% change in R-squared'
   )
+) %>% 
+  kable_styling(bootstrap_options = c('striped','hover'))
 
 ```
+
+It looks like using a well chosen specification of `softImpute` provides an increase in out-of-sample explained variability of `r max(tbl_dat$rel_increase)`% relative to the rank `r min(tbl_dat$rank)` `softImpute` solution. 
 
 
 

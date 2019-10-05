@@ -67,7 +67,6 @@ I'd be impressed if my doctor could do both, but all I really care about is how 
 Since all aspects of model fitting are fixed, we can automate these steps in a function: `.eval_classif()`. This function takes training/testing data as input and, after fitting an `xgboost` model to the training data, evaluates it in the testing data.
 
 ```{r}
-
 .eval_classif <- function(
   data_trn,
   data_tst

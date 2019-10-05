@@ -39,7 +39,7 @@ stack_data <- function(data){
     bind_rows() %>%
     as_tibble() %>%
     arrange(._ID_.) %>%
-    select(._ID_., everything())
+    select(everything(), -._ID_.)
 
   data
 
@@ -50,14 +50,9 @@ stack_data <- function(data){
 #' @export
 list_data <- function(data){
 
-  n_impute <- length(data)
-
-  data %<>%
-    bind_rows(.id = '._ID_.') %>%
-    as_tibble() %>%
-    select(._ID_., everything())
-
-  data
+  data %>%
+    bind_rows() %>%
+    as_tibble()
 
 }
 

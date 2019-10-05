@@ -3,6 +3,8 @@
 
 # midy
 
+<!-- Think about statistics in medicine submission -->
+
 <!-- badges: start -->
 
 [![Travis build
@@ -13,7 +15,46 @@ experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](h
 coverage](https://codecov.io/gh/bcjaeger/midy/branch/master/graph/badge.svg)](https://codecov.io/gh/bcjaeger/midy?branch=master)
 <!-- badges: end -->
 
-The goal of midy is to …
+The 5 steps of brewing beer and conducting imputation for predictive
+analytics (IPA):
+
+1.  **malt**
+
+Determine the type of wheat and prepare it for mashing.
+
+Determine the type of imputation method and prepare it for use.
+
+2.  **mash**
+
+The malted wheat is paired with hot or boiling water.
+
+The imputation method is paired with relevant parameters.
+
+3.  **boil**
+
+Hops and spices are added to the wort and boiled, creating flavors for
+enjoyment.
+
+Training data is added to the analysis and imputed, creating models for
+imputation of testing data with missing values.
+
+4.  **ferment**
+
+Yeast is added to the mixture as a catalyst. The flavors in the wort
+interact with the yeast and create alcohol.
+
+Data (training or testing) is added to the analysis. The imputation
+models interact with the data and create sets of complete (intoxicating)
+data.
+
+5.  **bottle**
+
+The mixture is stored in bottles and aged. After this step, the brew is
+ready to be enjoyed\!
+
+The observed and imputed values are stored in lists and formatted as
+single/multiple/stacked data. After this step, the data are ready to be
+enjoyed (i.e., used to develop predictive models)\!
 
 ## Installation
 
@@ -33,33 +74,4 @@ devtools::install_github("bcjaeger/midy")
 
 ## Example
 
-This is a basic example which shows you how to solve a common problem:
-
-``` r
-library(midy)
-## basic example code
-```
-
-What is special about using `README.Rmd` instead of just `README.md`?
-You can include R chunks like so:
-
-``` r
-summary(cars)
-#>      speed           dist       
-#>  Min.   : 4.0   Min.   :  2.00  
-#>  1st Qu.:12.0   1st Qu.: 26.00  
-#>  Median :15.0   Median : 36.00  
-#>  Mean   :15.4   Mean   : 42.98  
-#>  3rd Qu.:19.0   3rd Qu.: 56.00  
-#>  Max.   :25.0   Max.   :120.00
-```
-
-You’ll still need to render `README.Rmd` regularly, to keep `README.md`
-up-to-date.
-
-You can also embed plots, for example:
-
-<img src="man/figures/README-pressure-1.png" width="100%" />
-
-In that case, don’t forget to commit and push the resulting figure
-files, so they display on GitHub\!
+link to vignette should go here

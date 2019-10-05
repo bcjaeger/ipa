@@ -21,26 +21,47 @@
 #'
 #' @import purrr
 #' @import dplyr
+#'
 #' @importFrom gower gower_topn
+#'
+#' @importFrom tidyselect vars_select
+#'
 #' @importFrom xgboost xgb.DMatrix xgboost xgb.train xgb.cv
+#'
 #' @importFrom simsurv simsurv
+#'
 #' @importFrom recipes prep bake juice recipe step_dummy all_nominal
 #'   all_predictors
+#'
 #' @importFrom tidyr nest unnest
+#'
 #' @importFrom softImpute softImpute lambda0 complete biScale
+#'
 #' @importFrom mice ampute ampute.default.patterns
+#'
 #' @importFrom naniar bind_shadow
+#'
 #' @importFrom mltools one_hot
+#'
 #' @importFrom missForest missForest
+#'
 #' @importFrom gbm basehaz.gbm
+#'
 #' @importFrom data.table := as.data.table
+#'
 #' @importFrom glue glue glue_collapse
+#'
 #' @importFrom tibble enframe as_tibble deframe
+#'
 #' @importFrom stats median na.omit predict quantile rnorm runif
 #'   as.formula model.matrix model.frame
+#'
 #' @importFrom magrittr %>% %<>% use_series set_colnames divide_by multiply_by
+#'
 #' @importFrom mvtnorm rmvnorm
+#'
 #' @importFrom ranger ranger
+#'
 #' @importFrom VIM kNN gowerD
 #'
 

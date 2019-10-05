@@ -4,32 +4,36 @@
 \alias{mgb_predict}
 \title{midy gradient boosting predictions}
 \usage{
-mgb_predict(object, newdata, outputmargin = FALSE, ntreelimit = NULL,
-  predleaf = FALSE, predcontrib = FALSE, approxcontrib = FALSE,
-  predinteraction = FALSE, reshape = FALSE)
+mgb_predict(object, new_data, new_n_impute, new_miss_strat,
+  reshape = FALSE, predleaf = FALSE, ntreelimit = NULL,
+  predcontrib = FALSE, outputmargin = FALSE, approxcontrib = FALSE,
+  predinteraction = FALSE)
 }
 \arguments{
 \item{object}{an object of class \code{xgb.Booster}.}
 
-\item{newdata}{an object that inherits one of the following
-classes: \code{si_dmat}, \code{mi_dmat}, or \code{midy_dmat}.}
+\item{reshape}{\code{TRUE} / \code{FALSE}. Whether to reshape the
+vector of predictions to a matrix form when there are
+several prediction outputs per case. This option has no
+effect when either of \code{predleaf}, \code{predcontrib}, or
+\code{predinteraction} flags is TRUE.}
+
+\item{predleaf}{\code{TRUE} / \code{FALSE}. When \code{predleaf} = \code{TRUE}, the output
+is a matrix object with the number of columns corresponding
+to the number of trees.}
+
+\item{ntreelimit}{The number of trees or boosting iterations
+to be used when forming a sum of predicted values (see Details).
+If unspecified, all trees in the ensemble will be used.}
+
+\item{predcontrib}{\code{TRUE} / \code{FALSE}. Whether to return
+contributions to individual predictions (see Details).}
 
 \item{outputmargin}{\code{TRUE} / \code{FALSE}. If \code{TRUE}, the predictions are
 returned as an untransformed sum of predictions from the boosting
 ensemble. For example, setting \code{outputmargin}=\code{TRUE} for logistic
 regression would result in predictions for log-odds instead of
 probabilities.}
-
-\item{ntreelimit}{The number of trees or boosting iterations
-to be used when forming a sum of predicted values (see Details).
-If unspecified, all trees in the ensemble will be used.}
-
-\item{predleaf}{\code{TRUE} / \code{FALSE}. When \code{predleaf} = \code{TRUE}, the output
-is a matrix object with the number of columns corresponding
-to the number of trees.}
-
-\item{predcontrib}{\code{TRUE} / \code{FALSE}. Whether to return
-contributions to individual predictions (see Details).}
 
 \item{approxcontrib}{\code{TRUE} / \code{FALSE}. Whether to use a fast
 approximation for feature contributions (see Details).}
@@ -38,11 +42,8 @@ approximation for feature contributions (see Details).}
 contributions of feature interactions to individual
 predictions (see Details).}
 
-\item{reshape}{\code{TRUE} / \code{FALSE}. Whether to reshape the
-vector of predictions to a matrix form when there are
-several prediction outputs per case. This option has no
-effect when either of \code{predleaf}, \code{predcontrib}, or
-\code{predinteraction} flags is TRUE.}
+\item{newdata}{an object that inherits one of the following
+classes: \code{si_dmat}, \code{mi_dmat}, or \code{midy_dmat}.}
 }
 \value{
 For regression or binary classification, it returns a vector of

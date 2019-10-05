@@ -4,27 +4,15 @@
 \alias{mgb_surv_prob}
 \title{Predicted values from \code{midy} boosters.}
 \usage{
-mgb_surv_prob(predictions, base_haz, eval_times)
+mgb_surv_prob(object, new_data, eval_times, new_n_impute, new_miss_strat)
 }
 \arguments{
-\item{predictions}{a numeric vector of predicted values}
+\item{object}{an object of class \code{xgb.Booster}.}
 
-\item{base_haz}{a numeric vector with baseline hazard estimates
-(see \code{\link[=mgb_bhaz]{mgb_bhaz()}})}
-
-\item{eval_times}{a numeric vector with evaluation time values.}
+\item{eval_times}{(numeric) a vector of times for which model
+predictions are computed.}
 }
 \description{
 Computing survival probabilities with gradient
-boosted decision tree ensembles requires predictions on
-the log-hazard scale, a vector of estimates of the
-baseline hazard function at specified times, and the
-set of times
-}
-\note{
-it is critical that \code{outputmargin }be set to
-\code{FALSE} when predictions are drawn from the \code{xgboost}
-ensemble (see \code{\link[=mgb_predict]{mgb_predict()}}). If it is set
-to \code{TRUE}, the predicted survival
-probabilities will not be valid.
+boosted decision tree ensembles.
 }

@@ -148,6 +148,58 @@ mgb_cv_mi <- function(data_list, args){
 }
 
 
+#' @export
+mgb_cv_train <- function(
+  data,
+  label,
+  folds,
+  params,
+  n_impute,
+  miss_strat,
+  nrounds = 1000,
+  maximize = NULL,
+  print_every_n = 100,
+  early_stopping_rounds = 100
+) {
+
+  cv_args <- list(
+    data = data,
+    label = label,
+    folds = folds,
+    params = params,
+    nrounds = nrounds,
+    maximize = maximize,
+    n_impute = n_impute,
+    miss_strat = miss_strat,
+    print_every_n = print_every_n,
+    early_stopping_rounds = early_stopping_rounds
+  )
+
+  cv_object <- do.call(mgb_cv, cv_args)
+
+  nrounds <-
+    if(miss_strat == 'mi'){
+      map_int(cv_object, 'best_iteration')
+    } else {
+      cv_object$best_iteration
+    }
+
+  train_args <- list(
+    data = data,
+    label = label,
+    params = params,
+    nrounds = nrounds,
+    maximize = maximize,
+    n_impute = n_impute,
+    miss_strat = miss_strat,
+    print_every_n = print_every_n
+  )
+
+  train_object <- do.call(mgb_train, train_args)
+  train_object$cv_compute_time <- cv_object$compute_time
+  train_object
+
+}
 
 #' (midy) training for xgboosters
 #'
@@ -279,8 +331,8 @@ mgb_train <- function(..., miss_strat, n_impute = NULL){
     ) %>%
       pool_preds(
         n_obs = n_obs,
-        n_impute = n_impute,
-        miss_strat = miss_strat
+        n_imputes = set_names(rep(n_impute,2), c('old','new')),
+        miss_strats = set_names(rep(miss_strat,2), c('old','new'))
       ) %>%
       as.numeric()
 
@@ -292,7 +344,7 @@ mgb_train <- function(..., miss_strat, n_impute = NULL){
   output$n_impute <- n_impute
   output$miss_strat <- miss_strat
 
-  class(output) <- glue("mgb_booster")
+  class(output) <- "mgb_booster"
 
   return(output)
 
@@ -313,57 +365,6 @@ mgb_train_mi <- function(data_list, nround_list, args){
       output
     }
   )
-
-}
-
-mgb_predict_mi <- function(object_list, newdata_list, args){
-
-  newdata_is_dmat <- class(newdata_list)[1] == "xgb.DMatrix"
-
-  if(newdata_is_dmat){
-
-    args$newdata <- newdata_list
-
-    map(
-      .x = object_list,
-      .f = function(object){
-        args$object <- object
-        #start <- Sys.time()
-        output <- do.call(predict, args)
-        #stop <- Sys.time()
-        #output$compute_time <- stop-start
-        output
-      }
-    )
-
-  } else {
-
-    right_length <- length(object_list) == length(newdata_list)
-
-    if(!right_length) stop(
-      glue("For mgboost objects based on multiply imputed data, \\
-        newdata should be (1) a dataset or (2) a list of n_impute \\
-        datasets, where n_impute = the number of imputed datasets."),
-      call. = FALSE
-    )
-
-    map2(
-      .x = object_list,
-      .y = newdata_list,
-      .f = function(object, newdata){
-        args$object <- object
-        args$newdata <- newdata
-        #start <- Sys.time()
-        output <- do.call(predict, args)
-        #stop <- Sys.time()
-        #output$compute_time <- stop-start
-        output
-      }
-    )
-
-  }
-
-
 
 }
 
@@ -475,69 +476,157 @@ mgb_predict_mi <- function(object_list, newdata_list, args){
 #' @export
 mgb_predict <- function(
   object,
-  newdata,
-  outputmargin = FALSE,
-  ntreelimit = NULL,
+  new_data,
+  new_n_impute,
+  new_miss_strat,
+  reshape = FALSE,
   predleaf = FALSE,
+  ntreelimit = NULL,
   predcontrib = FALSE,
+  outputmargin = FALSE,
   approxcontrib = FALSE,
-  predinteraction = FALSE,
-  reshape = FALSE
+  predinteraction = FALSE
 ){
 
   .dots <- list(
-    outputmargin = outputmargin,
-    ntreelimit = ntreelimit,
+    reshape = reshape,
     predleaf = predleaf,
+    ntreelimit = ntreelimit,
     predcontrib = predcontrib,
+    outputmargin = outputmargin,
     approxcontrib = approxcontrib,
-    predinteraction = predinteraction,
-    reshape = reshape
+    predinteraction = predinteraction
   )
 
-  miss_strat <- get_miss_strat(newdata)
-  n_impute <- get_n_impute(newdata)
+  miss_strats <- c(old = object$miss_strat, new = new_miss_strat)
+  n_imputes <- c(old = object$n_impute, new = new_n_impute)
 
-  if( miss_strat == 'mi' ){
+  if( miss_strats["old"] == 'mi' ){
 
-    output <- mgb_predict_mi(
-      object_list = object,
-      newdata_list = newdata,
-      args = .dots
-    ) %>%
-      pool_preds(
-        n_obs = nrow(newdata) / n_impute,
-        n_impute = n_impute,
-        miss_strat = miss_strat
-      )
-
-  } else {
-
-    .dots$object <- object
-    .dots$newdata <- newdata
-
-    output <- do.call(
-      what = predict,
-      args = .dots
-    )
-
-    if( miss_strat == 'stacked' ) {
-
-      output  %<>%
-        pool_preds(
-          n_obs = nrow(newdata) / n_impute,
-          n_impute = n_impute,
-          miss_strat = miss_strat
-        )
-
-    }
-
+    if(.dots$predcontrib)
+      stop("predcontrib must = FALSE for mi data")
+    if(.dots$predinteraction)
+      stop("predinteraction must = FALSE for mi data")
+    if(.dots$predcontrib)
+      stop("reshape must = FALSE for mi data")
 
   }
 
+  switch(
+    paste(miss_strats, collapse = '_'),
+    "mi_mi" = mgb_prd_mi_mi(object, new_data, args = .dots),
+    "mi_si" = mgb_prd_mi_si(object, new_data, args = .dots),
+    "si_mi" = mgb_prd_si_mi(object, new_data, args = .dots),
+    "si_si" = mgb_prd_si_si(object, new_data, args = .dots),
+    "stacked_stacked" = mgb_prd_si_si(object, new_data, args = .dots),
+    "stacked_si" = mgb_prd_si_si(object, new_data, args = .dots),
+    stop(
+      glue(
+        "Cannot create predictions when training data \\
+      uses {miss_strats$old} strategy and testing data uses \\
+      {miss_strats$new} strategy"
+      )
+    )
+  ) %>%
+    pool_preds(
+      n_obs = nrow(new_data) / n_imputes["new"],
+      n_imputes = n_imputes,
+      miss_strats = miss_strats
+    )
+
+}
+
+
+pool_preds <- function(
+  preds,
+  n_obs,
+  n_imputes,
+  miss_strats
+) {
+
+  switch(
+    paste(miss_strats, collapse = '_'),
+    'mi_mi' = reduce(preds, `+`) / n_imputes['new'],
+    'mi_si' = reduce(preds, `+`) / n_imputes['old'],
+    'si_mi' = reduce(preds, `+`) / n_imputes['new'],
+    'si_si' = preds,
+    'stacked_si' = preds,
+    'stacked_stacked' = tapply(
+      X = preds,
+      INDEX = rep(1:n_obs, each = n_imputes['new']),
+      FUN =  mean)
+  )
+
+}
+
+
+mgb_prd_si_si <- function(object, new_data, args){
+
+  args$object  <- object$fit
+  args$newdata <- new_data
+  output <- do.call(predict, args)
   output
 
 }
+
+mgb_prd_si_mi <- function(object, new_data, args){
+
+  data_list <- prep_data_list(new_data, n_impute = object$n_impute)
+
+  args$object  <- object$fit
+
+  map(
+    .x = data_list,
+    .f = ~ {
+      args$newdata <- .x
+      output <- do.call(predict, args)
+      output
+
+    }
+  )
+
+
+}
+
+mgb_prd_mi_mi <- function(object, new_data, args){
+
+  data_list <- prep_data_list(new_data, n_impute = object$n_impute)
+
+  if(length(data_list) != length(object$fit))
+    stop(
+      "number of imputations in training/testing sets do not match",
+      call. = FALSE
+    )
+
+  map2(
+    .x = object$fit,
+    .y = data_list,
+    .f = ~ {
+      args$object  <- .x
+      args$newdata <- .y
+      output <- do.call(predict, args)
+      output
+    }
+  )
+
+}
+
+mgb_prd_mi_si <- function(object, new_data, args){
+
+  args$newdata <- new_data
+
+  map(
+    .x = object$fit,
+    .f = ~ {
+      args$object  <- .x
+      output <- do.call(predict, args)
+      output
+    }
+  )
+
+}
+
+
 
 #' Baseline hazard function
 #'
@@ -588,32 +677,34 @@ mgb_bhaz <- function(
 #' Predicted values from `midy` boosters.
 #'
 #' @description Computing survival probabilities with gradient
-#'   boosted decision tree ensembles requires predictions on
-#'   the log-hazard scale, a vector of estimates of the
-#'   baseline hazard function at specified times, and the
-#'   set of times
+#'   boosted decision tree ensembles.
 #'
-#' @param predictions a numeric vector of predicted values
-#' @param base_haz a numeric vector with baseline hazard estimates
-#'   (see [mgb_bhaz()])
-#' @param eval_times a numeric vector with evaluation time values.
-#'
-#' @note it is critical that `outputmargin `be set to
-#'   `FALSE` when predictions are drawn from the `xgboost`
-#'   ensemble (see [mgb_predict()]). If it is set
-#'   to `TRUE`, the predicted survival
-#'   probabilities will not be valid.
+#' @inheritParams mgb_predict
+#' @param eval_times (numeric) a vector of times for which model
+#'   predictions are computed.
 #'
 #' @export
 
-mgb_surv_prob <- function(predictions, base_haz, eval_times){
+mgb_surv_prob <- function(
+  object,
+  new_data,
+  eval_times,
+  new_n_impute,
+  new_miss_strat
+) {
 
-  if(length(base_haz) != length(eval_times)){
-    stop(
-      "base_haz should be the same length as eval_times",
-      call. = FALSE
-    )
-  }
+  base_haz <- mgb_bhaz(
+    mgb_booster = object,
+    eval_times = eval_times
+  )
+
+  predictions <- mgb_predict(
+    object = object,
+    new_data = new_data,
+    new_n_impute = new_n_impute,
+    new_miss_strat = new_miss_strat,
+    outputmargin = TRUE
+  )
 
   prb <- matrix(
     data = 0,
@@ -626,144 +717,6 @@ mgb_surv_prob <- function(predictions, base_haz, eval_times){
   }
 
   prb
-
-}
-
-pool_preds <- function(
-  preds,
-  n_obs,
-  n_impute,
-  miss_strat
-) {
-
-  if (miss_strat == 'stacked') {
-
-    if(length(preds) > n_obs){
-      grp = rep(1:n_obs, each = n_impute)
-      output <- tapply(preds, grp, mean)
-    } else {
-      output <- preds
-    }
-
-
-  } else if (miss_strat == 'mi') {
-
-    output <- reduce(preds, `+`) %>%
-      divide_by(n_impute)
-
-  } else {
-
-    output <- preds
-
-  }
-
-  output
-
-}
-
-
-predict_mgb_surv <- function(
-  object,
-  newdata,
-  newdata_is_midy,
-  newdata_midy_ids,
-  times,
-  ...
-){
-
-  class(object) <- 'xgb.Booster'
-
-  base_hazard <- basehaz.gbm(
-    t = pluck(attr(object, 'outcome'), 1),
-    delta = pluck(attr(object, 'outcome'), 2),
-    f.x = attr(object, 'predictions'),
-    t.eval = times,
-    smooth = TRUE,
-    cumulative = TRUE
-  )
-
-  predictions <- predict(object, newdata = newdata)
-
-  if(newdata_is_midy){
-
-    predictions <- newdata_midy_ids %>%
-      mutate(pred = predictions) %>%
-      group_by(._midy.ID_.) %>%
-      summarise_all(mean) %>%
-      pull(pred)
-
-  }
-
-  survival_probs <- matrix(
-    data = 0,
-    nrow = length(predictions),
-    ncol = length(times)
-  )
-
-  for (i in seq_along(times)) {
-    survival_probs[, i] <- exp(-exp(predictions) * (base_hazard[i]))
-
-    probs_too_high <- survival_probs[, i] > 1
-
-    if(any(probs_too_high)){
-      survival_probs[which(probs_too_high), i] <- 1
-    }
-
-  }
-
-  survival_probs
-
-}
-
-predict_mgb_regr <- function(
-  object,
-  newdata,
-  newdata_is_midy,
-  newdata_midy_ids,
-  ...
-){
-
-  class(object) <- 'xgb.Booster'
-
-  predictions <- predict(object, newdata = newdata, ...)
-
-  if(newdata_is_midy){
-
-    predictions <- newdata_midy_ids %>%
-      mutate(pred = predictions) %>%
-      group_by(._midy.ID_.) %>%
-      summarise_all(mean) %>%
-      pull(pred)
-
-  }
-
-  predictions
-
-}
-
-predict_mgb_clsf <- function(
-  object,
-  newdata,
-  newdata_is_midy,
-  newdata_midy_ids,
-  ...
-){
-
-  class(object) <- 'xgb.Booster'
-
-  predictions <- predict(object, newdata = newdata, ...)
-
-  if(newdata_is_midy){
-
-    predictions <- newdata_midy_ids %>%
-      mutate(pred = predictions) %>%
-      group_by(._midy.ID_.) %>%
-      summarise_all(mean) %>%
-      pull(pred)
-
-  }
-
-  predictions
 
 }
 
