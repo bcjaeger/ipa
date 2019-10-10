@@ -2,16 +2,15 @@
 % Please edit documentation in R/imputation.R
 \name{bottle}
 \alias{bottle}
-\alias{bottle.soft_brew}
 \title{Bottle a brew}
 \usage{
-bottle(brew, flavor = c("tibble", "matrix"))
-
-\method{bottle}{soft_brew}(brew, flavor = c("tibble", "matrix"))
+bottle(brew, flavor = c("tibble", "matrix"), drop_fit = TRUE)
 }
 \arguments{
 \item{brew}{a \code{brew} object that has been passed through all
-the brewing steps: \link{malt}, \link{mash}, \link{boil}, and \link{ferment}.}
+the brewing steps: \code{malt} (i.e., \link{malt_nbrs}, \link{malt_soft}),
+\code{mash} (i.e., \link{mash_nbrs}, \link{mash_soft}),
+\link{boil}, and \link{ferment}.}
 
 \item{flavor}{a character value indicating what composition
 the training and testing data will be returned as.}
@@ -19,8 +18,3 @@ the training and testing data will be returned as.}
 \description{
 Bottle a brew
 }
-\section{Methods (by class)}{
-\itemize{
-\item \code{soft_brew}: bottle up a soft brew
-}}
-

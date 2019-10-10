@@ -14,20 +14,20 @@ get_miss_strat(object)
 
 \item{miss_strat}{a character value indicating the missing strategy
 that will be set for \code{object}. Valid inputs are 'si', 'mi', and
-'midy'.}
+'ipa'.}
 }
 \description{
 Missing strategies may include single imputation (\code{si}),
 multiple imputation (\code{mi}), or multiple imputation for decision
-trees (\code{midy}). It is helpful to set missing strategy = \code{si}
-when using \code{midy} functions to work with the default \code{xgboost}
+trees (\code{ipa}). It is helpful to set missing strategy = \code{si}
+when using \code{ipa} functions to work with the default \code{xgboost}
 strategy to handle missing values. At the very least, it avoids
 confusion and prevents warning messages.
 }
 \note{
 it is highly inadvisable to change the missing strategy
-of a \code{midy} object or an \code{mi} object. This will change the
+of a \code{ipa} object or an \code{mi} object. This will change the
 class of the object, which is an essential input to other
-functions in the \code{midy} package such as \code{\link{mgb_cv}}
+functions in the \code{ipa} package such as \code{\link{mgb_cv}}
 and \code{\link{mgb_predict}}.
 }

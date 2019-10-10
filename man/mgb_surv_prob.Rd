@@ -2,7 +2,7 @@
 % Please edit documentation in R/mgboost.R
 \name{mgb_surv_prob}
 \alias{mgb_surv_prob}
-\title{Predicted values from \code{midy} boosters.}
+\title{Predicted values from \code{ipa} boosters.}
 \usage{
 mgb_surv_prob(object, new_data, eval_times, new_n_impute, new_miss_strat)
 }

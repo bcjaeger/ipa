@@ -1,4 +1,4 @@
 library(testthat)
-library(midy)
+library(ipa)
 
-test_check("midy")
+test_check("ipa")

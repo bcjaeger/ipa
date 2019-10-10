@@ -20,7 +20,7 @@ knitr::opts_chunk$set(
 )
 
 
-library(midy)
+library(ipa)
 library(magrittr)
 library(ggplot2)
 library(tidyr)
@@ -79,16 +79,16 @@ Next, we'll set simulation parameters
 ```{r params}
 
 # random seed for reproducing these results
-set.seed(329)
+# set.seed(329)
 
 # simulation parameters (these are explained below)
 ncov = 25
 nint = 0
-error_sd = 1/10
-tst_miss = 9/10
+error_sd = 1/2
+tst_miss = 0
 trn_miss = 9/10
-nobs = 1000
-split_prop = 2/3
+nobs = 4000
+split_prop = 1/2
 rho = 1/2
 
 ```

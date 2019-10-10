@@ -3,17 +3,21 @@
 \name{ferment}
 \alias{ferment}
 \alias{ferment.soft_brew}
+\alias{ferment.rangers_brew}
 \alias{ferment.neighbors_brew}
 \title{Ferment a brew}
 \usage{
-ferment(brew, new_data = NULL, col_name = "testing",
+ferment(brew, new_data = NULL, col_name = "testing", verbose = FALSE,
   control = list())
 
 \method{ferment}{soft_brew}(brew, new_data = NULL,
-  col_name = "testing", control = list())
+  col_name = "testing", verbose = FALSE, control = list())
+
+\method{ferment}{rangers_brew}(brew, new_data = NULL,
+  col_name = "testing", verbose = FALSE, control = list())
 
 \method{ferment}{neighbors_brew}(brew, new_data = NULL,
-  col_name = "testing", control = list())
+  col_name = "testing", verbose = FALSE, control = list())
 }
 \arguments{
 \item{brew}{a \code{brew} object that has been boiled (see \link{boil}).}
@@ -38,6 +42,8 @@ Ferment a brew
 \section{Methods (by class)}{
 \itemize{
 \item \code{soft_brew}: impute missing values for \code{soft_brew} objects.
+
+\item \code{rangers_brew}: impute missing values for \code{rangers_brew} objects.
 
 \item \code{neighbors_brew}: impute missing values for \code{neighbors_brew} objects.
 }}

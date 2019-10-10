@@ -1,8 +1,8 @@
 
-#' midy: a framework for multiple imputation with decision trees
+#' ipa: a framework for multiple imputation with decision trees
 #'   in the tidyverse.
 #'
-#' midy provides a flexible set of tools to help develop
+#' ipa provides a flexible set of tools to help develop
 #'   ensembles of decision trees using training data that contain
 #'   missing values.
 #'
@@ -16,13 +16,15 @@
 #'   workflow to compare different strategies to handle missing values.
 #' }
 #'
-#' To learn more about midy, start with the vignettes:
-#' `browseVignettes(package = "midy")`
+#' To learn more about ipa, start with the vignettes:
+#' `browseVignettes(package = "ipa")`
 #'
 #' @import purrr
 #' @import dplyr
 #'
 #' @importFrom gower gower_topn
+#'
+#' @importFrom missRanger missRanger
 #'
 #' @importFrom tidyselect vars_select
 #'
@@ -86,7 +88,7 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(
     "miss_stat",
     "importance",
     "miss_strat",
-    "._midy.ID_.",
+    "._ipa.ID_.",
     "factor_contrast_val"
   )
 )

@@ -2,7 +2,7 @@
 % Please edit documentation in R/mgboost.R
 \name{mgb_predict}
 \alias{mgb_predict}
-\title{midy gradient boosting predictions}
+\title{ipa gradient boosting predictions}
 \usage{
 mgb_predict(object, new_data, new_n_impute, new_miss_strat,
   reshape = FALSE, predleaf = FALSE, ntreelimit = NULL,
@@ -43,7 +43,7 @@ contributions of feature interactions to individual
 predictions (see Details).}
 
 \item{newdata}{an object that inherits one of the following
-classes: \code{si_dmat}, \code{mi_dmat}, or \code{midy_dmat}.}
+classes: \code{si_dmat}, \code{mi_dmat}, or \code{ipa_dmat}.}
 }
 \value{
 For regression or binary classification, it returns a vector of
@@ -74,7 +74,7 @@ For a multiclass case, a list of \code{num_class} elements is returned,
 where each element is such an array.
 }
 \description{
-Compute predictions from midy gradient boosting
+Compute predictions from ipa gradient boosting
 decision tree ensembles.
 }
 \details{

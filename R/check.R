@@ -1,5 +1,5 @@
 
-#' check positive integer input
+# check positive integer input
 check_pos_int <- function(x, label){
 
   if(x <= 0)
@@ -12,7 +12,17 @@ check_pos_int <- function(x, label){
 
 }
 
-#' check step size for soft imputes
+# check fraction input
+check_fraction <- function(x, label){
+
+  if(x > 1 || x < 0)
+    stop('{label} should be > 0.00 and < 1.00', call.=FALSE)
+
+}
+
+
+
+# check step size for soft imputes
 check_step_size <- function(step_size, n_impute, max_rank){
 
   expected_max_rank <- step_size * n_impute
@@ -29,8 +39,7 @@ check_step_size <- function(step_size, n_impute, max_rank){
 
 }
 
-
-#' check inputs
+# check inputs
 check_dots <- function(.dots, valid_args){
 
   bad_args <- setdiff(names(.dots), valid_args)
@@ -49,7 +58,7 @@ check_dots <- function(.dots, valid_args){
 
 }
 
-#' check missing strategy input
+# check missing strategy input
 check_miss_strat <- function(miss_strat){
 
   valid_input <- miss_strat %in% c('si','mi','stacked')
@@ -127,7 +136,6 @@ check_malt <- function(malt){
   )
 }
 
-
 check_mash <- function(mash){
   is_not_mashed <- !attr(mash, 'mashed')
 
@@ -158,3 +166,13 @@ check_brew <- function(brew, col_name){
 
 }
 
+check_fermented_brew <- function(brew){
+
+  is_not_fermented <- !attr(brew, 'fermented')
+
+  if(is_not_fermented) stop(
+    "the brew has not been fermented! Try using ferment() before bottling",
+    call. = FALSE
+  )
+
+}

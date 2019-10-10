@@ -4,6 +4,7 @@
 \alias{boil}
 \alias{boil.soft_brew}
 \alias{boil.neighbors_brew}
+\alias{boil.rangers_brew}
 \title{Boil a brew}
 \usage{
 boil(mash, verbose = FALSE, ...)
@@ -11,9 +12,11 @@ boil(mash, verbose = FALSE, ...)
 \method{boil}{soft_brew}(mash, verbose = FALSE, ...)
 
 \method{boil}{neighbors_brew}(mash, verbose = FALSE, ...)
+
+\method{boil}{rangers_brew}(mash, verbose = FALSE, ...)
 }
 \arguments{
-\item{mash}{a \code{brew} object that has been mashed (see \link{soft_mash})}
+\item{mash}{a \code{brew} object that has been mashed (see \link{mash_soft})}
 
 \item{verbose}{\code{TRUE} or \code{FALSE}. if \code{TRUE}, output will be
 printed to the console indicating the ranks of solutions found
@@ -35,6 +38,11 @@ and then creating imputation models based on that data.
 
 \item \code{neighbors_brew}: boil a soft brew, valid parameters for \code{...} are
 \code{eps} and \code{nthread} (see notes).
+
+\item \code{rangers_brew}: boil a ranger's brew, valid parameters for \code{...} are
+\code{num.trees}, \code{sample.fraction}, \code{splitrule}, \code{formula},
+\code{num.random.splits},\code{maxiter}, \code{seed}, and \code{case.weights}
+(see notes).
 }}
 
 \note{

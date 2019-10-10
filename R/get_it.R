@@ -30,21 +30,21 @@ get_factor_levels <- function(data){
 #'
 #' @description Missing strategies may include single imputation (`si`),
 #'   multiple imputation (`mi`), or multiple imputation for decision
-#'   trees (`midy`). It is helpful to set missing strategy = `si`
-#'   when using `midy` functions to work with the default `xgboost`
+#'   trees (`ipa`). It is helpful to set missing strategy = `si`
+#'   when using `ipa` functions to work with the default `xgboost`
 #'   strategy to handle missing values. At the very least, it avoids
 #'   confusion and prevents warning messages.
 #'
 #' @note it is highly inadvisable to change the missing strategy
-#'   of a `midy` object or an `mi` object. This will change the
+#'   of a `ipa` object or an `mi` object. This will change the
 #'   class of the object, which is an essential input to other
-#'   functions in the `midy` package such as \code{\link{mgb_cv}}
+#'   functions in the `ipa` package such as \code{\link{mgb_cv}}
 #'   and \code{\link{mgb_predict}}.
 #'
 #' @param object an object of class data.frame, matrix, or xgb.DMatrix
 #' @param miss_strat a character value indicating the missing strategy
 #'   that will be set for `object`. Valid inputs are 'si', 'mi', and
-#'   'midy'.
+#'   'ipa'.
 #'
 #' @export
 set_miss_strat <- function(object, miss_strat){

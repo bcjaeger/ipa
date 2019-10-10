@@ -2,7 +2,7 @@
 % Please edit documentation in R/mgboost.R
 \name{mgb_cv}
 \alias{mgb_cv}
-\title{(midy) Cross-validation for xgboosters}
+\title{(ipa) Cross-validation for xgboosters}
 \usage{
 mgb_cv(..., miss_strat, n_impute = NULL)
 }
@@ -18,11 +18,11 @@ in the output list.
 \description{
 This function is a wrapper for the
 \code{\link[xgboost:xgb.cv]{xgboost::xgb.cv()}} function that automates some
-adjustments that should be applied when using \code{midy} data.
+adjustments that should be applied when using \code{ipa} data.
 For example, the \code{subsample} tuning parameter is automatically
-adjusted based on the number of imputed datasets for \code{midy} data.
+adjusted based on the number of imputed datasets for \code{ipa} data.
 Additionally, the folds argument is adjusted such that
-observations in \code{midy} data belonging to the same ID are
+observations in \code{ipa} data belonging to the same ID are
 allocated to the same data-fold.
 }
 \details{

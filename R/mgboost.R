@@ -1,14 +1,14 @@
 
 
-#' (midy) Cross-validation for xgboosters
+#' (ipa) Cross-validation for xgboosters
 #'
 #' @description This function is a wrapper for the
 #'   [xgboost::xgb.cv()] function that automates some
-#'   adjustments that should be applied when using `midy` data.
+#'   adjustments that should be applied when using `ipa` data.
 #'   For example, the `subsample` tuning parameter is automatically
-#'   adjusted based on the number of imputed datasets for `midy` data.
+#'   adjusted based on the number of imputed datasets for `ipa` data.
 #'   Additionally, the folds argument is adjusted such that
-#'   observations in `midy` data belonging to the same ID are
+#'   observations in `ipa` data belonging to the same ID are
 #'   allocated to the same data-fold.
 #'
 #' @details To ensure valid data-folds, the `folds` argument must be
@@ -201,20 +201,20 @@ mgb_cv_train <- function(
 
 }
 
-#' (midy) training for xgboosters
+#' (ipa) training for xgboosters
 #'
 #' @description This function is a wrapper for the
 #'   [xgboost::xgb.train()] function that automates some
-#'   adjustments that should be applied when using `midy` data.
+#'   adjustments that should be applied when using `ipa` data.
 #'   Specifically, the `subsample` tuning parameter is automatically
-#'   adjusted based on the number of imputed datasets for `midy` data.
+#'   adjusted based on the number of imputed datasets for `ipa` data.
 #'
 #' @details When a list of multiply imputed data are supplied,
 #'   each dataset will be used to train one xgboost model, separately.
-#'   When a `midy` dataset is supplied, only one xgboost model is
+#'   When a `ipa` dataset is supplied, only one xgboost model is
 #'   trained, and the stacked data are subsampled such that each
 #'   boosting step utilizes N / n_impute, where N is the number of
-#'   rows in the stacked `midy` data.
+#'   rows in the stacked `ipa` data.
 #'
 #' @inheritParams xgboost::xgb.train
 #'
@@ -368,14 +368,14 @@ mgb_train_mi <- function(data_list, nround_list, args){
 
 }
 
-#' midy gradient boosting predictions
+#' ipa gradient boosting predictions
 #'
-#' @description Compute predictions from midy gradient boosting
+#' @description Compute predictions from ipa gradient boosting
 #'   decision tree ensembles.
 #'
 #' @param object an object of class `xgb.Booster`.
 #' @param newdata an object that inherits one of the following
-#'   classes: `si_dmat`, `mi_dmat`, or `midy_dmat`.
+#'   classes: `si_dmat`, `mi_dmat`, or `ipa_dmat`.
 #' @param outputmargin `TRUE` / `FALSE`. If `TRUE`, the predictions are
 #'   returned as an untransformed sum of predictions from the boosting
 #'   ensemble. For example, setting `outputmargin`=`TRUE` for logistic
@@ -674,7 +674,7 @@ mgb_bhaz <- function(
 
 }
 
-#' Predicted values from `midy` boosters.
+#' Predicted values from `ipa` boosters.
 #'
 #' @description Computing survival probabilities with gradient
 #'   boosted decision tree ensembles.

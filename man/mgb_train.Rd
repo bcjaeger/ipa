@@ -2,7 +2,7 @@
 % Please edit documentation in R/mgboost.R
 \name{mgb_train}
 \alias{mgb_train}
-\title{(midy) training for xgboosters}
+\title{(ipa) training for xgboosters}
 \usage{
 mgb_train(..., miss_strat, n_impute = NULL)
 }
@@ -18,15 +18,15 @@ in the output list.
 \description{
 This function is a wrapper for the
 \code{\link[xgboost:xgb.train]{xgboost::xgb.train()}} function that automates some
-adjustments that should be applied when using \code{midy} data.
+adjustments that should be applied when using \code{ipa} data.
 Specifically, the \code{subsample} tuning parameter is automatically
-adjusted based on the number of imputed datasets for \code{midy} data.
+adjusted based on the number of imputed datasets for \code{ipa} data.
 }
 \details{
 When a list of multiply imputed data are supplied,
 each dataset will be used to train one xgboost model, separately.
-When a \code{midy} dataset is supplied, only one xgboost model is
+When a \code{ipa} dataset is supplied, only one xgboost model is
 trained, and the stacked data are subsampled such that each
 boosting step utilizes N / n_impute, where N is the number of
-rows in the stacked \code{midy} data.
+rows in the stacked \code{ipa} data.
 }

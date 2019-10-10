@@ -23,7 +23,7 @@
 #'
 #' @export
 #'
-soft_malt <- function(training_data, outcome){
+malt_soft <- function(training_data, outcome){
 
   outcome <- vars_select(names(training_data), !!enquo(outcome)) %>%
     set_names(NULL)
@@ -67,13 +67,39 @@ soft_malt <- function(training_data, outcome){
 
 #' Make a neighborhood malt.
 #'
-#' @inheritSection soft_malt Overview
-#' @inheritParams soft_malt
+#' @description This set of functions is an adaptation of Max Kuhn's
+#'  nearest neighbor imputation functions in the [recipes][recipes::recipes]
+#'  and `caret` packages. It also uses the `gower` package to implement
+#'  algorithms that compute Gower's distance.
+#'
+#'  What makes this type of nearest neighbor imputation
+#'  different is its flexibility in the number of neighbors used
+#'  to impute missing values and the aggregation function applied.
+#'  For example, to create 10 imputed datasets that use 1, 2, ..., 10
+#'  neighbors to impute missing values would require fitting
+#'  10 separate nearest neighbors models using the conventional functions.
+#'  The `ipa` package lets a user create all of these imputed sets
+#'  with just one fitting of a nearest neighbor model. Additionally,
+#'  for users who want to use nearest neighbors for multiple imputation,
+#'  `ipa` gives the option to sample 1 neighbor value at random from
+#'  a neighborhood, rather than aggregate values into a summary. This
+#'  sampling strategy will increase the diversity of imputed datasets.
+#'
+#' @inheritSection malt_soft Overview
+#'
+#' @inheritParams malt_soft
+#'
+#' @references Gower, John C.
+#' "A general coefficient of similarity and some of its properties."
+#' Biometrics (1971): 857-871.
+#'
+#' @note Gower (1971) originally defined a similarity measure (s, say) with
+#' values ranging from 0 (completely dissimilar) to 1 (completely similar).
+#' The distance returned here equals 1-s.
 #'
 #' @export
 #'
-#'
-nbrs_malt <- function(training_data, outcome){
+malt_nbrs <- function(training_data, outcome){
 
   outcome <- vars_select(names(training_data), !!enquo(outcome)) %>%
     set_names(NULL)
@@ -104,8 +130,40 @@ nbrs_malt <- function(training_data, outcome){
 
 }
 
+#' Make a ranger's malt
+#'
+#' @export
+#'
+malt_rngr <- function(training_data, outcome){
 
-#' Mash a soft mash
+  outcome <- vars_select(names(training_data), !!enquo(outcome)) %>%
+    set_names(NULL)
+
+  new_data <- training_data
+
+  new_data[, outcome] = NULL
+
+  output <- structure(
+    .Data = list(
+      data = new_data,
+      pars = list(),
+      wort = NULL
+    ),
+    class = 'rangers_brew',
+    outcome_lab = outcome,
+    outcome_trn = training_data[, outcome, drop = FALSE],
+    outcome_tst = NULL,
+    malted = TRUE,
+    mashed = FALSE,
+    boiled = FALSE,
+    fermented = FALSE
+  )
+
+  output
+
+}
+
+#' Make a soft mash
 #'
 #' @description The `softImpute` algorithm has a number of
 #'   inputs that affect the imputation procedure. Parameters
@@ -123,7 +181,7 @@ nbrs_malt <- function(training_data, outcome){
 #'   hyper-parameters.
 #'
 #' @param malt a `soft_brew` object that has been malted
-#'   (see [soft_malt]).
+#'   (see [malt_soft]).
 #'
 #' @param n_impute An integer indicating the number of imputed
 #'   datasets to create.
@@ -148,7 +206,7 @@ nbrs_malt <- function(training_data, outcome){
 #'
 #' @param lambda_sequence A sequence of `lambda` values. If
 #'   specified, these `lambda` values will be used instead of
-#'   the `lambda` values that `soft_mash()` automatically identifies.
+#'   the `lambda` values that `mash_soft()` automatically identifies.
 #'
 #' @note see [softimpute][softImpute::softImpute()] for a more
 #'   descriptive summary of the `softImpute` algorithm. See
@@ -161,26 +219,28 @@ nbrs_malt <- function(training_data, outcome){
 #'   Spectral Regularization Algorithms for Learning Large Incomplete
 #'   Matrices, http://www.stanford.edu/~hastie/Papers/mazumder10a.pdf
 #'   *Journal of Machine Learning Research* 11 (2010) 2287-2322
+#'
 #' @export
+#'
 
-soft_mash <- function(
+mash_soft <- function(
   malt,
   n_impute = 10,
-  step_size = 1,
+  step_size = NULL,
   scale_data = TRUE,
   scale_iter = 20,
   scale_lambda = 0.95,
   lambda_sequence = NULL
 ){
 
-  if(is.null(attr(malt, 'malted'))) stop(
-    "the brew has not been mashed! Try using soft_malt() before boiling",
-    call. = FALSE
-  )
+  check_malt(malt)
+
+  step_size <- step_size %||% 1L
 
   check_pos_int(n_impute, label = 'number of imputations')
   check_pos_int(step_size, label = 'step size')
   check_pos_int(scale_iter, label = 'number of iterations for bi-scale')
+  check_fraction(scale_lambda, 'scale_lambda')
 
   check_step_size(
     step_size = step_size,
@@ -190,9 +250,6 @@ soft_mash <- function(
 
   if(!is.logical(scale_data))
     stop('scale_data should be logical', call. = FALSE)
-
-  if(scale_lambda > 1 || scale_lambda < 0)
-    stop('scale_lambda should be in [0,1]', call.=FALSE)
 
   malt$pars <- list(
     max_rank = malt$pars$max_rank,
@@ -210,12 +267,94 @@ soft_mash <- function(
 
 }
 
-#' Make a neighborhood mash
+#' Make a ranger's mash
+#'
 #' @export
-nbrs_mash <- function(
+
+mash_rngr <- function(
   malt,
   n_impute = 10,
   step_size = NULL,
+  min_nodesize = 1,
+  donor_pool = NULL
+) {
+
+  check_malt(malt)
+
+  check_pos_int(n_impute, label = 'number of imputations')
+
+  step_null <- is.null(step_size)
+  dnrs_null <- is.null(donor_pool)
+
+  if(step_null && dnrs_null) stop(
+    "step_size or donor_pool must be specified"
+  )
+
+  if(!step_null && !dnrs_null) stop(
+    "only one of step_size or donor_pool should be specified"
+  )
+
+  if(dnrs_null){
+
+    pmm.k <- 0L
+
+    check_pos_int(step_size, label = 'step size')
+
+    check_step_size(
+      step_size = step_size,
+      n_impute =  n_impute,
+      max_rank =  nrow(malt$data) - min_nodesize
+    )
+
+    ns_seq <- seq(
+      from = min_nodesize,
+      to = min_nodesize + (n_impute-1) * step_size,
+      by = step_size
+    )
+
+  } else {
+
+    pmm.k <- ns_seq <- donor_pool
+
+    if(length(donor_pool) == 1){
+
+      check_pos_int(donor_pool, label = 'donor_pool size')
+      ns_seq <- rep(ns_seq, n_impute)
+
+    } else {
+
+      if(length(donor_pool) != n_impute) warning(
+        "donor_pool should be the same length as n_impute. \n",
+        "I will switch n_impute to be the same length as donor_pool."
+      )
+
+      n_impute <- length(donor_pool)
+
+    }
+
+  }
+
+  malt$pars <- list(
+    n_impute = n_impute,
+    ns_seq = ns_seq,
+    pmm.k = pmm.k
+  )
+
+  attr(malt, 'mashed') <- TRUE
+
+  malt
+
+}
+
+#' Make a neighborhood mash
+#'
+#' @export
+#'
+mash_nbrs <- function(
+  malt,
+  n_impute = 10L,
+  step_size = NULL,
+  min_neighbors = 1L,
   neighborhood = NULL
 ){
 
@@ -244,7 +383,11 @@ nbrs_mash <- function(
     )
 
     nb_agg <- 'summarize'
-    nb_seq <- seq(1, n_impute * step_size, by = step_size)
+    nb_seq <- seq(
+      from = min_neighbors,
+      to = min_neighbors + (n_impute-1) * step_size,
+      by = step_size
+    )
 
   } else {
 
@@ -292,7 +435,7 @@ nbrs_mash <- function(
 #'   object, this step involves adding training data to the analysis
 #'   and then creating imputation models based on that data.
 #'
-#' @param mash a `brew` object that has been mashed (see [soft_mash])
+#' @param mash a `brew` object that has been mashed (see [mash_soft])
 #'
 #' @param verbose `TRUE` or `FALSE`. if `TRUE`, output will be
 #'   printed to the console indicating the ranks of solutions found
@@ -456,6 +599,56 @@ boil.neighbors_brew <- function(mash, verbose = FALSE, ...){
 
 }
 
+#' @describeIn boil boil a ranger's brew, valid parameters for `...` are
+#'   `num.trees`, `sample.fraction`, `splitrule`, `formula`,
+#'   `num.random.splits`,`maxiter`, `seed`, and `case.weights`
+#'   (see notes).
+#' @export
+#'
+boil.rangers_brew <- function(mash, verbose = FALSE, ...){
+
+  check_mash(mash)
+
+  .dots <- check_dots(
+    list(...),
+    valid_args = c(
+      'num.trees',
+      'sample.fraction',
+      'splitrule',
+      'formula',
+      'num.random.splits',
+      'maxiter',
+      'seed',
+      'case.weights'
+    )
+  )
+  .dots$data <- mash$data
+  .dots$pmm.k <- mash$pars$pmm.k
+  .dots$verbose <- as.numeric(verbose)
+
+  fits <- map(
+    .x = mash$pars$ns_seq,
+    .f = function(node_size){
+      .dots$min.node.size <- node_size
+      do.call(missRanger, args = .dots)
+    }
+  )
+
+  mash$wort <- fits %>%
+    enframe(name = 'impute', value = 'fit') %>%
+    mutate(
+      min_node_size = mash$pars$ns_seq,
+      pmm_donors = mash$pars$pmm.k
+    ) %>%
+    select(impute, min_node_size, pmm_donors, fit)
+
+  attr(mash, 'boiled') = TRUE
+
+  mash
+
+}
+
+
 #' Ferment a brew
 #'
 #' @param brew a `brew` object that has been boiled (see [boil]).
@@ -503,6 +696,7 @@ ferment <- function(
   brew,
   new_data = NULL,
   col_name = 'testing',
+  verbose = FALSE,
   control = list()
 ) {
   UseMethod('ferment')
@@ -514,6 +708,7 @@ ferment.soft_brew <- function(
   brew,
   new_data = NULL,
   col_name = 'testing',
+  verbose = FALSE,
   control = list()
 ) {
 
@@ -529,7 +724,7 @@ ferment.soft_brew <- function(
 
     .dots[[col_name]] <- as_tibble(new_data)
     .names <- names(.dots[[col_name]])
-    if(outcome %in% .names){
+    if(any(outcome %in% .names)){
       attr(brew, 'outcome_tst') <- .dots[[col_name]][, outcome, drop = FALSE]
       .dots[[col_name]][, outcome] = NULL
     }
@@ -548,6 +743,84 @@ ferment.soft_brew <- function(
 
 
   if(new_data_supplied){
+
+    if(!any(is.na(new_data))){
+      brew$wort[[col_name]] <- list(new_data)
+    } else {
+      control <- check_dots(
+        control,
+        valid_args = c('neighbors', 'impute_index')
+      )
+
+      neighbors <- control$neighbors %||% 5
+      impute_index <- control$impute_index %||% round(nrow(brew$wort)/2)
+
+      nn_index <- gower_topn(
+        x = .dots[[col_name]],
+        y = brew$wort$training[[impute_index]],
+        n = neighbors
+      )$index
+
+      brew$wort[[col_name]] <- map(
+        .x = brew$wort$training,
+        .f = ~ knn_brew(
+          ref_data = .x,
+          new_data = .dots[[col_name]],
+          nn_index = nn_index
+        )
+      )
+    }
+
+  }
+
+  attr(brew, 'fermented') <- TRUE
+  attr(brew, 'fermented_cols') <- names(.dots)
+
+  brew
+
+}
+
+#' @describeIn ferment impute missing values for `rangers_brew` objects.
+#' @export
+ferment.rangers_brew <- function(
+  brew,
+  new_data = NULL,
+  col_name = 'testing',
+  verbose = FALSE,
+  control = list()
+) {
+
+  check_brew(brew, col_name)
+  new_data_supplied <- !is.null(new_data)
+
+  # Impute training data using softImpute
+  .dots <- list(training = brew$data)
+
+  outcome <- attr(brew, 'outcome_lab')
+
+  if(new_data_supplied) {
+
+    .dots[[col_name]] <- as_tibble(new_data)
+    .names <- names(.dots[[col_name]])
+    if(any(outcome %in% .names)){
+      attr(brew, 'outcome_tst') <- .dots[[col_name]][, outcome, drop = FALSE]
+      .dots[[col_name]][, outcome] = NULL
+    }
+
+  }
+
+  brew$wort %<>% mutate(training = fit)
+
+  if(new_data_supplied){
+
+    if(!any(is.na(new_data))){
+
+      brew$wort[[col_name]] <- list(new_data)
+      attr(brew, 'fermented') <- TRUE
+      attr(brew, 'fermented_cols') <- names(.dots)
+      return(brew)
+
+    }
 
     control <- check_dots(
       control,
@@ -571,11 +844,11 @@ ferment.soft_brew <- function(
         nn_index = nn_index
       )
     )
+
   }
 
   attr(brew, 'fermented') <- TRUE
   attr(brew, 'fermented_cols') <- names(.dots)
-
   brew
 
 }
@@ -586,44 +859,87 @@ ferment.neighbors_brew <- function(
   brew,
   new_data = NULL,
   col_name = 'testing',
+  verbose = FALSE,
   control = list()
 ) {
 
   check_brew(brew, col_name)
 
+  n_impute <- brew$pars$n_impute
+  nbrs_seq <- brew$pars$nbrs_seq
+  nbrs_agg <- brew$pars$nbrs_agg
+
   new_data_supplied <- !is.null(new_data)
 
-  .dots <- list(training = brew$data)
+  data <- list(training = brew$data)
 
   outcome <- attr(brew, 'outcome_lab')
 
   if(new_data_supplied) {
 
-    .dots[[col_name]] <- as_tibble(new_data)
-    .names <- names(.dots[[col_name]])
-    if(outcome %in% .names){
-      attr(brew, 'outcome_tst') <- .dots[[col_name]][, outcome, drop = FALSE]
-      .dots[[col_name]][, outcome] = NULL
+    data[[col_name]] <- as_tibble(new_data)
+    .names <- names(data[[col_name]])
+    if(any(outcome %in% .names)){
+      attr(brew, 'outcome_tst') <- data[[col_name]][, outcome, drop = FALSE]
+      data[[col_name]][, outcome] = NULL
     }
 
   }
 
   brew$wort %<>% mutate(training = fit)
 
-  .dots <- check_dots(control, valid_args = c('eps', 'nthread', 'verbose'))
+  if(!any(is.na(new_data))){
+    if(verbose)
+      message("No missing values in new data - nothing to impute.")
+    brew$wort[[col_name]] <- list(data[[col_name]])
+    attr(brew, 'fermented') <- TRUE
+    attr(brew, 'fermented_cols') <- names(data)
+    return(brew)
+
+  }
+
+  .dots <- check_dots(
+    control,
+    valid_args = c('eps', 'nthread', 'use_imputed_data')
+  )
+
+  use_imputed_data <- .dots$use_imputed_data %||% FALSE
+
   .dots$eps <- .dots$eps %||% 1e-08
   .dots$nthread <- .dots$nthread %||% getOption("gd_num_thread")
-  .dots$verbose <- .dots$verbose %||% FALSE
-  .dots$ref_data <- brew$data
-  .dots$new_data <- new_data
-  .dots$n_impute <- brew$pars$n_impute
-  .dots$neighbor_sequence <- brew$pars$nbrs_seq
-  .dots$neighbor_aggr_fun <- brew$pars$nbrs_agg
+  .dots$verbose <- verbose
+  .dots$new_data <- data[[col_name]]
 
-  brew$wort[[col_name]] <- do.call(knn_work, args = .dots)
+  if(use_imputed_data){
+
+    fits <- vector(mode='list', length = n_impute)
+
+    for(i in seq(n_impute)){
+
+      .dots$ref_data <- brew$wort$fit[[i]]
+      .dots$n_impute <- 1
+      .dots$neighbor_sequence <- nbrs_seq[i]
+      .dots$neighbor_aggr_fun <- nbrs_agg[i]
+
+      fits[[i]] <- do.call(knn_work, args = .dots)
+
+    }
+
+  } else {
+
+    .dots$ref_data <- brew$data
+    .dots$n_impute <- n_impute
+    .dots$neighbor_sequence <- nbrs_seq
+    .dots$neighbor_aggr_fun <- nbrs_agg
+
+    fits <- do.call(knn_work, args = .dots)
+
+  }
+
+  brew$wort[[col_name]] <- fits
 
   attr(brew, 'fermented') <- TRUE
-  attr(brew, 'fermented_cols') <- names(.dots)
+  attr(brew, 'fermented_cols') <- names(data)
 
   brew
 
@@ -632,50 +948,65 @@ ferment.neighbors_brew <- function(
 #' Bottle a brew
 #'
 #' @param brew a `brew` object that has been passed through all
-#'   the brewing steps: [malt], [mash], [boil], and [ferment].
+#'   the brewing steps: `malt` (i.e., [malt_nbrs], [malt_soft]),
+#'    `mash` (i.e., [mash_nbrs], [mash_soft]),
+#'   [boil], and [ferment].
 #'
 #' @param flavor a character value indicating what composition
 #'   the training and testing data will be returned as.
 #'
 #' @export
-bottle <- function(brew, flavor = c('tibble', 'matrix')){
+bottle <- function(
+  brew,
+  flavor = c('tibble', 'matrix'),
+  drop_fit = TRUE
+) {
 
-  UseMethod('bottle')
+  check_fermented_brew(brew)
+
+  .bottler <- switch (
+    EXPR = flavor[1],
+    'tibble' = .tibble_bottle,
+    'matrix' = .matrix_bottle
+  )
+
+  bottles <- .bottler(brew)
+
+  if(drop_fit) bottles[, 'fit'] = NULL
+
+  bottles
 
 }
 
-#' @describeIn bottle bottle up a soft brew
-#' @export
-bottle.soft_brew <- function(brew, flavor = c('tibble', 'matrix')){
-
-  is_not_fermented <- !attr(brew, 'fermented')
-
-  if(is_not_fermented) stop(
-    "the brew has not been fermented! Try using ferment() before bottling",
-    call. = FALSE
-  )
-
-  .fun <- switch (
-    EXPR = flavor[1],
-    'tibble' = as_tibble,
-    'matrix' = as.matrix
-  )
+.tibble_bottle <- function(brew){
 
   .cols <- attr(brew, 'fermented_cols')
 
   brew$wort[[ .cols[1] ]] %<>% map(bind_cols, attr(brew, 'outcome_trn'))
   brew$wort[[ .cols[2] ]] %<>% map(bind_cols, attr(brew, 'outcome_tst'))
-  brew$wort %<>% mutate_at(.cols, ~map(.x, .fun))
+  brew$wort %<>% mutate_at(.cols, ~map(.x, as_tibble))
   brew$wort
 
 }
 
-#' mode estimation
-#'
-#' (copied from recipes)
-#'
-mode_est <- function (x)
-{
+.matrix_bottle <- function(brew){
+
+  .cols <- attr(brew, 'fermented_cols')
+
+  .list_mats <- function(...){
+    list(...) %>%
+      set_names(c('x','y')) %>%
+      map(as.matrix)
+  }
+
+  brew$wort[[ .cols[1] ]] %<>% map(.list_mats, attr(brew, 'outcome_trn'))
+  brew$wort[[ .cols[2] ]] %<>% map(.list_mats, attr(brew, 'outcome_tst'))
+  brew$wort
+
+}
+
+mode_est <- function(x){
+
   if (!is.character(x) & !is.factor(x))
     stop(
       "The data should be character or factor to compute the mode.",
@@ -688,7 +1019,7 @@ mode_est <- function (x)
 
 }
 
-nn_pred <- function(index, dat, k, random = FALSE) {
+nn_pred <- function(index, dat, k, random = FALSE){
 
   dat <- dat[index[1:k], ]
   dat <- getElement(dat, names(dat))
@@ -699,111 +1030,6 @@ nn_pred <- function(index, dat, k, random = FALSE) {
   if (is.factor(dat) | is.character(dat)) return(mode_est(dat))
 
   mean(dat)
-
-}
-
-#' k-nearest-neighbor (knn) imputation
-#' @export
-
-knn_fill <- function(
-  data,
-  new_data,
-  outcome,
-  n_impute = 10,
-  step_size = 1,
-  neighbor_sequence = NULL,
-  verbose = TRUE,
-  ...
-) {
-
-  outcome <- vars_select(names(data), !!enquo(outcome))
-
-  .dots <- list(...) %>%
-    check_dots(valid_args = c('eps', 'nthread'))
-
-  if( !('eps' %in% names(.dots)) ){
-    .dots$eps <- 1e-08
-  }
-
-  if( !('nthread' %in% names(.dots)) ){
-    .dots$nthread <- getOption("gd_num_thread")
-  }
-
-
-  if(nrow(data) == 0 || ncol(data)==0){
-    stop("data is empty", call.=FALSE)
-  }
-
-  if(nrow(new_data) == 0 || ncol(new_data)==0){
-    stop("new_data is empty", call.=FALSE)
-  }
-
-  neighbor_sequence <- neighbor_sequence %||%
-    seq(
-      from = step_size,
-      to = n_impute * step_size,
-      by = step_size
-    )
-
-  output <- knn_work(
-    ref_data = data,
-    new_data = new_data,
-    outcome = outcome,
-    neighbor_sequence = neighbor_sequence,
-    nthread = .dots$nthread,
-    epsilon = .dots$eps,
-    verbose = verbose
-  )
-
-}
-
-#' k-nearest-neighbor (knn) imputation
-#' @description  Adapted from Max Kuhn's knn imputation functions in recipes
-#' @export
-
-knn_fit <- function(
-  data,
-  outcome,
-  n_impute = 10,
-  step_size = 1,
-  neighbor_sequence = NULL,
-  verbose = TRUE,
-  ...
-) {
-
-  outcome <- vars_select(names(data), !!enquo(outcome))
-
-  .dots <- list(...) %>%
-    check_dots(valid_args = c('eps', 'nthread'))
-
-  if( !('eps' %in% names(.dots)) ){
-    .dots$eps <- 1e-08
-  }
-
-  if( !('nthread' %in% names(.dots)) ){
-    .dots$nthread <- getOption("gd_num_thread")
-  }
-
-
-  if(nrow(data) == 0 || ncol(data)==0){
-    stop("data is empty", call.=FALSE)
-  }
-
-  neighbor_sequence <- neighbor_sequence %||%
-    seq(
-      from = step_size,
-      to = n_impute,
-      by = step_size
-    )
-
-  output <- knn_work(
-    ref_data = data,
-    outcome = outcome,
-    neighbor_sequence = neighbor_sequence,
-    nthread = .dots$nthread,
-    epsilon = .dots$eps,
-    verbose = verbose
-  )
 
 }
 
@@ -837,7 +1063,6 @@ knn_brew <- function(
   new_data
 
 }
-
 
 knn_work <- function(
   ref_data,
@@ -943,13 +1168,3 @@ knn_work <- function(
 }
 
 
-
-# format_data_list(fits) %>%
-#   mutate(neighbors = neighbor_sequence)
-#
-# format_data_list() %>%
-#   mutate(
-#     lambda = map_dbl(fits, ~attr(.x, 'lambda')),
-#     rank = map_dbl(fits, ~attr(.x, 'rank'))
-#   ) %>%
-#   select(impute, lambda, rank, data)
