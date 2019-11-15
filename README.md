@@ -23,11 +23,11 @@ tibble.
 
 ## Installation
 
-<!-- You can install the released version of midy from [CRAN](https://CRAN.R-project.org) with: -->
+<!-- You can install the released version of ipa from [CRAN](https://CRAN.R-project.org) with: -->
 
 <!-- ``` r -->
 
-<!-- install.packages("midy") -->
+<!-- install.packages("ipa") -->
 
 <!-- ``` -->
 

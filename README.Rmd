@@ -11,84 +11,40 @@ knitr::opts_chunk$set(
   fig.path = "man/figures/README-",
   out.width = "100%"
 )
-
-# workflow: 
-
-# mash -> ferment -> bottle
-
-# translates to
-
-# type + params -> fit train + test -> output matrix/tibble
-
-# mds_new
-# mds_fit
-# mds_impute
-
-# Currently implements imputation methods: soft, knn, and RF
-# soft and knn are both very fast - RF is somewhat slower.
-#  xgboost functions to work with imputed data are disjoint - separate package?
-
-# Ideas:
-#  simplify workflow so that
-#  1. type of imputation is specified in malt
-#  2. general imputation arguments are provided in mash
-#     using the input named impute_args
-
-# Example of updated API
-
 ```
-# midy
+
+# Imputation for predictive analytics (`ipa`)
 
 <!-- Think about statistics in medicine submission -->
 
+The goal of `ipa` is to make imputation in predictive modeling workflows more straightforward and efficient. The main functions in `ipa` are
 
-The 5 steps of brewing beer and conducting imputation for predictive analytics (IPA):
+1. `brew` Create a container to hold your imputations
 
-1. **malt** 
+2. `spice` (optional) set parameters that govern the number of imputations for the given brew
 
-Determine the type of wheat and prepare it for mashing. 
+3. `mash` fit models that will provide imputations
 
-Determine the type of imputation method and prepare it for use.
+4. `ferment` impute missing values in training and (optionally) testing data 
 
-2. **mash**
+5. `bottle` output the imputed datasets in a tibble.
 
-The malted wheat is paired with hot or boiling water. 
-
-The imputation method is paired with relevant parameters.
-
-3. **boil**
-
-Hops and spices are added to the wort and boiled, creating flavors for enjoyment.
-
-Training data is added to the analysis and imputed, creating models for imputation of testing data with missing values.
-
-4. **ferment**
-
-Yeast is added to the mixture as a catalyst. The flavors in the wort interact with the yeast and create alcohol.
-
-Data (training or testing) is added to the analysis. The imputation models interact with the data and create sets of complete (intoxicating) data.
-
-
-5. **bottle**
-
-The mixture is stored in bottles and aged. After this step, the brew is ready to be enjoyed!
-
-The observed and imputed values are stored in lists and formatted as single/multiple/stacked data. After this step, the data are ready to be enjoyed (i.e., used to develop predictive models)!
 
 ## Installation
 
-You can install the released version of midy from [CRAN](https://CRAN.R-project.org) with:
+<!-- You can install the released version of ipa from [CRAN](https://CRAN.R-project.org) with: -->
 
-``` r
-install.packages("midy")
-```
+<!-- ``` r -->
+<!-- install.packages("ipa") -->
+<!-- ``` -->
 
-And the development version from [GitHub](https://github.com/) with:
+You can install the development version of `ipa` from [GitHub](https://github.com/) with:
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("bcjaeger/midy")
+devtools::install_github("bcjaeger/ipa")
 ```
+
 ## Example
 
-link to vignette should go here
+To be filled in
