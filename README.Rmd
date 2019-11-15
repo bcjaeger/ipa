@@ -11,16 +11,36 @@ knitr::opts_chunk$set(
   fig.path = "man/figures/README-",
   out.width = "100%"
 )
+
+# workflow: 
+
+# mash -> ferment -> bottle
+
+# translates to
+
+# type + params -> fit train + test -> output matrix/tibble
+
+# mds_new
+# mds_fit
+# mds_impute
+
+# Currently implements imputation methods: soft, knn, and RF
+# soft and knn are both very fast - RF is somewhat slower.
+#  xgboost functions to work with imputed data are disjoint - separate package?
+
+# Ideas:
+#  simplify workflow so that
+#  1. type of imputation is specified in malt
+#  2. general imputation arguments are provided in mash
+#     using the input named impute_args
+
+# Example of updated API
+
 ```
 # midy
 
 <!-- Think about statistics in medicine submission -->
 
-<!-- badges: start -->
-[![Travis build status](https://travis-ci.org/bcjaeger/midy.svg?branch=master)](https://travis-ci.org/bcjaeger/midy)
-[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
-[![Codecov test coverage](https://codecov.io/gh/bcjaeger/midy/branch/master/graph/badge.svg)](https://codecov.io/gh/bcjaeger/midy?branch=master)
-<!-- badges: end -->
 
 The 5 steps of brewing beer and conducting imputation for predictive analytics (IPA):
 

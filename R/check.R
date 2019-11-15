@@ -1,14 +1,38 @@
 
+check_data_list <- function(data_list){
+
+  if(!is.list(data_list)){
+    stop("data_list should be a list")
+  }
+
+  ncols <- purrr::map_int(data_list, ncol)
+  nrows <- purrr::map_int(data_list, nrow)
+
+  if(!all(ncols[-1] == ncols[1])){
+    stop(
+      "All data frames in `data_list` should have same number of columns"
+    )
+  }
+
+  if(!all(nrows[-1] == nrows[1])){
+    stop(
+      "All data frames in `data_list` should have same number of rows"
+    )
+  }
+
+
+}
+
 # check positive integer input
 check_pos_int <- function(x, label){
 
   if(x <= 0)
-    stop(glue("{label} should be > 0"), call. = FALSE)
+    stop(glue::glue("{label} should be > 0"), call. = FALSE)
 
   .int <- as.integer(x)
 
   if(x != .int)
-    stop(glue('{label} should be an integer'), call. = FALSE)
+    stop(glue::glue('{label} should be an integer'), call. = FALSE)
 
 }
 
@@ -16,23 +40,20 @@ check_pos_int <- function(x, label){
 check_fraction <- function(x, label){
 
   if(x > 1 || x < 0)
-    stop('{label} should be > 0.00 and < 1.00', call.=FALSE)
+    stop('{label} should be > 0 and < 1', call.=FALSE)
 
 }
 
 
-
-# check step size for soft imputes
-check_step_size <- function(step_size, n_impute, max_rank){
+check_step_size <- function(step_size, n_impute,  max_rank){
 
   expected_max_rank <- step_size * n_impute
 
   observed_max_rank <- as.integer(floor(max_rank / n_impute))
 
   if(expected_max_rank > max_rank) {
-    out_msg <- glue(
-      "step_size is too big. to create {n_impute} imputations \\
-      of the given data, maximum step size is {observed_max_rank}"
+    out_msg <- glue::glue(
+      "step_size or n_impute is too big. Try reducing n_impute or step_size"
     )
     stop(out_msg, call. = FALSE)
   }
@@ -44,7 +65,7 @@ check_dots <- function(.dots, valid_args){
 
   bad_args <- setdiff(names(.dots), valid_args)
 
-  if(!is_empty(bad_args)){
+  if(!purrr::is_empty(bad_args)){
     stop(
       paste(
         "The following arguments are unrecognized:",
@@ -57,43 +78,6 @@ check_dots <- function(.dots, valid_args){
   .dots
 
 }
-
-# check missing strategy input
-check_miss_strat <- function(miss_strat){
-
-  valid_input <- miss_strat %in% c('si','mi','stacked')
-
-  if(!valid_input){
-    stop("miss_strat should be one of 'si', 'mi', or 'stacked'")
-  }
-
-}
-
-# check xgb inputs for stacked mi
-check_xgb_stack_args <- function(args, n_impute){
-
-  if( is.null(n_impute) ){
-    stop("n_impute needs to be specified", call. = FALSE)
-  }
-
-  if(!inherits(args$params, 'stacked_params')){
-    args$params %<>% stack_params(n_impute = n_impute)
-  }
-
-  if(!inherits(args$label, 'stacked_label')){
-    args$label %<>% stack_label(n_impute = n_impute)
-  }
-
-  if('folds' %in% names(args)){
-    if(!inherits(args$folds, 'stacked_folds')){
-      args$folds %<>% stack_folds(n_impute = n_impute)
-    }
-  }
-
-  args
-
-}
-
 
 check_ferment_data <- function(brew, new_data){
 
@@ -108,14 +92,14 @@ check_ferment_data <- function(brew, new_data){
 
     if(too_many_new){
 
-      out_msg <- glue(
+      out_msg <- glue::glue(
         "new data have columns not contained in brew data: \\
         {list_things(setdiff(new_names, old_names))}"
       )
 
     } else {
 
-      out_msg <- glue(
+      out_msg <- glue::glue(
         "brew data have columns not contained in new data: \\
         {list_things(setdiff(old_names, new_names))}"
       )
@@ -129,50 +113,56 @@ check_ferment_data <- function(brew, new_data){
 
 }
 
-check_malt <- function(malt){
-  if(is.null(attr(malt, 'malted'))) stop(
-    "the brew has not been mashed! Try using soft_malt() before boiling",
-    call. = FALSE
+
+check_brew <- function(brew, expected_stage){
+
+  if(!is_brew(brew)){
+    stop("brew should be an ipa_brew object - see brew() function")
+  }
+
+  #don't to include mash need b/c spicing is automated
+
+  previous_stage <- switch(
+    expected_stage,
+    'spice' = 'initiated',
+    'ferment' = 'mashed',
+    'bottle' = 'fermented'
   )
-}
 
-check_mash <- function(mash){
-  is_not_mashed <- !attr(mash, 'mashed')
-
-  if(is_not_mashed) stop(
-    "the brew has not been mashed! Try using soft_mash() before boiling",
-    call. = FALSE
+  recommended_function <- switch(
+    expected_stage,
+    'spice' = 'brew',
+    'ferment' = 'mash',
+    'bottle' = 'ferment'
   )
-}
 
-check_brew <- function(brew, col_name){
+  brew_checker <- switch(
+    expected_stage,
+    'spice' = is_brew,
+    'ferment' = is_mashed,
+    'bottle' = is_fermented
+  )
 
-  # check to make sure the object has been
-  # passed through the right functions before
-  # it got passed here
-
-  is_not_boiled <- !attr(brew, 'boiled')
-  if(is_not_boiled)
+  if(!brew_checker(brew)){
     stop(
-      "the brew has not been boiled! Try using boil() before fermenting",
-      call. = FALSE
+      glue::glue("the brew has not been {previous_stage}!\n",
+        "Try using the {recommended_function}() function before ",
+        "using the {expected_stage}() function")
     )
-
-  if(tolower(col_name) %in% c('train', 'training')) stop(
-    "training data is automatically imputed. ",
-    "col_name should specify label for testing data",
-    call. = FALSE
-  )
+  }
 
 }
 
-check_fermented_brew <- function(brew){
+check_spicer <- function(spicer, expected){
 
-  is_not_fermented <- !attr(brew, 'fermented')
+  if(is.null(spicer)){
+    return(NULL)
+  }
 
-  if(is_not_fermented) stop(
-    "the brew has not been fermented! Try using ferment() before bottling",
-    call. = FALSE
+  if(!inherits(spicer, expected)) stop(
+    glue::glue("The {class(spicer)[1]} spicer you have used is not ",
+      "compatible with the {expected} brew you are making!",
+    call. = FALSE)
   )
 
 }

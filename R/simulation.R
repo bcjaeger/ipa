@@ -55,13 +55,13 @@ gen_simdata <- function(
   # Main effects
   xnames = paste0('x', 1:ncov)
 
-  beta <- runif(
+  beta <- stats::runif(
     n = ncov,
     min = -1,
     max = 1
   ) %>%
-    divide_by(sqrt(ncov)) %>%
-    set_names(xnames)
+    magrittr::divide_by(sqrt(ncov)) %>%
+    purrr::set_names(xnames)
 
   # Interaction effects
   if(nint > 0){
@@ -72,14 +72,14 @@ gen_simdata <- function(
       simplify = FALSE
     )
 
-    inames = map_chr(
+    inames = purrr::map_chr(
       .x = int_ind,
-      .f = ~glue("{.x[1]}_i_{.x[2]}")
+      .f = ~ glue::glue("{.x[1]}_i_{.x[2]}")
     )
 
-    icoefs <- runif(n = nint, min = -1, max = 1) %>%
-      divide_by(sqrt(ncov)) %>%
-      set_names(inames)
+    icoefs <- stats::runif(n = nint, min = -1, max = 1) %>%
+      magrittr::divide_by(sqrt(ncov)) %>%
+      magrittr::set_names(inames)
 
     beta %<>% c(icoefs)
 
@@ -107,16 +107,16 @@ gen_simdata <- function(
     n = nobs,
     sigma = Sigma
   ) %>%
-    set_colnames(xnames)
+    magrittr::set_colnames(xnames)
 
   if(nint > 0){
 
-    intr = map(
+    intr = purrr::map(
       .x = int_ind,
       .f =  function(i) x_obsr[, i[1]] * x_obsr[, i[2]]
     ) %>%
-      set_names(names(icoefs)) %>%
-      bind_cols()
+      purrr::set_names(names(icoefs)) %>%
+      dplyr::bind_cols()
 
     x_true %<>% cbind(intr)
 
@@ -124,7 +124,7 @@ gen_simdata <- function(
 
   if(problem_type == 'survival'){
 
-    y <- simsurv(
+    y <- simsurv::simsurv(
       dist = 'weibull',
       lambdas = 0.1,
       gammas = 1.5,
@@ -133,27 +133,32 @@ gen_simdata <- function(
       maxt = 10
     )
 
-    data <- bind_cols(
+    data <- dplyr::bind_cols(
       time = y$eventtime,
       status = y$status,
-      as_tibble(x_obsr)
+      tibble::as_tibble(x_obsr)
     )
 
   } else {
 
-    y <- as.matrix(x_true) %*% matrix(beta) + rnorm(n = nobs, sd = error_sd)
+    error_term <- stats::rnorm(n = nobs, sd = error_sd)
+
+    y <- as.matrix(x_true) %*% matrix(beta) + error_term
     y <- as.numeric(y)
 
     if(problem_type=='classification'){
 
       cut_prop <- if(!is.null(prevalence)) prevalence else 0.50
 
-      y <- ifelse(y > quantile(y, probs = 1-cut_prop), 1, 0)
+      y <- ifelse(y > stats::quantile(y, probs = 1-cut_prop), 1, 0)
       y <- factor(y, levels = c(0,1), labels = c("No","Yes"))
 
     }
 
-    data <- bind_cols(response = y, as_tibble(x_obsr))
+    data <- dplyr::bind_cols(
+      response = y,
+      tibble::as_tibble(x_obsr)
+    )
 
   }
 
@@ -163,13 +168,13 @@ gen_simdata <- function(
   )
 
   orig <- list(
-    trn = as_tibble(data[trn_indx, ]),
-    tst = as_tibble(data[-trn_indx, ])
+    trn = tibble::as_tibble(data[trn_indx, ]),
+    tst = tibble::as_tibble(data[-trn_indx, ])
   )
 
   patterns <-
-    ampute.default.patterns(n = ncol(orig$trn)) %>%
-    set_colnames(names(orig$trn)) %>%
+    mice::ampute.default.patterns(n = ncol(orig$trn)) %>%
+    magrittr::set_colnames(names(orig$trn)) %>%
     .[1:min(10, ncov), ]
 
   for(i in 1:nrow(patterns)){
@@ -189,34 +194,39 @@ gen_simdata <- function(
   patterns %<>% unique()
 
   freq <- sample(x = nrow(patterns)) %>%
-    divide_by( sum(1:nrow(patterns)) )
+    magrittr::divide_by( sum(1:nrow(patterns)) )
 
   type <- sample(
     x = c("LEFT","RIGHT","MID","TAIL"),
     size = nrow(patterns),
     replace = TRUE)
 
-  fctrs <- map_chr(orig$trn, class) %>%
-    enframe() %>%
-    filter(value == 'factor') %>%
-    mutate(value = map(name, ~levels(orig$trn[[.x]]))) %>%
-    deframe()
+  fctrs <- purrr::map_chr(orig$trn, class) %>%
+    tibble::enframe() %>%
+    dplyr::filter(value == 'factor') %>%
+    dplyr::mutate(
+      value = purrr::map(
+        .x = name,
+        .f = ~levels(orig$trn[[.x]])
+      )
+    ) %>%
+    tibble::deframe()
 
-  output <- map2(
+  output <- purrr::map2(
     .x = orig,
     .y = list(trn_miss_prop, tst_miss_prop),
     .f = function(df, miss_prop){
-      if(miss_prop == 0){ return(as_tibble(df)) }
+      if(miss_prop == 0){ return(tibble::as_tibble(df)) }
       miss_df <- df %>%
-        ampute(
+        mice::ampute(
           prop = miss_prop,
           patterns = patterns,
           freq = freq,
           type = type,
           mech = toupper(miss_pattern)
         ) %>%
-        use_series('amp') %>%
-        as_tibble()
+        magrittr::use_series('amp') %>%
+        tibble::as_tibble()
       for(f in names(fctrs)){
         miss_df[[f]] %<>%
           factor(
@@ -237,6 +247,13 @@ gen_simdata <- function(
 }
 
 #' easy wrapper for ampute
+#'
+#' @param data data to ampute
+#' @param omit_cols column names of variables that will not be amputed
+#' @param miss_proportion proportion of data that will be amputed
+#' @param miss_pattern the pattern of missing data. valid options
+#'  are 'mar','mcar', and 'mnar'.
+#'
 #' @export
 add_missing <- function(
   data,
@@ -248,8 +265,8 @@ add_missing <- function(
   ncov = ncol(data)
 
   patterns <-
-    ampute.default.patterns(n = ncol(data)) %>%
-    set_colnames(names(data)) %>%
+    mice::ampute.default.patterns(n = ncol(data)) %>%
+    magrittr::set_colnames(names(data)) %>%
     .[1:min(10, ncov), ]
 
   for(i in 1:nrow(patterns)){
@@ -267,7 +284,7 @@ add_missing <- function(
   patterns %<>% unique()
 
   freq <- sample(x = nrow(patterns)) %>%
-    divide_by( sum(1:nrow(patterns)) )
+    magrittr::divide_by( sum(1:nrow(patterns)) )
 
   type <- sample(
     x = c("LEFT","RIGHT","MID","TAIL"),
@@ -275,14 +292,19 @@ add_missing <- function(
     replace = TRUE
   )
 
-  fctrs <- map_chr(data, class) %>%
-    enframe() %>%
-    filter(value == 'factor') %>%
-    mutate(value = map(name, ~levels(data[[.x]]))) %>%
-    deframe()
+  fctrs <- purrr::map_chr(data, class) %>%
+    tibble::enframe() %>%
+    dplyr::filter(value == 'factor') %>%
+    dplyr::mutate(
+      value = purrr::map(
+        .x = name,
+        .f = ~levels(data[[.x]])
+      )
+    ) %>%
+    tibble::deframe()
 
   miss_df <- suppressWarnings(
-    ampute(
+    mice::ampute(
       data = data,
       prop = miss_proportion,
       patterns = patterns,
@@ -290,8 +312,8 @@ add_missing <- function(
       type = type,
       mech = toupper(miss_pattern)
     ) %>%
-      use_series('amp') %>%
-      as_tibble()
+      magrittr::use_series('amp') %>%
+      tibble::as_tibble()
   )
 
   for(f in names(fctrs)){

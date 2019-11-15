@@ -19,76 +19,27 @@
 #' To learn more about ipa, start with the vignettes:
 #' `browseVignettes(package = "ipa")`
 #'
-#' @import purrr
-#' @import dplyr
+#' @importFrom rlang %||%
 #'
 #' @importFrom gower gower_topn
 #'
-#' @importFrom missRanger missRanger
-#'
-#' @importFrom tidyselect vars_select
-#'
-#' @importFrom xgboost xgb.DMatrix xgboost xgb.train xgb.cv
-#'
-#' @importFrom simsurv simsurv
-#'
-#' @importFrom recipes prep bake juice recipe step_dummy all_nominal
-#'   all_predictors
-#'
-#' @importFrom tidyr nest unnest
-#'
-#' @importFrom softImpute softImpute lambda0 complete biScale
-#'
-#' @importFrom mice ampute ampute.default.patterns
-#'
-#' @importFrom naniar bind_shadow
-#'
-#' @importFrom mltools one_hot
-#'
-#' @importFrom missForest missForest
-#'
-#' @importFrom gbm basehaz.gbm
-#'
-#' @importFrom data.table := as.data.table
-#'
-#' @importFrom glue glue glue_collapse
-#'
-#' @importFrom tibble enframe as_tibble deframe
-#'
-#' @importFrom stats median na.omit predict quantile rnorm runif
-#'   as.formula model.matrix model.frame
-#'
-#' @importFrom magrittr %>% %<>% use_series set_colnames divide_by multiply_by
-#'
-#' @importFrom mvtnorm rmvnorm
-#'
-#' @importFrom ranger ranger
-#'
-#' @importFrom VIM kNN gowerD
-#'
+#' @importFrom magrittr %>% %<>%
 
 "_PACKAGE"
 
 ## quiets concerns of R CMD check re: the .'s that appear in pipelines
 if(getRversion() >= "2.15.1")  utils::globalVariables(
   c(".",
-    ".SD",
-    "type",
-    "role",
-    "term",
-    "name",
-    "pred",
-    "data",
-    "preds",
-    "value",
-    "params",
-    "level",
-    "n_impute",
-    "variable",
-    "miss_stat",
-    "importance",
-    "miss_strat",
-    "._ipa.ID_.",
-    "factor_contrast_val"
+    '._ID_.',
+    'aggr_fun',
+    'donor_size',
+    'fit',
+    'impute',
+    'k_neighbors',
+    'lambda',
+    'node_size',
+    'value',
+    'name'
   )
 )
+

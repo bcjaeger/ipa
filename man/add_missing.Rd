@@ -6,6 +6,16 @@
 \usage{
 add_missing(data, omit_cols, miss_proportion, miss_pattern)
 }
+\arguments{
+\item{data}{data to ampute}
+
+\item{omit_cols}{column names of variables that will not be amputed}
+
+\item{miss_proportion}{proportion of data that will be amputed}
+
+\item{miss_pattern}{the pattern of missing data. valid options
+are 'mar','mcar', and 'mnar'.}
+}
 \description{
 easy wrapper for ampute
 }

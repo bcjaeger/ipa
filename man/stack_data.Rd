@@ -3,36 +3,40 @@
 \name{stack_data}
 \alias{stack_data}
 \alias{list_data}
-\title{Prepare data stacks/lists}
+\title{Data Stacks & Lists}
 \usage{
-stack_data(data)
+stack_data(data, keep_ID = FALSE)
 
-list_data(data)
+list_data(data, keep_ID = FALSE)
 }
 \arguments{
-\item{data}{(a list) This argument should be a list of
+\item{data}{(\code{list}) This argument should be a list of
 imputed dataframes, each having the same number of rows and columns.}
+
+\item{keep_ID}{(\code{TRUE / FALSE}) Should the returned object include
+a column named \code{._ID_.} that indicates which observations in the
+stacked/listed imputed data belong to the same observation in the
+original unimputed data?}
 }
 \description{
 stacked dataframes comprise multiply imputed
-dataframes that are stacked on top of one another. Imputed values in
-these objects are usually a model prediction + random noise.
-The additional noise creates diversity among the multiple
-dataframes. Data lists are similar, but data frames are kept
+dataframes that are stacked on top of one another.
+A single models can be fit to stacked data, and the
+additional diversity in the data can sometimes reduce
+the model's prediction error. Data lists are similar,
+to data stacks, but data frames in a list are kept
 separate and one model is fit for each dataframe.
 
-These functions create ID variables and attach classes and attributes
-that are used to direct downstream analyses.
+These functions create ID variables and attach them
+to the output data.
 }
 \examples{
 data_list <- list(
-  df1 = data.frame(a = 1:3, b = letters[1:3]),
-  df2 = data.frame(a = 2:4, b = letters[2:4])
+  df1 = data.frame(x = 1:3, y = letters[1:3], stringsAsFactors=FALSE),
+  df2 = data.frame(x = 2:4, y = letters[1:3], stringsAsFactors=FALSE)
 )
 
-stack_data(data_list)
+stack_data(data_list, keep_ID = TRUE)
 
-as_mi(data_list)
-
-as_si(data_list[[1]])
+list_data(data_list, keep_ID = TRUE)
 }

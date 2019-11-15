@@ -1,77 +1,44 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# midy
+# Imputation for predictive analytics (`ipa`)
 
 <!-- Think about statistics in medicine submission -->
 
-<!-- badges: start -->
+The goal of `ipa` is to make imputation in predictive modeling workflows
+more straightforward and efficient. The main functions in `ipa` are
 
-[![Travis build
-status](https://travis-ci.org/bcjaeger/midy.svg?branch=master)](https://travis-ci.org/bcjaeger/midy)
-[![Lifecycle:
-experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://www.tidyverse.org/lifecycle/#experimental)
-[![Codecov test
-coverage](https://codecov.io/gh/bcjaeger/midy/branch/master/graph/badge.svg)](https://codecov.io/gh/bcjaeger/midy?branch=master)
-<!-- badges: end -->
+1.  `brew` Create a container to hold your imputations
 
-The 5 steps of brewing beer and conducting imputation for predictive
-analytics (IPA):
+2.  `spice` (optional) set parameters that govern the number of
+    imputations for the given brew
 
-1.  **malt**
+3.  `mash` fit models that will provide imputations
 
-Determine the type of wheat and prepare it for mashing.
+4.  `ferment` impute missing values in training and (optionally) testing
+    data
 
-Determine the type of imputation method and prepare it for use.
-
-2.  **mash**
-
-The malted wheat is paired with hot or boiling water.
-
-The imputation method is paired with relevant parameters.
-
-3.  **boil**
-
-Hops and spices are added to the wort and boiled, creating flavors for
-enjoyment.
-
-Training data is added to the analysis and imputed, creating models for
-imputation of testing data with missing values.
-
-4.  **ferment**
-
-Yeast is added to the mixture as a catalyst. The flavors in the wort
-interact with the yeast and create alcohol.
-
-Data (training or testing) is added to the analysis. The imputation
-models interact with the data and create sets of complete (intoxicating)
-data.
-
-5.  **bottle**
-
-The mixture is stored in bottles and aged. After this step, the brew is
-ready to be enjoyed\!
-
-The observed and imputed values are stored in lists and formatted as
-single/multiple/stacked data. After this step, the data are ready to be
-enjoyed (i.e., used to develop predictive models)\!
+5.  `bottle` output the imputed datasets in a
+tibble.
 
 ## Installation
 
-You can install the released version of midy from
-[CRAN](https://CRAN.R-project.org) with:
+<!-- You can install the released version of midy from [CRAN](https://CRAN.R-project.org) with: -->
 
-``` r
-install.packages("midy")
-```
+<!-- ``` r -->
 
-And the development version from [GitHub](https://github.com/) with:
+<!-- install.packages("midy") -->
+
+<!-- ``` -->
+
+You can install the development version of `ipa` from
+[GitHub](https://github.com/) with:
 
 ``` r
 # install.packages("devtools")
-devtools::install_github("bcjaeger/midy")
+devtools::install_github("bcjaeger/ipa")
 ```
 
 ## Example
 
-link to vignette should go here
+To be filled in
