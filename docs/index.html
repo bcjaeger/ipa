@@ -72,51 +72,33 @@
 
       </header><div class="row">
   <div class="contents col-md-9">
-<div id="midy" class="section level1">
+<div id="imputation-for-predictive-analytics-ipa" class="section level1">
 <div class="page-header"><h1 class="hasAnchor">
-<a href="#midy" class="anchor"></a>midy</h1></div>
+<a href="#imputation-for-predictive-analytics-ipa" class="anchor"></a>Imputation for predictive analytics (<code>ipa</code>)</h1></div>
 <!-- Think about statistics in medicine submission -->
-<!-- badges: start -->
-
-<p>The 5 steps of brewing beer and conducting imputation for predictive analytics (IPA):</p>
+<p>The goal of <code>ipa</code> is to make imputation in predictive modeling workflows more straightforward and efficient. The main functions in <code>ipa</code> are</p>
 <ol>
-<li><strong>malt</strong></li>
+<li><p><code>brew</code> Create a container to hold your imputations</p></li>
+<li><p><code>spice</code> (optional) set parameters that govern the number of imputations for the given brew</p></li>
+<li><p><code>mash</code> fit models that will provide imputations</p></li>
+<li><p><code>ferment</code> impute missing values in training and (optionally) testing data</p></li>
+<li><p><code>bottle</code> output the imputed datasets in a tibble.</p></li>
 </ol>
-<p>Determine the type of wheat and prepare it for mashing.</p>
-<p>Determine the type of imputation method and prepare it for use.</p>
-<ol>
-<li><strong>mash</strong></li>
-</ol>
-<p>The malted wheat is paired with hot or boiling water.</p>
-<p>The imputation method is paired with relevant parameters.</p>
-<ol>
-<li><strong>boil</strong></li>
-</ol>
-<p>Hops and spices are added to the wort and boiled, creating flavors for enjoyment.</p>
-<p>Training data is added to the analysis and imputed, creating models for imputation of testing data with missing values.</p>
-<ol>
-<li><strong>ferment</strong></li>
-</ol>
-<p>Yeast is added to the mixture as a catalyst. The flavors in the wort interact with the yeast and create alcohol.</p>
-<p>Data (training or testing) is added to the analysis. The imputation models interact with the data and create sets of complete (intoxicating) data.</p>
-<ol>
-<li><strong>bottle</strong></li>
-</ol>
-<p>The mixture is stored in bottles and aged. After this step, the brew is ready to be enjoyed!</p>
-<p>The observed and imputed values are stored in lists and formatted as single/multiple/stacked data. After this step, the data are ready to be enjoyed (i.e., used to develop predictive models)!</p>
 <div id="installation" class="section level2">
 <h2 class="hasAnchor">
 <a href="#installation" class="anchor"></a>Installation</h2>
-<p>You can install the released version of midy from <a href="https://CRAN.R-project.org">CRAN</a> with:</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" title="1"><span class="kw"><a href="https://rdrr.io/r/utils/install.packages.html">install.packages</a></span>(<span class="st">"midy"</span>)</a></code></pre></div>
-<p>And the development version from <a href="https://github.com/">GitHub</a> with:</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb2-1" title="1"><span class="co"># install.packages("devtools")</span></a>
-<a class="sourceLine" id="cb2-2" title="2">devtools<span class="op">::</span><span class="kw"><a href="https://rdrr.io/pkg/devtools/man/remote-reexports.html">install_github</a></span>(<span class="st">"bcjaeger/midy"</span>)</a></code></pre></div>
+<!-- You can install the released version of ipa from [CRAN](https://CRAN.R-project.org) with: -->
+<!-- ``` r -->
+<!-- install.packages("ipa") -->
+<!-- ``` -->
+<p>You can install the development version of <code>ipa</code> from <a href="https://github.com/">GitHub</a> with:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb1-1" title="1"><span class="co"># install.packages("devtools")</span></a>
+<a class="sourceLine" id="cb1-2" title="2">devtools<span class="op">::</span><span class="kw"><a href="https://rdrr.io/pkg/devtools/man/remote-reexports.html">install_github</a></span>(<span class="st">"bcjaeger/ipa"</span>)</a></code></pre></div>
 </div>
 <div id="example" class="section level2">
 <h2 class="hasAnchor">
 <a href="#example" class="anchor"></a>Example</h2>
-<p>link to vignette should go here</p>
+<p>To be filled in</p>
 </div>
 </div>
   </div>
@@ -136,15 +118,7 @@
 </ul>
 </div>
 
-  <div class="dev-status">
-<h2>Dev status</h2>
-<ul class="list-unstyled">
-<li><a href="https://travis-ci.org/bcjaeger/midy"><img src="https://travis-ci.org/bcjaeger/midy.svg?branch=master" alt="Travis build status"></a></li>
-<li><a href="https://www.tidyverse.org/lifecycle/#experimental"><img src="https://img.shields.io/badge/lifecycle-experimental-orange.svg" alt="Lifecycle: experimental"></a></li>
-<li><a href="https://codecov.io/gh/bcjaeger/midy?branch=master"><img src="https://codecov.io/gh/bcjaeger/midy/branch/master/graph/badge.svg" alt="Codecov test coverage"></a></li>
-</ul>
-</div>
-</div>
+  </div>
 </div>
 
 

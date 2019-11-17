@@ -1,5 +1,5 @@
 ---
-title: "getting_started"
+title: "Getting started with `ipa`"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{getting_started}
@@ -14,6 +14,248 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
+The `ipa` package helps create collections of imputed datasets using a specific method. The datasets are differentiated by specific tuning parameters that correspond to the method. For example, the number of neighbors used to impute missing values is a specific parameter for nearest neighbor imputation. True to its name, `ipa` is based around the process of brewing a great beer. The main steps involved are
+
+1. `brew` Create a container to hold your imputations
+
+2. `spice` (optional) set parameters that govern the number of imputations for the given brew
+
+3. `mash` fit models that will provide imputations
+
+4. `ferment` impute missing values in training and (optionally) testing data 
+
+5. `bottle` output the imputed datasets in a tibble.
+
+## Simulated Example
+
+```{r}
+
 library(ipa)
+library(magrittr)
+library(recipes)
+library(dplyr)
+library(purrr)
+library(ggplot2)
+
+# random seed for reproducing these results
+set.seed(329)
+
+# simulation parameters (these are explained below)
+ncov = 50
+nint = 0
+error_sd = 1/5
+tst_miss = 0.0
+trn_miss = 0.50
+nobs = 100000
+split_prop = 1/20
+rho = 1/2
+nimpute = 10
+
 ```
+
+As this is a simulation example, we'll need to set a few parameters, describe the context we are simulating data for, and then generate our data. Suppose that
+
+- $Y = X\beta + \epsilon$, where $Y$ is a continuous outcome, $X$ is a matrix with `ncov` = `r ncov` covariates, $\beta$ is a vector containing coefficients that correspond to each column in $X$, and $\epsilon$ is a random error term with standard deviation = `r error_sd`. `nint` = `r nint` is the number of interactions between the columns in $X$ that impact the value of $Y$.
+
+- Columns in $X$ follow an autoregressive correlation structure characterized by a correlation constant (`rho` = `r rho`) such that corr$(x_i, x_j)$ =  `rho`$^{\left|i-j\right|}$, where $i$ and $j$ indicate column indices in $X$.
+
+- We sample a proportion of these data (`split_prop` = `r split_prop`) from a population of size `nobs` = `r format(nobs, big.mark=',')`. 
+
+- A proportion (`trn_miss` = `r trn_miss`) of the values in our sample are missing at random (i.e., the missing status of a given variable is related to other variables we measured).
+
+- We want to identify a strategy to handle these missing values that will optimize the accuracy of a gradient boosted decision tree ensemble, which will be constructed using `xgboost`. 
+
+- We will test the accuracy of each `xgboost` model by using it to predict $Y \mid X$ among the full population (minus the observations in our training data).
+
+In the following code, I set the parameters described above and use `gen_simdata` to create a set of 50,000 observations (with 2,500 in our training sample)
+
+```{r}
+
+sim <- gen_simdata(
+  problem_type = 'regression', # continuous outcome.
+  error_sd = error_sd,         # standard deviation of error.
+  ncov = ncov,                 # number of predictors.
+  nint = nint,                 # number of interactions.
+  rho = rho,                   # autoregression constant.
+  nobs = nobs,                 # total No. of observations.
+  split_prop = split_prop,     # proportion used to train model.
+  miss_pattern = 'mar',        # data are missing at random.
+  trn_miss_prop = trn_miss,    # proportion of missing training data.
+  tst_miss_prop = tst_miss     # proportion of missing training data.
+)
+
+# save the vector of beta coefficients
+betas <- sim[1]
+data <- sim[2:3]
+
+print(data)
+
+```
+
+## Standard approach
+
+Imputation to the mean is a common strategy used to impute missing values for predictive models. We will use the performance of a linear model fitted to mean imputed data as a reference point for this example. 
+
+```{r}
+
+reci <- recipe(response ~ ., data = data$training) %>% 
+  step_meanimpute(all_numeric()) %>% 
+  prep()
+
+# Model, predictions, and mean squared error
+# using mean imputation (the reference approach)
+
+mdl_ref <- lm(response ~ ., data = juice(reci))
+prd_ref <- predict(mdl_ref, newdata = bake(reci, data$testing))
+mse_ref <- mean((prd_ref - data$testing$response)^2)
+
+```
+
+
+## `softImpute`
+
+soft imputation is a method based on singular value decomposition of a matrix. We will use the `softImpute` algorithm to brew a set of 20 imputed datasets with varying degrees of regularization. 
+
+### Brew
+
+When you start a brew, an object is initiated with an empty list containing meta data about your missing data strategy. 
+
+```{r}
+
+brew_sft <- data$training %>% 
+  brew(outcome = response, flavor = 'softImpute')
+
+brew_sft
+
+```
+
+
+### Spice (if you want to)
+
+If you are going to make all these imputed datasets, you might as well make them how you like them! Spicing your brew gives you more control over how many datasets are created and the values of parameters that will be used to generate them.
+
+Of course, different brews take different spices, and it is a little overwhelming trying to remember which spice goes where. For this reason, `ipa` includes helper functions `spicer_soft`, `spicer_nbrs`, and `spicer_rngr` to help add the correct arguments into the `spice` function. 
+
+```{r}
+
+brew_sft <- brew_sft %>% 
+  spice(with = spicer_soft(n_impute = 24, step_size = 2))
+
+# Note that I chose step_size so that n_impute * step_size < max_rank
+# (spice would throw an error at me if I messed that up)
+brew_sft$pars
+
+```
+
+
+### Mash
+
+Mashing the brew corresponds to the initiation of imputation for `ipa_brew` objects. Inputs of the `mash` function include parameters that directly correspond to imputation models. Again, different models take different parameters, so we rely on the `masher_soft` function to help us set parameters that matter for the `softImpute` algorithm.
+
+Notably, the `softImpute` algorithm's convergence is influenced by parameters set in the `mash` function, and it is often helpful to see model fitting output printed to the screen to diagnose convergence problems. To see that output, we use the `set_verbose` function and make our brew a little noisier.
+
+```{r}
+
+brew_sft <- brew_sft %>% 
+  verbose_on(level = 1) %>% 
+  mash(with = masher_soft(scale_lambda = 0.90))
+
+```
+
+The `ipa_brew` object's `wort` will be filled with imputation models (i.e., the column called `fit`) after the mash is complete!
+
+```{r}
+
+brew_sft$wort
+
+```
+
+### Ferment
+
+Missing values can occur in the training data, testing data, and validation data. An important requirement for missing value strategies is that only information from the training data should be used to impute missing data.
+
+Unfortunately, some imputation strategies are not designed to work this way! For example, `softImpute` imputes missing values based on the index of the missing value in the training data, and this doesn't generalize to testing data because testing data (by definition) are not in the training data.
+
+Fortunately, `ferment` gives you options. For example, you can use `softImpute` to impute missing training data, and then use `kneighbors` to impute the testing data by matching the testing observations to their nearest neighbors in the training data. More specifically, you can tell `ferment` to impute the testing data using either the original unimputed training data or using each of the imputed training datasets, separately. The same options apply for all `ipa_brew` objects.
+
+However, in this case, there are no missing values in the testing data, so we don't need to rely on these tricks. 
+
+The `...` argument in `ferment` lets you supply a dataset paired with a name. The dataset you supply will get imputed, and the name you give it will appear as the column name of the imputed sets in the `wort`. For example,
+
+```{r}
+
+brew_sft <- ferment(brew_sft, testing = data$testing)
+
+brew_sft$wort
+
+```
+
+### Bottle
+
+Once everything is imputed, your brew is ready to be bottled. You can choose whether you'd prefer to get the data back in the form of a `tibble` or `matrix`.
+
+```{r}
+
+brew_sft <- bottle(brew_sft, type = 'tibble')
+
+brew_sft
+
+```
+
+### Pipes and brews
+
+The main functions in `ipa_brew` are designed to fit neatly with the `%>%` operator. We know you like to pipe while you brew.
+
+```{r, eval = FALSE}
+
+brew_sft <- data$training %>% 
+  brew(outcome = response, flavor = 'softImpute') %>% 
+  verbose_on(level = 1) %>% 
+  spice(with = spicer_soft(n_impute = 24, step_size = 2)) %>% 
+  mash(with = masher_soft(scale_lambda = 0.90)) %>% 
+  ferment(testing = data$testing) %>% 
+  bottle(type = 'tibble')
+
+```
+
+Now that we have our data, we can fit a linear model to each training set, and evaluate that model's predictions using the testing data. Our main questions are 
+
+(1) can softImpute produce a model that is more accurate than mean imputation? 
+
+(2) What are the ideal parameters for softImpute in this case?
+
+```{r}
+
+yhat_train <- mean(data$training$response)
+mse_naive <- mean((yhat_train - data$testing$response)^2)
+
+ggdat <- brew_sft %>% 
+  mutate(
+    mse_sft = map2_dbl(training, testing,
+      .f = ~ lm(response ~ ., data = .x) %>% 
+        predict(newdata = .y) %>% 
+        subtract(data$testing$response) %>% 
+        raise_to_power(2) %>% 
+        mean()
+    )
+  ) %>% 
+  select(impute, mse_sft) %>% 
+  mutate(r2_sft = 1 - mse_sft / mse_naive)
+
+```
+
+Results show that all instances of softImpute have an advantage over mean imputation and that imputes 16-21 seem to provide the most accurate linear models. Using these imputed datasets rather than the reference approach (imputation to the mean) improves the testing r-squared statistic by approximately `r round(max(ggdat$r2_sft) - (1 - mse_ref / mse_naive), 3)` 
+
+```{r, fig.width=7, fig.height=5}
+
+ggplot(ggdat, aes(x = impute, y = r2_sft)) + 
+  geom_line(col = 'grey') +
+  geom_point(size = 2, shape = 21, fill = 'red', col = 'grey') + 
+  geom_hline(yintercept = 1 - mse_ref / mse_naive, linetype = 2) +
+  labs(x = 'Imputation', y = 'Testing R-squared statistic') + 
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+
+```
+
+
