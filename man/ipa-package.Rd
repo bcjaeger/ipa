@@ -25,3 +25,7 @@ workflow to compare different strategies to handle missing values.
 To learn more about ipa, start with the vignettes:
 \code{browseVignettes(package = "ipa")}
 }
+\author{
+\strong{Maintainer}: Byron Jaeger \email{bcjaeger@uab.edu} (0000-0001-7399-2299)
+
+}

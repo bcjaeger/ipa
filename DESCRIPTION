@@ -2,10 +2,16 @@ Package: ipa
 Type: Package
 Title: Imputation for Predictive Analytics
 Version: 0.1.0
-Author: Who wrote it
-Maintainer: The package maintainer <yourself@somewhere.net>
-Description: More about what it does (maybe more than one line)
-    Use four spaces when indenting paragraphs within the Description.
+Authors@R: person(
+            given = "Byron",
+            family = "Jaeger",
+            role = c("aut", "cre"),
+            email = "bcjaeger@uab.edu",
+            comment = c(ORCID = "0000-0001-7399-2299")
+        )
+Maintainer: Byron Jaeger <bcjaeger@uab.edu>
+Description: The goal of ipa is to make imputation in predictive modeling 
+    workflows more straightforward and efficient.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
