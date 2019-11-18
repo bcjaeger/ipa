@@ -143,7 +143,8 @@ brew_sft <- brew_sft %>%
 
 # Note that I chose step_size so that n_impute * step_size < max_rank
 # (spice would throw an error at me if I messed that up)
-brew_sft$pars
+
+print(brew_sft$pars)
 
 ```
 
