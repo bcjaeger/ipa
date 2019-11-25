@@ -1,6 +1,14 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
+<!-- badges: start -->
+
+[![Travis build
+status](https://travis-ci.org/bcjaeger/ipa.svg?branch=master)](https://travis-ci.org/bcjaeger/ipa)
+[![Lifecycle:
+maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://www.tidyverse.org/lifecycle/#maturing)
+<!-- badges: end -->
+
 # Imputation for predictive analytics (`ipa`)
 
 <!-- Think about statistics in medicine submission -->

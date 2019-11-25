@@ -151,7 +151,7 @@ gen_simdata <- function(
       cut_prop <- if(!is.null(prevalence)) prevalence else 0.50
 
       y <- ifelse(y > stats::quantile(y, probs = 1-cut_prop), 1, 0)
-      y <- factor(y, levels = c(0,1), labels = c("No","Yes"))
+      #y <- factor(y, levels = c(0,1), labels = c("No","Yes"))
 
     }
 
