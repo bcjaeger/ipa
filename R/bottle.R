@@ -40,7 +40,9 @@ bottle <- function(
   .cols <- attr(brew, 'fermented_cols')
 
   for( i in .cols ) brew$wort[[i]] %<>%
-    purrr::map(dplyr::bind_cols, attr(brew, 'outcome')$data[[i]])
+    purrr::map(
+      .f = ~ dplyr::bind_cols(attr(brew, 'outcome')$data[[i]], .x)
+    )
 
   brew$wort %<>% dplyr::mutate_at(
     .vars = .cols,

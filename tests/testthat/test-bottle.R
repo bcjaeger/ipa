@@ -61,9 +61,9 @@ test_that(
     sft_brew <- mash(sft_brew, masher_soft(scale_data = F))
     rgr_brew <- mash(rgr_brew, masher_rngr(num.trees = 1))
 
-    knn_brew <- ferment(knn_brew, new = new_data, dbl_impute = TRUE)
-    sft_brew <- ferment(sft_brew, new = new_data, dbl_impute = TRUE)
-    rgr_brew <- ferment(rgr_brew, new = new_data, dbl_impute = TRUE)
+    knn_brew <- ferment(knn_brew, new = test_nbrs(new_data))
+    sft_brew <- ferment(sft_brew, new = test_nbrs(new_data))
+    rgr_brew <- ferment(rgr_brew, new = test_nbrs(new_data))
 
     knn_brew <- bottle(knn_brew, type = 'matrix')
     sft_brew <- bottle(sft_brew, type = 'matrix')

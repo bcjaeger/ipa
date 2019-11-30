@@ -46,8 +46,8 @@ nint = 0
 error_sd = 1/5
 tst_miss = 0.0
 trn_miss = 0.50
-nobs = 100000
-split_prop = 1/20
+nobs = 5000
+split_prop = 1/2
 rho = 1/2
 nimpute = 10
 
@@ -105,9 +105,9 @@ reci <- recipe(response ~ ., data = data$training) %>%
 # Model, predictions, and mean squared error
 # using mean imputation (the reference approach)
 
-mdl_ref <- lm(response ~ ., data = juice(reci))
-prd_ref <- predict(mdl_ref, newdata = bake(reci, data$testing))
-mse_ref <- mean((prd_ref - data$testing$response)^2)
+ref_mdl <- lm(response ~ ., data = juice(reci))
+ref_prd <- predict(ref_mdl, newdata = bake(reci, data$testing))
+ref_mse <- mean((ref_prd - data$testing$response)^2)
 
 ```
 
@@ -132,9 +132,9 @@ brew_sft
 
 ### Spice (if you want to)
 
-If you are going to make all these imputed datasets, you might as well make them how you like them! Spicing your brew gives you more control over how many datasets are created and the values of parameters that will be used to generate them.
+If you are going to make all these imputed datasets, you might as well make them how you like them. Spicing your brew gives you more control over how many datasets are created and the values of parameters that will be used to generate them.
 
-Of course, different brews take different spices, and it is a little overwhelming trying to remember which spice goes where. For this reason, `ipa` includes helper functions `spicer_soft`, `spicer_nbrs`, and `spicer_rngr` to help add the correct arguments into the `spice` function. 
+Of course, different brews take different spices, and it is a little overwhelming trying to remember which spice goes where. For this reason, `ipa` includes helper functions (see `spicer_soft`, `spicer_nbrs`, and `spicer_rngr`) to help add the correct arguments into the `spice` function via the `with` input. 
 
 ```{r}
 
@@ -173,19 +173,25 @@ brew_sft$wort
 
 ### Ferment
 
-Missing values can occur in the training data, testing data, and validation data. An important requirement for missing value strategies is that only information from the training data should be used to impute missing data.
+Missing values can occur in the training data but also the testing data. There are two few principles that `ipa` follows regarding missing values in testing data. 
 
-Unfortunately, some imputation strategies are not designed to work this way! For example, `softImpute` imputes missing values based on the index of the missing value in the training data, and this doesn't generalize to testing data because testing data (by definition) are not in the training data.
+1. Outcome columns should not be used to impute missing values. *Why?* First, the outcome column will naturally be missing in the testing data, so any imputation model that depends on accessing the outcome column will be unable to impute missing values in testing data. Second, foregoing the use of any outcome column in imputation models allows analysts to impute data and then apply cross-validation to tune downstream predictive models rather than re-imputing the data in each step of cross-validation (the second option requires far more computation time).   
 
-Fortunately, `ferment` gives you options. For example, you can use `softImpute` to impute missing training data, and then use `kneighbors` to impute the testing data by matching the testing observations to their nearest neighbors in the training data. More specifically, you can tell `ferment` to impute the testing data using either the original unimputed training data or using each of the imputed training datasets, separately. The same options apply for all `ipa_brew` objects.
+2. A missing data strategy should not fit imputation models solely to the testing data. *Why?* Sometimes testing data are a single observation - it's hard to fit a model to that. 
 
-However, in this case, there are no missing values in the testing data, so we don't need to rely on these tricks. 
+There are at least two ways to handle missing data according to these principles. 
 
-The `...` argument in `ferment` lets you supply a dataset paired with a name. The dataset you supply will get imputed, and the name you give it will appear as the column name of the imputed sets in the `wort`. For example,
+**Stack and fit:** Training and testing data are stacked. Imputation models are re-fitted to the stacked dataset.
+
+**Training neighbors** A set of nearest neighbors in the training data is identified for each observation in the testing data. Observed values for these training observations are used to impute missing values in the testing data.
+
+In an ideal world, imputation models are fitted to the training data and then applied to the testing data without needing to be re-fit. Unfortunately, some imputation strategies are not designed to work this way! For example, `softImpute` imputes missing values based on the index of the missing value in the training data, and this doesn't generalize to testing data because testing data (by definition) are not in the training data. However, the stack and fit strategy works quite well for `softImpute`.
+
+The `...` argument in `ferment` lets you create a new column in the `wort` of the brew using the test impute strategy of your choice. For example, we'll use `test_stkr` below to apply the stack and fit strategy:
 
 ```{r}
 
-brew_sft <- ferment(brew_sft, testing = data$testing)
+brew_sft <- ferment(brew_sft, testing = test_stkr(data$testing))
 
 brew_sft$wort
 
@@ -203,7 +209,7 @@ brew_sft
 
 ```
 
-### Pipes and brews
+### A pipe with your brew
 
 The main functions in `ipa_brew` are designed to fit neatly with the `%>%` operator. We know you like to pipe while you brew.
 
@@ -214,7 +220,7 @@ brew_sft <- data$training %>%
   verbose_on(level = 1) %>% 
   spice(with = spicer_soft(n_impute = 24, step_size = 2)) %>% 
   mash(with = masher_soft(scale_lambda = 0.90)) %>% 
-  ferment(testing = data$testing) %>% 
+  ferment(testing = test_nbrs(data$testing)) %>% 
   bottle(type = 'tibble')
 
 ```
@@ -227,12 +233,12 @@ Now that we have our data, we can fit a linear model to each training set, and e
 
 ```{r}
 
-yhat_train <- mean(data$training$response)
-mse_naive <- mean((yhat_train - data$testing$response)^2)
+trn_yhat <- mean(data$training$response)
+trn_mse <- mean((trn_yhat - data$testing$response)^2)
 
 ggdat <- brew_sft %>% 
   mutate(
-    mse_sft = map2_dbl(training, testing,
+    sft_mse = map2_dbl(training, testing,
       .f = ~ lm(response ~ ., data = .x) %>% 
         predict(newdata = .y) %>% 
         subtract(data$testing$response) %>% 
@@ -240,19 +246,19 @@ ggdat <- brew_sft %>%
         mean()
     )
   ) %>% 
-  select(impute, mse_sft) %>% 
-  mutate(r2_sft = 1 - mse_sft / mse_naive)
+  select(impute, sft_mse) %>% 
+  mutate(r2_sft = 1 - sft_mse / trn_mse)
 
 ```
 
-Results show that all instances of softImpute have an advantage over mean imputation and that imputes 16-21 seem to provide the most accurate linear models. Using these imputed datasets rather than the reference approach (imputation to the mean) improves the testing r-squared statistic by approximately `r round(max(ggdat$r2_sft) - (1 - mse_ref / mse_naive), 3)` 
+Results show that all instances of softImpute have an advantage over mean imputation and that imputes 16-21 seem to provide the most accurate linear models. Using these imputed datasets rather than the reference approach (imputation to the mean) improves the testing r-squared statistic by approximately `r round(max(ggdat$r2_sft) - (1 - ref_mse / trn_mse), 3)` 
 
 ```{r, fig.width=7, fig.height=5}
 
 ggplot(ggdat, aes(x = impute, y = r2_sft)) + 
   geom_line(col = 'grey') +
   geom_point(size = 2, shape = 21, fill = 'red', col = 'grey') + 
-  geom_hline(yintercept = 1 - mse_ref / mse_naive, linetype = 2) +
+  geom_hline(yintercept = 1 - ref_mse / trn_mse, linetype = 2) +
   labs(x = 'Imputation', y = 'Testing R-squared statistic') + 
   theme_bw() + 
   theme(panel.grid = element_blank())

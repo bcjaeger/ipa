@@ -4,7 +4,7 @@
 \alias{spicer_rngr}
 \title{Ranger's spices}
 \usage{
-spicer_rngr(min_node_sizes = NULL, pmm_donor_sizes = 0L)
+spicer_rngr(min_node_sizes = seq(5, 25, by = 5), pmm_donor_sizes = 0L)
 }
 \arguments{
 \item{min_node_sizes}{Minimal node size of a leaf in a decision tree.

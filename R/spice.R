@@ -64,16 +64,25 @@ spice.kneighbors_brew <- function(brew, with = NULL, ...){
     )
   )
 
-  nb_seq <- args$neighbors %||% seq(min(brew$lims$neighbors$max, 10))
+  size_nbrs <- length(args$neighbors)
+  size_aggr <- length(args$aggr_neighbors)
 
-  if( any(nb_seq < brew$lims$neighbors$min) ) {
+  if(size_nbrs > 1 && size_aggr == 1) args$aggr_neighbors %<>% rep(size_nbrs)
+  if(size_aggr > 1 && size_nbrs == 1) args$neighbors %<>% rep(size_aggr)
+
+  if(length(args$neighbors) != length(args$aggr_neighbors)) stop(
+    "neighbors and aggr_neighbors should be the same length or length one.",
+    call. = FALSE
+  )
+
+  if( any(args$neighbors < brew$lims$neighbors$min) ) {
     stop(glue::glue("all neighbor sequence values ",
       "must be >= {brew$lims$neighbors$min}"),
       call. = FALSE
     )
   }
 
-  if( any(nb_seq > brew$lims$neighbors$max) ) {
+  if( any(args$neighbors > brew$lims$neighbors$max) ) {
     stop(glue::glue("all neighbor sequence values ",
       "must be <= {brew$lims$neighbors$max}"),
       call. = FALSE
@@ -81,8 +90,8 @@ spice.kneighbors_brew <- function(brew, with = NULL, ...){
   }
 
   brew$pars <- list(
-    n_impute = length(nb_seq),
-    nbrs = nb_seq,
+    n_impute = length(args$neighbors),
+    nbrs = args$neighbors,
     aggr = args$aggr_neighbors %||% TRUE
   )
 
@@ -154,6 +163,7 @@ spice.missRanger_brew <- function(brew, with = NULL, ...){
 spice.softImpute_brew <- function(brew, with = NULL, ...){
 
   check_brew(brew, expected_stage = 'spice')
+
   check_spicer(with, expected = 'spicer_soft')
 
   args <- with %||% check_dots(
@@ -238,7 +248,11 @@ spicer_soft <- function(n_impute=NULL, step_size = 1L){
 #' @export
 #'
 
-spicer_rngr <- function(min_node_sizes = NULL, pmm_donor_sizes = 0L) {
+spicer_rngr <- function(
+  min_node_sizes = seq(5, 25, by = 5),
+  pmm_donor_sizes = 0L
+) {
+
   structure(
     .Data = list(min_node_sizes = min_node_sizes,
       pmm_donor_sizes = pmm_donor_sizes),
@@ -271,12 +285,30 @@ spicer_rngr <- function(min_node_sizes = NULL, pmm_donor_sizes = 0L) {
 #'
 #'
 
-spicer_nbrs <- function(neighbors=NULL, aggr_neighbors = TRUE){
+spicer_nbrs <- function(
+  neighbors = seq(5, 25, by = 5),
+  aggr_neighbors = TRUE
+){
+
   stopifnot(is.logical(aggr_neighbors))
+
+  size_nbrs <- length(neighbors)
+  size_aggr <- length(aggr_neighbors)
+
+  if(size_nbrs > 1 && size_aggr == 1) aggr_neighbors %<>% rep(size_nbrs)
+  if(size_aggr > 1 && size_nbrs == 1) neighbors %<>% rep(size_aggr)
+
+  if(length(neighbors) != length(aggr_neighbors)) stop(
+    "neighbors and aggr_neighbors should be the same length or length one.",
+    call. = FALSE
+  )
+
   structure(
-    .Data = list(neighbors = neighbors, aggr_neighbors = aggr_neighbors),
+    .Data = list(neighbors = neighbors,
+      aggr_neighbors = aggr_neighbors),
     class = 'spicer_nbrs'
   )
+
 }
 
 #' @rdname spice
@@ -284,4 +316,9 @@ spicer_nbrs <- function(neighbors=NULL, aggr_neighbors = TRUE){
 
 is_spiced <- function(brew){
   attr(brew, 'spiced')
+}
+
+
+is_spicer <- function(x){
+  inherits(x, paste("spicer", c('nbrs','rngr','soft'), sep = '_'))
 }

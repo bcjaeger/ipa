@@ -44,30 +44,18 @@ mash <- function(brew, with = NULL, ...){
 
 }
 
-check_mash <- function(brew, verbose){
-
-  if(!is_spiced(brew)){
-    brew <- simple_spice(brew)
-    if(verbose > 0) message(
-      "Looks like this brew hasn't been spiced yet.\n",
-      "I will spice it for you using default values.\n",
-      "Take a look at <your brew>$pars to see these values.\n"
-    )
-  }
-
-}
-
 #' @describeIn mash Mash a soft brew (use [masher_soft] for `with`).
 #' @export
 #'
 mash.softImpute_brew <- function(brew, with = NULL, ...){
 
-
   verbose <- get_verbosity(brew)
   verbose_1 <- verbose >= 1
   verbose_2 <- verbose >= 2
 
-  check_mash(brew, verbose_1)
+  check_mash(brew, verbose >= 1)
+
+  check_masher(with, expected = 'masher_soft')
 
   .dots <- with %||% check_dots(
       list(...),
@@ -83,119 +71,57 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
       )
     )
 
-  .dots$type <- .dots$type %||% "als"
-  .dots$maxit <- .dots$maxit %||% 100L
-  .dots$thresh <- .dots$thresh %||% 1e-05
-  .dots$trace.it <- verbose_2
-  .dots$final.svd <- .dots$final.svd %||% TRUE
+  # scale_lambda needs to be taken out of .dots
+  # (it isn't an input for the soft worker function)
+  scale_lambda <- .dots$scale_lambda %||% 0.95
+  check_fraction(scale_lambda, 'scale_lambda')
+  .dots$scale_lambda <- NULL
+
+  # .dots need to be modified, passed to soft worker function
+  .dots$data       <- as.matrix(brew$data)
+  .dots$type       <- .dots$type %||% "als"
+  .dots$maxit      <- .dots$maxit %||% 100L
+  .dots$thresh     <- .dots$thresh %||% 1e-05
+  .dots$trace.it   <- verbose >= 2
+  .dots$rank_max   <- brew$pars$max_rank
+  .dots$step_size  <- brew$pars$step_size
+  .dots$final.svd  <- .dots$final.svd %||% TRUE
   .dots$scale_data <- .dots$scale_data %||% TRUE
   .dots$scale_iter <- .dots$scale_iter %||% 20
-  .dots$scale_lambda <- .dots$scale_lambda %||% 0.95
+  .dots$verbose_1  <- verbose >= 1
+  .dots$verbose_2  <- verbose >= 2
 
-  check_pos_int(
-    .dots$scale_iter,
-    label = 'number of iterations for bi-scale'
-  )
+  # Fill in lambda sequence if the user did not provide one
+  if(is.null(.dots$lambda_sequence)){
 
-  check_fraction(
-    .dots$scale_lambda,
-    'scale_lambda'
-  )
+    if(.dots$verbose_1) message(glue::glue(
+      "Identifying max lambda and scaling by {.dots$scale_lambda}"))
+
+    lam0 <- softImpute::lambda0(
+      x = .dots$data,
+      trace.it = verbose_2
+    ) %>%
+      magrittr::multiply_by(scale_lambda)
+
+    .dots$lambda_sequence <- seq(lam0, 1, length.out = brew$pars$n_impute)
+
+  }
+
+  # Checking the dots
+  check_pos_int(.dots$scale_iter, 'number of iterations for bi-scale')
+  check_pos_int(.dots$maxit, 'number of iterations for softImpute')
 
   if(!is.logical(.dots$scale_data))
     stop('scale_data should be a single logical value ',
       'e.g. TRUE or FALSE', call. = FALSE)
 
-  if(verbose_1)
-    message(
-      glue::glue(
-        "Identifying max lambda and scaling by {.dots$scale_lambda}"
-      )
-    )
+  # calling the soft worker function
+  brew$wort <- do.call(softImpute_work, args = .dots)
 
-  lam0 <- softImpute::lambda0(
-    x = brew$data,
-    trace.it = verbose_2
-  ) %>%
-    magrittr::multiply_by(.dots$scale_lambda)
-
-  lamseq <- .dots$lambda_sequence %||%
-    seq(lam0, 1, length.out = brew$pars$n_impute)
-
-  fits = as.list(lamseq)
-  ranks = as.integer(lamseq)
-  rank.max = rank_max = brew$pars$max_rank
-  warm = NULL
-
-  args <- list(
-    x = as.matrix(brew$data),
-    type = .dots$type,
-    thresh = .dots$thresh,
-    maxit = .dots$maxit,
-    trace.it = .dots$trace.it,
-    final.svd = .dots$final.svd
-  )
-
-  if(.dots$scale_data){
-
-    if(verbose_1){
-      message("Applying biScale() to data")
-    }
-
-    args$x <- try(
-      softImpute::biScale(
-        x = args$x,
-        maxit = .dots$scale_iter,
-        trace = verbose_1
-      ),
-      silent = TRUE
-    )
-
-    if(class(args$x)[1] == 'try-error') stop(
-      "unable to run biScale on brew data",
-      call. = FALSE
-    )
-
-  }
-
-  if(verbose_1) message(
-    "Fitting soft-impute models"
-  )
-
-  for( i in seq_along(lamseq) ){
-
-    args$lambda <- lamseq[i]
-    args$rank.max = rank.max
-    args$warm.start = warm
-
-    fiti <- do.call(softImpute::softImpute, args = args)
-
-    attr(fiti, 'rank') <- ranks[i] <- sum(round(fiti$d, 4) > 0)
-    rank.max = min(ranks[i] + brew$pars$step_size, rank_max)
-    warm = fiti
-    fits[[i]] = fiti
-
-    if(verbose_1){
-
-      print(
-        glue::glue(
-          "fit {i} of {brew$pars$n_impute}: \\
-            lambda = {format(round(lamseq[i], 3),nsmall=3)}, \\
-            rank.max = {rank.max} \\
-            rank.fit = {ranks[i]}"
-        )
-      )
-
-    }
-
-  }
-
-  brew$wort <- tibble::enframe(fits, name = 'impute', value = 'fit') %>%
-    dplyr::mutate(lambda = lamseq, rank = ranks) %>%
-    dplyr::select(impute, lambda, rank, fit)
-
-  attr(brew, 'mashed') = TRUE
+  attr(brew, 'mashed')  <- TRUE
   attr(brew, 'unscale') <- .dots$scale_data
+  brew$pars$scale_data  <- .dots$scale_data
+  brew$pars$scale_iter  <- .dots$scale_iter
 
   brew
 
@@ -212,6 +138,8 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
 
   check_mash(brew, verbose_1)
 
+  check_masher(with, expected = 'masher_nbrs')
+
   .dots <- with %||% check_dots(
     list(...),
     valid_args = c('eps', 'nthread')
@@ -221,28 +149,17 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
   .dots$nthread <- .dots$nthread %||% getOption("gd_num_thread")
   .dots$verbose <- verbose_1
   .dots$ref_data <- brew$data
-  .dots$n_impute <- length(brew$pars$nbrs)
   .dots$neighbor_sequence <- brew$pars$nbrs
   .dots$neighbor_aggregate <- brew$pars$aggr
 
-  fits <- do.call(knn_work, args = .dots)
-
-  brew$wort <- fits %>%
-    tibble::enframe(name = 'impute', value = 'fit') %>%
-    dplyr::mutate(
-      k_neighbors = brew$pars$nbrs,
-      aggr_fun = dplyr::if_else(brew$pars$aggr,
-        true = 'mean_mode',
-        false = 'donor'
-      )
-    ) %>%
-    dplyr::select(impute, k_neighbors, aggr_fun, fit)
+  brew$wort <- do.call(knn_work, args = .dots)
 
   attr(brew, 'mashed') = TRUE
 
   brew
 
 }
+
 
 #' @describeIn mash Mash a ranger's brew (use [masher_rngr] for `with`)
 #' @export
@@ -253,6 +170,8 @@ mash.missRanger_brew <- function(brew, with = NULL, ...){
 
   check_mash(brew, verbose>0)
 
+  check_masher(with, expected = 'masher_rngr')
+
   .dots <- with %||% check_dots(
     list(...),
     valid_args = c(
@@ -262,26 +181,12 @@ mash.missRanger_brew <- function(brew, with = NULL, ...){
     )
   )
 
-  .dots$verbose <- verbose
   .dots$data <- brew$data
+  .dots$verbose <- verbose
+  .dots$node_size <- brew$pars$node_size
+  .dots$donor_size <- brew$pars$donor_size
 
-  fits <- purrr::map2(
-    .x = brew$pars$node_size,
-    .y = brew$pars$donor_size,
-    .f = ~ {
-      .dots$pmm.k <- .y
-      .dots$min.node.size <- .x
-      do.call(missRanger::missRanger, args = .dots)
-    }
-  )
-
-  brew$wort <- fits %>%
-    tibble::enframe(name = 'impute', value = 'fit') %>%
-    dplyr::mutate(
-      node_size = brew$pars$node_size,
-      donor_size = brew$pars$donor_size
-    ) %>%
-    dplyr::select(impute, node_size, donor_size, fit)
+  brew$wort <- do.call(missRanger_work, args = .dots)
 
   attr(brew, 'mashed') = TRUE
 
@@ -440,5 +345,9 @@ masher_nbrs <- function(eps=1e-08, nthread = getOption("gd_num_thread")){
 
 is_mashed <- function(brew){
   attr(brew, 'mashed')
+}
+
+is_masher <- function(x){
+  inherits(x, paste("masher", c('nbrs','rngr','soft'), sep = '_'))
 }
 

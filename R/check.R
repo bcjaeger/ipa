@@ -1,4 +1,5 @@
 
+# check to make sure data are uniform before stacking
 check_data_list <- function(data_list){
 
   if(!is.list(data_list)){
@@ -26,12 +27,12 @@ check_data_list <- function(data_list){
 # check positive integer input
 check_pos_int <- function(x, label){
 
-  if(x <= 0)
+  if(any(x <= 0))
     stop(glue::glue("{label} should be > 0"), call. = FALSE)
 
   .int <- as.integer(x)
 
-  if(x != .int)
+  if(any(x != .int))
     stop(glue::glue('{label} should be an integer'), call. = FALSE)
 
 }
@@ -39,23 +40,18 @@ check_pos_int <- function(x, label){
 # check fraction input
 check_fraction <- function(x, label){
 
-  if(x > 1 || x < 0)
+  if(any(x > 1 || x < 0))
     stop('{label} should be > 0 and < 1', call.=FALSE)
 
 }
 
-
+# check step size for soft imputes
 check_step_size <- function(step_size, n_impute,  max_rank){
 
-  expected_max_rank <- step_size * n_impute
-
-  observed_max_rank <- as.integer(floor(max_rank / n_impute))
-
-  if(expected_max_rank > max_rank) {
-    out_msg <- glue::glue(
-      "step_size or n_impute is too big. Try reducing n_impute or step_size"
-    )
-    stop(out_msg, call. = FALSE)
+  if(step_size * n_impute > max_rank) {
+    stop("step_size or n_impute is too big. ",
+      "Try reducing n_impute or step_size",
+      call. = FALSE)
   }
 
 }
@@ -79,6 +75,7 @@ check_dots <- function(.dots, valid_args){
 
 }
 
+# check data passted to ferment
 check_ferment_data <- function(brew, new_data){
 
   new_names <- names(new_data)
@@ -113,7 +110,7 @@ check_ferment_data <- function(brew, new_data){
 
 }
 
-
+# check that a brew is in the right stage
 check_brew <- function(brew, expected_stage){
 
   if(!is_brew(brew)){
@@ -153,16 +150,56 @@ check_brew <- function(brew, expected_stage){
 
 }
 
+# check spicer input
 check_spicer <- function(spicer, expected){
 
   if(is.null(spicer)){
     return(NULL)
   }
 
+  if(is_masher(spicer)) stop(
+    "looks like you used a masher when you meant to use a spicer!",
+    call. = FALSE
+  )
+
   if(!inherits(spicer, expected)) stop(
     glue::glue("The {class(spicer)[1]} spicer you have used is not ",
       "compatible with the {expected} brew you are making!",
     call. = FALSE)
+  )
+
+}
+
+# check mash - spice if needed
+check_mash <- function(brew, verbose){
+
+  if(!is_spiced(brew)){
+    brew <- simple_spice(brew)
+    if(verbose > 0) message(
+      "Looks like this brew hasn't been spiced yet.\n",
+      "I will spice it for you using default values.\n",
+      "Take a look at <your brew>$pars to see these values.\n"
+    )
+  }
+
+}
+
+# check masher input
+check_masher <- function(masher, expected){
+
+  if(is.null(masher)){
+    return(NULL)
+  }
+
+  if(is_spicer(masher)) stop(
+    "looks like you used a spicer when you meant to use a masher!",
+    call. = FALSE
+  )
+
+  if(!inherits(masher, expected)) stop(
+    glue::glue("The {class(masher)[1]} masher you have used is not ",
+      "compatible with the {expected} brew you are making!",
+      call. = FALSE)
   )
 
 }

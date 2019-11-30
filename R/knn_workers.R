@@ -19,7 +19,7 @@ nn_pred <- function(index, dat, k, random = FALSE){
   dat <- getElement(dat, names(dat))
   dat <- dat[!is.na(dat)]
 
-  if(random) return(sample(dat, 1))
+  if(random) return( dat[sample.int(length(dat), size = 1)] )
 
   if (is.factor(dat) | is.character(dat)) return(mode_est(dat))
 
@@ -31,7 +31,8 @@ nn_impute <- function(
   ref_data,
   new_data,
   nn_index,
-  neighbors = 5
+  neighbors = 5,
+  random = FALSE
 ) {
 
   # This function is used after finding nn_index,
@@ -57,7 +58,8 @@ nn_impute <- function(
         MARGIN = 2,
         FUN = nn_pred,
         dat = ref_data[, i, drop = FALSE],
-        k = neighbors
+        k = neighbors,
+        random = random
       )
 
     }
@@ -71,7 +73,6 @@ nn_impute <- function(
 knn_work <- function(
   ref_data,
   new_data = NULL,
-  n_impute,
   neighbor_sequence,
   neighbor_aggregate,
   nthread = getOption("gd_num_thread"),
@@ -79,14 +80,27 @@ knn_work <- function(
   verbose = TRUE
 ) {
 
+  n_impute <- length(neighbor_sequence)
+
+  if(length(neighbor_sequence) != length(neighbor_aggregate)) stop(
+    "neighbors and aggr_neighbors should be the same length or length one.",
+    call. = FALSE
+  )
+
   new_data <- new_data %||% ref_data
 
   if(!tibble::is_tibble(new_data))
     new_data <- tibble::as_tibble(new_data)
 
-  fits <- vector(mode = 'list', length = n_impute)
+  fit_args <- fits <- vector(mode = 'list', length = n_impute)
 
-  for( i in seq(n_impute) ) fits[[i]] <- new_data
+  for( i in seq(n_impute) ){
+    fits[[i]] <- new_data
+    fit_args[[i]] <- list(
+      neighbors = neighbor_sequence[i],
+      aggregate = neighbor_aggregate[i]
+    )
+  }
 
   missing_rows <- !stats::complete.cases(new_data)
 
@@ -97,8 +111,6 @@ knn_work <- function(
     imp_var <- names(new_data)[i]
 
     missing_rows <- !stats::complete.cases(new_data[, imp_var])
-
-    #browser()
 
     if ( any(missing_rows) ) {
 
@@ -169,6 +181,6 @@ knn_work <- function(
     }
   }
 
-  fits
+  tibble::tibble(impute = seq(n_impute), fit = fits, args = fit_args)
 
 }

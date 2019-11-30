@@ -38,6 +38,30 @@
 # trn_miss_prop = 1/2
 # tst_miss_prop = 0
 
+
+# var_vals <- rnorm(1000)
+# var_name = 'x'
+# var_dgrs = 3
+#
+# var_pwrs <- seq(var_dgrs) %>%
+#   purrr::map(~ var_vals^.x) %>%
+#   purrr::set_names(glue::glue("{var_name}_{seq(var_dgrs)}")) %>%
+#   dplyr::bind_cols()
+#
+# var_coefs <- purrr::map_dbl(
+#   .x = var_pwrs,
+#   .f = ~ stats::runif(
+#     n = 1,
+#     min = stats::quantile(.x, probs = 0.25),
+#     max = stats::quantile(.x, probs = 0.75)
+#   )
+# )
+#
+# y <- as.matrix(var_pwrs) %*% var_coefs
+#
+# plot(x = var_vals, y=y)
+
+
 gen_simdata <- function(
   problem_type = 'regression',
   ncov = 50,
@@ -129,7 +153,7 @@ gen_simdata <- function(
       lambdas = 0.1,
       gammas = 1.5,
       betas = beta,
-      x = x_true,
+      x = as.data.frame(x_true),
       maxt = 10
     )
 

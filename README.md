@@ -73,13 +73,16 @@ We will be adding missing values to the `credit` data (see
 
 data("credit_data")
 
-splits <- credit_data %>% 
+orig_data <- drop_na(credit_data)
+
+miss_data <- orig_data %>% 
   as_tibble() %>% 
   drop_na() %>% 
   add_missing(omit_cols = c('Status', 'Job', 'Price', 'Income'), 
     miss_proportion = 3/5,
-    miss_pattern = 'mar') %>% 
-  initial_split()
+    miss_pattern = 'mar')
+
+splits <- initial_split(miss_data)
 
 trn <- training(splits)
 tst <- testing(splits)
@@ -98,13 +101,18 @@ K provided the most accurate imputed values or the most accurate
 prediction model (usually, these K are the same or similar). This is one
 of the things `ipa` does.
 
+Generally, the `ipa` workflow follows the same patterned steps. Here is
+an example of this workflow using k-nearest-neighbors. A more detailed
+explanation of the steps below is written in the `Getting started`
+vignette.
+
 ``` r
 
 nbrs_brew <- brew(trn, outcome = Status, flavor = 'kneighbors') %>%
   verbose_on(level = 1) %>% 
   spice(with = spicer_nbrs(neighbors = 1:35)) %>% 
   mash() %>% 
-  ferment(testing = tst, dbl_impute = FALSE) %>% 
+  ferment(testing = test_nbrs(tst)) %>% 
   bottle(type = 'tibble')
 #> Imputing Seniority (N = 2133)
 #> Imputing Home (N = 2541)
@@ -116,6 +124,7 @@ nbrs_brew <- brew(trn, outcome = Status, flavor = 'kneighbors') %>%
 #> Imputing Assets (N = 2194)
 #> Imputing Debt (N = 2019)
 #> Imputing Amount (N = 2244)
+#> imputing training data
 #> Fitting models to impute missing values in testing using nearest neighbors
 #> Imputing Seniority (N = 703)
 #> Imputing Home (N = 842)
@@ -131,13 +140,23 @@ nbrs_brew <- brew(trn, outcome = Status, flavor = 'kneighbors') %>%
 
 ### Evaluate imputations
 
-If our goal is to make an accurate model, then the best value of K is
-the one that maximizes model accuracy. Using the pairs of imputed
-training and testing data from bottled `ipa_brew` is a fairly
-straightforward approach to finding out which imputed dataset provides
-that model. Here, we apply the `parsnip` interface to fit and validate
-one boosted decision tree ensemble to each imputed training and testing
-set.
+There are two ways to evaluate strategies to handle missing data.
+
+1.  How accurately the missing data strategy imputes missing values.
+    (This is hard to evaluate in real data scenarios)
+
+2.  The accuracy of prediction functions that are trained on imputed
+    data from the given strategy.
+
+According to the second evaluation strategy, the best value of K in this
+case is the one that maximizes the scaled Brier score of our model’s
+prediction function. Using the pairs of imputed training and testing
+data from bottled `ipa_brew` is a fairly straightforward approach to
+finding out which imputation strategy provides data that maximize model
+accuracy.
+
+Here, we apply the `parsnip` interface to fit and validate one boosted
+decision tree ensemble to each imputed training and testing set.
 
 ``` r
 
@@ -148,7 +167,7 @@ anly <- nbrs_brew %>%
         mode = 'classification',
         mtry = 4,
         trees = 50,
-        tree_depth = 2
+        tree_depth = 3
       ) %>%
         set_engine('xgboost') %>% 
         fit(Status ~ ., data = .x) %>% 
@@ -162,24 +181,25 @@ anly <- nbrs_brew %>%
   )
 
 anly
-#> # A tibble: 35 x 6
-#>    impute k_neighbors aggr_fun  training           testing            bscor
-#>     <int>       <int> <chr>     <list>             <list>             <dbl>
-#>  1      1           1 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.225
-#>  2      2           2 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.242
-#>  3      3           3 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.248
-#>  4      4           4 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.245
-#>  5      5           5 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.252
-#>  6      6           6 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.252
-#>  7      7           7 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.254
-#>  8      8           8 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.244
-#>  9      9           9 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.262
-#> 10     10          10 mean_mode <tibble [3,030 x ~ <tibble [1,009 x ~ 0.250
+#> # A tibble: 35 x 5
+#>    impute args             training              testing              bscor
+#>     <int> <list>           <list>                <list>               <dbl>
+#>  1      1 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.214
+#>  2      2 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.217
+#>  3      3 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.234
+#>  4      4 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.239
+#>  5      5 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.251
+#>  6      6 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.248
+#>  7      7 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.265
+#>  8      8 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.245
+#>  9      9 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.268
+#> 10     10 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.247
 #> # ... with 25 more rows
 ```
 
-Results show that the optimum value of K is somewhere around 20-25. Good
-thing we didn’t use the default value of 5\!
+Results show that there is a fair bit of variability in our scaled Brier
+score depending on K. The optimum value of K seems to be somewhere
+around 20-25. Good thing we didn’t use the default value of 5\!
 
 ``` r
       

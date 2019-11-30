@@ -2,49 +2,22 @@
 % Please edit documentation in R/ferment.R
 \name{ferment}
 \alias{ferment}
-\alias{ferment.softImpute_brew}
-\alias{ferment.kneighbors_brew}
-\alias{ferment.missRanger_brew}
 \alias{is_fermented}
 \title{Ferment a brew}
 \usage{
-ferment(brew, ..., dbl_impute = FALSE, dbl_neighbors = 5)
-
-\method{ferment}{softImpute_brew}(brew, ..., dbl_impute = FALSE,
-  dbl_neighbors = 5)
-
-\method{ferment}{kneighbors_brew}(brew, ..., dbl_impute = FALSE,
-  dbl_neighbors = 5)
-
-\method{ferment}{missRanger_brew}(brew, ..., dbl_impute = FALSE,
-  dbl_neighbors = 5)
+ferment(brew, ...)
 
 is_fermented(brew)
 }
 \arguments{
 \item{brew}{an \code{ipa_brew} object.}
 
-\item{...}{Name-value pairs of datasets that will be imputed.
-The name of each argument will be the name of the variable
-in the \code{wort} of the \code{ipa_brew} that comprises imputed
-datasets. The value of each argument will be a dataset that
-is imputed and then placed into the designated column in
-the \code{wort}.}
-
-\item{dbl_impute}{(\code{TRUE}/\code{FALSE}). If \code{TRUE}, then imputed
-training data will be used to impute missing values in
-\code{new_data}. Otherwise, the original \code{data} (i.e., the data
-containing missing values) will be used to impute missing
-values in \code{new_data}.}
-
-\item{dbl_neighbors}{an integer value specifying the number of
-nearest neighbors to identify when imputing testing data.
-This argument only applies when the given \code{ipa_brew} does
-not have a known method to impute new data. If you are
-making a \code{kneighbors} brew, this argument is only relevant
-when \code{dbl_impute = FALSE}. Otherwise, the sequence of neighbors
-used to create imputed training sets will be copied when imputing
-testing data.}
+\item{...}{Name-value pairs of expressions. The name of each
+argument will be the name of a new variable in the \code{wort}
+of the \code{ipa_brew} object. The value of each argument should be
+an object created using the \link{test_nbrs} or \link{test_stkr} functions.
+The inputs of these functions will determine how testing data
+are imputed.}
 }
 \description{
 Missing values can occur in the training data,
@@ -67,15 +40,6 @@ testing data using either the original unimputed training data
 or using each of the imputed training datasets, separately.
 The same options apply for all \code{ipa_brew} objects.
 }
-\section{Methods (by class)}{
-\itemize{
-\item \code{softImpute_brew}: impute missing values for \code{softImpute_brew} objects.
-
-\item \code{kneighbors_brew}: impute missing values for \code{kneighbors_brew} objects.
-
-\item \code{missRanger_brew}: impute missing values for \code{missRanger_brew} objects.
-}}
-
 \note{
 What is a \code{wort}? A component of a \code{brew} object that
 contains imputed datasets, models used to impute those datasets,
@@ -105,33 +69,19 @@ new_data[2:3, 2] = NA
 
 knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
 
-spicy_knn <- spice(
+knn_spiced <- spice(
   brew = knn_brew,
   neighbors = c(3, 5),
   aggr_neighbors = c(TRUE, FALSE)
 )
 
-mashed_knn <- mash(spicy_knn)
+knn_mashed <- mash(knn_spiced)
 
-fermented_knn <- ferment(mashed_knn, new_data = new_data)
+# use test_nbrs to impute new data with nearest neighbors
+knn_fermed <- ferment(knn_mashed, test = test_nbrs(new_data))
 
-set.seed(101)
-n=200
-p=100
-J=50
-np=n*p
-missfrac=0.3
-x=matrix(rnorm(n*J),n,J)\%*\%matrix(rnorm(J*p),J,p)+matrix(rnorm(np),n,p)/5
-ix=seq(np)
-imiss=sample(ix,np*missfrac,replace=FALSE)
-xna=x
-xna[imiss]=NA
-
-data <- as.data.frame(xna)
-
-soft_brew <- brew(data, outcome = c(V1,V2), flavor = 'softImpute')
-soft_brew <- spice(soft_brew, n_impute = 10, step_size = 2)
-soft_brew <- mash(soft_brew, scale_lambda = 0.12)
+# new column called 'test' is in the wort now
+knn_fermed$wort
 
 
 }

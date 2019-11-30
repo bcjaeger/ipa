@@ -94,75 +94,44 @@ brew <- function(
   flavor = c('kneighbors', 'missRanger', 'softImpute')
 ) {
 
+  # Check outcome and transform to simple character value
+  # TODO: come up with a more informative error message
+  # for this if outcome is not in names of data
   outcome <- names(data) %>%
     tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
     purrr::set_names(NULL)
 
-  if(!flavor[1] %in% c('kneighbors','softImpute','missRanger')){
-    stop('flavor should be one of kneighbors, softImpute, or missRanger',
-      call. = FALSE)
+  # Check the flavor
+  flavor <- flavor[1]
+  good_flavors <- c('kneighbors','softImpute','missRanger')
+  glue_flavors <- glue::glue_collapse(good_flavors, sep = ', ', last = ', or ')
+
+  if( !(flavor %in% good_flavors) ){
+    stop('flavor should be one of ', glue_flavors, call. = FALSE)
   }
 
-  imp_data <- tibble::as_tibble(data)
+  # prepare data for brewing
+  data %<>% brew_data(flavor = flavor, outcome = outcome)
 
-  imp_data[, outcome] <- NULL
-
-  all_rows_na <- apply(imp_data, MARGIN = 1, function(x) all(is.na(x)))
-  all_cols_na <- apply(imp_data, MARGIN = 2, function(x) all(is.na(x)))
-
-  if(any(all_rows_na)){
-    stop("the following rows are missing all predictors: ",
-      glue::glue_collapse(which(all_rows_na), sep = ', ', last = ' and '),
-      call. = FALSE)
-  }
-
-  if(any(all_cols_na)){
-    stop("the following columns are missing all values: ",
-      glue::glue_collapse(
-        names(imp_data)[all_cols_na],
-        sep = ', ', last = ' and '
-      ),
-      call. = FALSE)
-  }
-
-  var_types <- purrr::map_chr(imp_data, class)
-
-  if(!all(var_types %in% c('factor', 'integer', 'numeric'))){
-    stop("Unsupported variable types in data. \n",
-      "Valid types are factor, integer, and numeric.",
-      call. = FALSE)
-  }
-
-  all_numerics <- all(var_types %in% c('integer', 'numeric'))
-
-  if(!all_numerics && flavor[1] == 'softImpute'){
-    stop("Unsupported variable types in data\n",
-      "For softImpute brews, all variables should be integer/numeric.",
-      call. = FALSE)
-  }
-
-  output <- structure(
+  # Initiate the brew
+  structure(
     .Data = list(
-      data = imp_data,
+      data = data$impute,
       pars = list(),
-      lims = get_par_bounds(imp_data, flavor[1]),
+      lims = get_par_bounds(data$impute, flavor),
       wort = NULL
     ),
-    class = c('ipa_brew', paste0(flavor[1],'_brew')),
-    flavor = flavor[1],
-    outcome = list(
-      name = outcome,
-      data = list(training = data[, outcome, drop = FALSE])
-    ),
+    class = c('ipa_brew', paste(flavor, 'brew', sep = '_')),
+    flavor = flavor,
+    outcome = list(name = outcome, data = list(training = data$outcome)),
     verbose = 0,
     spiced = FALSE,
     mashed = FALSE,
     fermented = FALSE
   )
 
-  output
-
 }
+
 
 #' Print a brew
 #'
@@ -246,4 +215,61 @@ verbose_off <- function(brew){
 
 get_verbosity <- function(brew){
   attr(brew, 'verbose')
+}
+
+
+
+brew_data <- function(data, outcome, flavor){
+
+  if(!tibble::is_tibble(data)){
+    imp_data <- tibble::as_tibble(data)
+  } else {
+    imp_data <- data
+  }
+
+  # outcomes should be removed prior to imputation
+  # How are you going to impute missing values of X
+  # if you need to know the outcome to impute X? If
+  # you know the outcome, what are you predicting??
+  imp_data[, outcome] <- NULL
+
+  # Check for empty rows/cols
+  all_rows_na <- apply(imp_data, MARGIN = 1, function(x) all(is.na(x)))
+  all_cols_na <- apply(imp_data, MARGIN = 2, function(x) all(is.na(x)))
+
+  if(any(all_rows_na)){
+    stop("the following rows are missing data for all predictors: ",
+      glue::glue_collapse(which(all_rows_na), sep = ', ', last = ' and '),
+      call. = FALSE)
+  }
+
+  if(any(all_cols_na)){
+    stop("the following columns are missing data for all values: ",
+      glue::glue_collapse(
+        names(imp_data)[all_cols_na], sep = ', ', last = ' and '
+      ),
+      call. = FALSE)
+  }
+
+  var_types <- purrr::map_chr(imp_data, class)
+
+  if(!all(var_types %in% c('factor', 'integer', 'numeric'))){
+    stop("Unsupported variable types in data. \n",
+      "Valid types are factor, integer, and numeric.",
+      call. = FALSE)
+  }
+
+  all_numerics <- all(var_types %in% c('integer', 'numeric'))
+
+  if(!all_numerics && flavor[1] == 'softImpute'){
+    stop("Unsupported variable types in data\n",
+      "For softImpute brews, all variables should be integer/numeric.",
+      call. = FALSE)
+  }
+
+  list(
+    impute = imp_data,
+    outcome = data[, outcome, drop = FALSE]
+  )
+
 }

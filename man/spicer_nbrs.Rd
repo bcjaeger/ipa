@@ -4,7 +4,7 @@
 \alias{spicer_nbrs}
 \title{Neighbor's spices}
 \usage{
-spicer_nbrs(neighbors = NULL, aggr_neighbors = TRUE)
+spicer_nbrs(neighbors = seq(5, 25, by = 5), aggr_neighbors = TRUE)
 }
 \arguments{
 \item{neighbors}{the number of neighbors used for imputation.

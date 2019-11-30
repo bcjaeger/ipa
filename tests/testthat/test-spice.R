@@ -2,6 +2,7 @@
 test_that(
   "good inputs work, bad inputs get good message",
   {
+
     data <- data.frame(
       x1 = 1:10,
       x2 = 10:1,
@@ -54,7 +55,7 @@ test_that(
 
     knn_brew <- spice(knn_brew, neighbors = 1:5, aggr_neighbors = T)
     expect_equal(knn_brew$pars$nbrs, 1:5)
-    expect_true(knn_brew$pars$aggr)
+    expect_true(all(knn_brew$pars$aggr))
 
     sft_brew_a <- spice(sft_brew, with = spicer_soft(n_impute = 2))
     sft_brew_b <- spice(sft_brew, n_impute = 2)

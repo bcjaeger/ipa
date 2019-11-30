@@ -2,6 +2,7 @@
 test_that(
   "good inputs work, bad inputs get good messages",
   {
+
     data <- data.frame(
       x1 = 1:10,
       x2 = 10:1,
@@ -16,6 +17,8 @@ test_that(
     knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
     sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
     rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
+
+    sft_brew <- verbose_on(sft_brew, level = 2)
 
     knn_brew <- spice(knn_brew, neighbors = 1:5, aggr_neighbors = T)
     sft_brew <- spice(sft_brew, n_impute = 2)
