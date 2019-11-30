@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Ranger's spices — spicer_rngr • ipa</title>
+<title>Impute test data — test_stkr • ipa</title>
 
 
 <!-- jquery -->
@@ -35,10 +35,14 @@
 
 
 
-<meta property="og:title" content="Ranger's spices — spicer_rngr" />
-<meta property="og:description" content="It can be a little overwhelming to remember which sets of
-parameters go with each ipa_brew flavor, so just add a dash
-from a handy spicer function and get on with your brew." />
+<meta property="og:title" content="Impute test data — test_stkr" />
+<meta property="og:description" content="Some missing data strategies (e.g., soft imputation) are not
+designed to impute missing values in testing data. However, the
+softImpute strategy may still be applied to the testing data
+using the same fit parameters as in the imputation model for the
+training data. In addition, to enhance the accuracy of test imputation
+models, the training data are stacked on top of the testing data
+prior to fitting the models." />
 <meta name="twitter:card" content="summary" />
 
 
@@ -114,39 +118,48 @@ from a handy spicer function and get on with your brew." />
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Ranger's spices</h1>
+    <h1>Impute test data</h1>
     
-    <div class="hidden name"><code>spicer_rngr.Rd</code></div>
+    <div class="hidden name"><code>test_stkr.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>It can be a little overwhelming to remember which sets of
-parameters go with each <code>ipa_brew</code> flavor, so just add a dash
-from a handy <code>spicer</code> function and get on with your <code>brew</code>.</p>
+    <p>Some missing data strategies (e.g., soft imputation) are not
+designed to impute missing values in testing data. However, the
+<code>softImpute</code> strategy may still be applied to the testing data
+using the same fit parameters as in the imputation model for the
+training data. In addition, to enhance the accuracy of test imputation
+models, the training data are stacked on top of the testing data
+prior to fitting the models.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>spicer_rngr</span>(<span class='kw'>min_node_sizes</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span>(<span class='fl'>5</span>, <span class='fl'>25</span>, <span class='kw'>by</span> <span class='kw'>=</span> <span class='fl'>5</span>), <span class='kw'>pmm_donor_sizes</span> <span class='kw'>=</span> <span class='fl'>0L</span>)</pre>
+    <pre class="usage"><span class='fu'>test_stkr</span>(<span class='no'>data</span>, <span class='kw'>dbl_impute</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
-      <th>min_node_sizes</th>
-      <td><p>Minimal node size of a leaf in a decision tree.
-Increasing the minimal node size reduces the chance of overfitting.</p></td>
+      <th>data</th>
+      <td><p>data to be imputed.</p></td>
     </tr>
     <tr>
-      <th>pmm_donor_sizes</th>
-      <td><p>Number of candidate non-missing values to
-sample from in the predictive mean matching step.
-Set <code>pmm_donor_sizes = 0</code> to skip this step.</p></td>
+      <th>dbl_impute</th>
+      <td><p>(<code>TRUE</code> / <code>FALSE</code>) if <code>TRUE</code>, then each imputed
+training set is stacked on top of the testing data, separately, prior
+to fitting each imputation model for the testing data. If <code>FALSE</code>,
+then the original data is stacked on top of the testing data, and
+each imputation model is fitted to the same stacked dataset.</p></td>
     </tr>
     </table>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>a list with parameter values that can be passed
-directly into <code>missRanger_brew</code> objects via <a href='spice.html'>spice</a>.</p>
+    <p>An object of class 'dbl_imputer'</p>
+    <h2 class="hasAnchor" id="note"><a class="anchor" href="#note"></a>Note</h2>
+
+    <p>This function should only be applied within the <code>ferment</code>
+function. Outside of this context, <code>test_stkr()</code> has no purpose.
+see ?ferment and vignettes for more detailed examples</p>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
@@ -154,6 +167,7 @@ directly into <code>missRanger_brew</code> objects via <a href='spice.html'>spic
     <ul class="nav nav-pills nav-stacked">
       <li><a href="#arguments">Arguments</a></li>
       <li><a href="#value">Value</a></li>
+      <li><a href="#note">Note</a></li>
     </ul>
 
   </div>

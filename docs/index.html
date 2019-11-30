@@ -72,6 +72,8 @@
 
       </header><div class="row">
   <div class="contents col-md-9">
+
+
 <div id="imputation-for-predictive-analytics-ipa" class="section level1">
 <div class="page-header"><h1 class="hasAnchor">
 <a href="#imputation-for-predictive-analytics-ipa" class="anchor"></a>Imputation for predictive analytics (<code>ipa</code>)</h1></div>
@@ -116,27 +118,31 @@
 <div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb3-1" title="1"></a>
 <a class="sourceLine" id="cb3-2" title="2"><span class="kw"><a href="https://rdrr.io/r/utils/data.html">data</a></span>(<span class="st">"credit_data"</span>)</a>
 <a class="sourceLine" id="cb3-3" title="3"></a>
-<a class="sourceLine" id="cb3-4" title="4">splits &lt;-<span class="st"> </span>credit_data <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb3-5" title="5"><span class="st">  </span><span class="kw">as_tibble</span>() <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb3-6" title="6"><span class="st">  </span><span class="kw">drop_na</span>() <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb3-7" title="7"><span class="st">  </span><span class="kw"><a href="reference/add_missing.html">add_missing</a></span>(<span class="dt">omit_cols =</span> <span class="kw"><a href="https://rdrr.io/r/base/c.html">c</a></span>(<span class="st">'Status'</span>, <span class="st">'Job'</span>, <span class="st">'Price'</span>, <span class="st">'Income'</span>), </a>
-<a class="sourceLine" id="cb3-8" title="8">    <span class="dt">miss_proportion =</span> <span class="dv">3</span><span class="op">/</span><span class="dv">5</span>,</a>
-<a class="sourceLine" id="cb3-9" title="9">    <span class="dt">miss_pattern =</span> <span class="st">'mar'</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb3-10" title="10"><span class="st">  </span><span class="kw">initial_split</span>()</a>
-<a class="sourceLine" id="cb3-11" title="11"></a>
-<a class="sourceLine" id="cb3-12" title="12">trn &lt;-<span class="st"> </span><span class="kw">training</span>(splits)</a>
-<a class="sourceLine" id="cb3-13" title="13">tst &lt;-<span class="st"> </span><span class="kw">testing</span>(splits)</a></code></pre></div>
+<a class="sourceLine" id="cb3-4" title="4">orig_data &lt;-<span class="st"> </span><span class="kw">drop_na</span>(credit_data)</a>
+<a class="sourceLine" id="cb3-5" title="5"></a>
+<a class="sourceLine" id="cb3-6" title="6">miss_data &lt;-<span class="st"> </span>orig_data <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb3-7" title="7"><span class="st">  </span><span class="kw">as_tibble</span>() <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb3-8" title="8"><span class="st">  </span><span class="kw">drop_na</span>() <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb3-9" title="9"><span class="st">  </span><span class="kw"><a href="reference/add_missing.html">add_missing</a></span>(<span class="dt">omit_cols =</span> <span class="kw"><a href="https://rdrr.io/r/base/c.html">c</a></span>(<span class="st">'Status'</span>, <span class="st">'Job'</span>, <span class="st">'Price'</span>, <span class="st">'Income'</span>), </a>
+<a class="sourceLine" id="cb3-10" title="10">    <span class="dt">miss_proportion =</span> <span class="dv">3</span><span class="op">/</span><span class="dv">5</span>,</a>
+<a class="sourceLine" id="cb3-11" title="11">    <span class="dt">miss_pattern =</span> <span class="st">'mar'</span>)</a>
+<a class="sourceLine" id="cb3-12" title="12"></a>
+<a class="sourceLine" id="cb3-13" title="13">splits &lt;-<span class="st"> </span><span class="kw">initial_split</span>(miss_data)</a>
+<a class="sourceLine" id="cb3-14" title="14"></a>
+<a class="sourceLine" id="cb3-15" title="15">trn &lt;-<span class="st"> </span><span class="kw">training</span>(splits)</a>
+<a class="sourceLine" id="cb3-16" title="16">tst &lt;-<span class="st"> </span><span class="kw">testing</span>(splits)</a></code></pre></div>
 </div>
 <div id="k-nearest-neighbor-imputation" class="section level3">
 <h3 class="hasAnchor">
 <a href="#k-nearest-neighbor-imputation" class="anchor"></a>K-nearest-neighbor imputation</h3>
 <p>K-nearest-neighbors (KNN) is a flexible and useful method for imputation of missing data. Briefly, each missing value is imputed by aggregating or randomly sampling a value from the K observations with greatest similarity to the current obervation. Conventional methods for KNN provide imputations using a single value of K, which makes it hard to identify an optimal value of K. Ideally, one would generate imputed datasets using a number of different values of K, and then use whichever K provided the most accurate imputed values or the most accurate prediction model (usually, these K are the same or similar). This is one of the things <code>ipa</code> does.</p>
+<p>Generally, the <code>ipa</code> workflow follows the same patterned steps. Here is an example of this workflow using k-nearest-neighbors. A more detailed explanation of the steps below is written in the <code>Getting started</code> vignette.</p>
 <div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb4-1" title="1"></a>
 <a class="sourceLine" id="cb4-2" title="2">nbrs_brew &lt;-<span class="st"> </span><span class="kw"><a href="reference/brew.html">brew</a></span>(trn, <span class="dt">outcome =</span> Status, <span class="dt">flavor =</span> <span class="st">'kneighbors'</span>) <span class="op">%&gt;%</span></a>
 <a class="sourceLine" id="cb4-3" title="3"><span class="st">  </span><span class="kw"><a href="reference/verbose_on.html">verbose_on</a></span>(<span class="dt">level =</span> <span class="dv">1</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb4-4" title="4"><span class="st">  </span><span class="kw"><a href="reference/spice.html">spice</a></span>(<span class="dt">with =</span> <span class="kw"><a href="reference/spicer_nbrs.html">spicer_nbrs</a></span>(<span class="dt">neighbors =</span> <span class="dv">1</span><span class="op">:</span><span class="dv">35</span>)) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb4-5" title="5"><span class="st">  </span><span class="kw"><a href="reference/mash.html">mash</a></span>() <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb4-6" title="6"><span class="st">  </span><span class="kw"><a href="reference/ferment.html">ferment</a></span>(<span class="dt">testing =</span> tst, <span class="dt">dbl_impute =</span> <span class="ot">FALSE</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb4-6" title="6"><span class="st">  </span><span class="kw"><a href="reference/ferment.html">ferment</a></span>(<span class="dt">testing =</span> <span class="kw"><a href="reference/test_nbrs.html">test_nbrs</a></span>(tst)) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb4-7" title="7"><span class="st">  </span><span class="kw"><a href="reference/bottle.html">bottle</a></span>(<span class="dt">type =</span> <span class="st">'tibble'</span>)</a>
 <a class="sourceLine" id="cb4-8" title="8"><span class="co">#&gt; Imputing Seniority (N = 2133)</span></a>
 <a class="sourceLine" id="cb4-9" title="9"><span class="co">#&gt; Imputing Home (N = 2541)</span></a>
@@ -148,22 +154,29 @@
 <a class="sourceLine" id="cb4-15" title="15"><span class="co">#&gt; Imputing Assets (N = 2194)</span></a>
 <a class="sourceLine" id="cb4-16" title="16"><span class="co">#&gt; Imputing Debt (N = 2019)</span></a>
 <a class="sourceLine" id="cb4-17" title="17"><span class="co">#&gt; Imputing Amount (N = 2244)</span></a>
-<a class="sourceLine" id="cb4-18" title="18"><span class="co">#&gt; Fitting models to impute missing values in testing using nearest neighbors</span></a>
-<a class="sourceLine" id="cb4-19" title="19"><span class="co">#&gt; Imputing Seniority (N = 703)</span></a>
-<a class="sourceLine" id="cb4-20" title="20"><span class="co">#&gt; Imputing Home (N = 842)</span></a>
-<a class="sourceLine" id="cb4-21" title="21"><span class="co">#&gt; Imputing Time (N = 858)</span></a>
-<a class="sourceLine" id="cb4-22" title="22"><span class="co">#&gt; Imputing Age (N = 593)</span></a>
-<a class="sourceLine" id="cb4-23" title="23"><span class="co">#&gt; Imputing Marital (N = 779)</span></a>
-<a class="sourceLine" id="cb4-24" title="24"><span class="co">#&gt; Imputing Records (N = 607)</span></a>
-<a class="sourceLine" id="cb4-25" title="25"><span class="co">#&gt; Imputing Expenses (N = 634)</span></a>
-<a class="sourceLine" id="cb4-26" title="26"><span class="co">#&gt; Imputing Assets (N = 743)</span></a>
-<a class="sourceLine" id="cb4-27" title="27"><span class="co">#&gt; Imputing Debt (N = 654)</span></a>
-<a class="sourceLine" id="cb4-28" title="28"><span class="co">#&gt; Imputing Amount (N = 744)</span></a></code></pre></div>
+<a class="sourceLine" id="cb4-18" title="18"><span class="co">#&gt; imputing training data</span></a>
+<a class="sourceLine" id="cb4-19" title="19"><span class="co">#&gt; Fitting models to impute missing values in testing using nearest neighbors</span></a>
+<a class="sourceLine" id="cb4-20" title="20"><span class="co">#&gt; Imputing Seniority (N = 703)</span></a>
+<a class="sourceLine" id="cb4-21" title="21"><span class="co">#&gt; Imputing Home (N = 842)</span></a>
+<a class="sourceLine" id="cb4-22" title="22"><span class="co">#&gt; Imputing Time (N = 858)</span></a>
+<a class="sourceLine" id="cb4-23" title="23"><span class="co">#&gt; Imputing Age (N = 593)</span></a>
+<a class="sourceLine" id="cb4-24" title="24"><span class="co">#&gt; Imputing Marital (N = 779)</span></a>
+<a class="sourceLine" id="cb4-25" title="25"><span class="co">#&gt; Imputing Records (N = 607)</span></a>
+<a class="sourceLine" id="cb4-26" title="26"><span class="co">#&gt; Imputing Expenses (N = 634)</span></a>
+<a class="sourceLine" id="cb4-27" title="27"><span class="co">#&gt; Imputing Assets (N = 743)</span></a>
+<a class="sourceLine" id="cb4-28" title="28"><span class="co">#&gt; Imputing Debt (N = 654)</span></a>
+<a class="sourceLine" id="cb4-29" title="29"><span class="co">#&gt; Imputing Amount (N = 744)</span></a></code></pre></div>
 </div>
 <div id="evaluate-imputations" class="section level3">
 <h3 class="hasAnchor">
 <a href="#evaluate-imputations" class="anchor"></a>Evaluate imputations</h3>
-<p>If our goal is to make an accurate model, then the best value of K is the one that maximizes model accuracy. Using the pairs of imputed training and testing data from bottled <code>ipa_brew</code> is a fairly straightforward approach to finding out which imputed dataset provides that model. Here, we apply the <code>parsnip</code> interface to fit and validate one boosted decision tree ensemble to each imputed training and testing set.</p>
+<p>There are two ways to evaluate strategies to handle missing data.</p>
+<ol>
+<li><p>How accurately the missing data strategy imputes missing values. (This is hard to evaluate in real data scenarios)</p></li>
+<li><p>The accuracy of prediction functions that are trained on imputed data from the given strategy.</p></li>
+</ol>
+<p>According to the second evaluation strategy, the best value of K in this case is the one that maximizes the scaled Brier score of our model’s prediction function. Using the pairs of imputed training and testing data from bottled <code>ipa_brew</code> is a fairly straightforward approach to finding out which imputation strategy provides data that maximize model accuracy.</p>
+<p>Here, we apply the <code>parsnip</code> interface to fit and validate one boosted decision tree ensemble to each imputed training and testing set.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1"></a>
 <a class="sourceLine" id="cb5-2" title="2">anly &lt;-<span class="st"> </span>nbrs_brew <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb5-3" title="3"><span class="st">  </span><span class="kw">mutate</span>(</a>
@@ -172,7 +185,7 @@
 <a class="sourceLine" id="cb5-6" title="6">        <span class="dt">mode =</span> <span class="st">'classification'</span>,</a>
 <a class="sourceLine" id="cb5-7" title="7">        <span class="dt">mtry =</span> <span class="dv">4</span>,</a>
 <a class="sourceLine" id="cb5-8" title="8">        <span class="dt">trees =</span> <span class="dv">50</span>,</a>
-<a class="sourceLine" id="cb5-9" title="9">        <span class="dt">tree_depth =</span> <span class="dv">2</span></a>
+<a class="sourceLine" id="cb5-9" title="9">        <span class="dt">tree_depth =</span> <span class="dv">3</span></a>
 <a class="sourceLine" id="cb5-10" title="10">      ) <span class="op">%&gt;%</span></a>
 <a class="sourceLine" id="cb5-11" title="11"><span class="st">        </span><span class="kw">set_engine</span>(<span class="st">'xgboost'</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb5-12" title="12"><span class="st">        </span><span class="kw">fit</span>(Status <span class="op">~</span><span class="st"> </span>., <span class="dt">data =</span> .x) <span class="op">%&gt;%</span><span class="st"> </span></a>
@@ -186,21 +199,21 @@
 <a class="sourceLine" id="cb5-20" title="20">  )</a>
 <a class="sourceLine" id="cb5-21" title="21"></a>
 <a class="sourceLine" id="cb5-22" title="22">anly</a>
-<a class="sourceLine" id="cb5-23" title="23"><span class="co">#&gt; # A tibble: 35 x 6</span></a>
-<a class="sourceLine" id="cb5-24" title="24"><span class="co">#&gt;    impute k_neighbors aggr_fun  training           testing            bscor</span></a>
-<a class="sourceLine" id="cb5-25" title="25"><span class="co">#&gt;     &lt;int&gt;       &lt;int&gt; &lt;chr&gt;     &lt;list&gt;             &lt;list&gt;             &lt;dbl&gt;</span></a>
-<a class="sourceLine" id="cb5-26" title="26"><span class="co">#&gt;  1      1           1 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.225</span></a>
-<a class="sourceLine" id="cb5-27" title="27"><span class="co">#&gt;  2      2           2 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.242</span></a>
-<a class="sourceLine" id="cb5-28" title="28"><span class="co">#&gt;  3      3           3 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.248</span></a>
-<a class="sourceLine" id="cb5-29" title="29"><span class="co">#&gt;  4      4           4 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.245</span></a>
-<a class="sourceLine" id="cb5-30" title="30"><span class="co">#&gt;  5      5           5 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.252</span></a>
-<a class="sourceLine" id="cb5-31" title="31"><span class="co">#&gt;  6      6           6 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.252</span></a>
-<a class="sourceLine" id="cb5-32" title="32"><span class="co">#&gt;  7      7           7 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.254</span></a>
-<a class="sourceLine" id="cb5-33" title="33"><span class="co">#&gt;  8      8           8 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.244</span></a>
-<a class="sourceLine" id="cb5-34" title="34"><span class="co">#&gt;  9      9           9 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.262</span></a>
-<a class="sourceLine" id="cb5-35" title="35"><span class="co">#&gt; 10     10          10 mean_mode &lt;tibble [3,030 x ~ &lt;tibble [1,009 x ~ 0.250</span></a>
+<a class="sourceLine" id="cb5-23" title="23"><span class="co">#&gt; # A tibble: 35 x 5</span></a>
+<a class="sourceLine" id="cb5-24" title="24"><span class="co">#&gt;    impute args             training              testing              bscor</span></a>
+<a class="sourceLine" id="cb5-25" title="25"><span class="co">#&gt;     &lt;int&gt; &lt;list&gt;           &lt;list&gt;                &lt;list&gt;               &lt;dbl&gt;</span></a>
+<a class="sourceLine" id="cb5-26" title="26"><span class="co">#&gt;  1      1 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.214</span></a>
+<a class="sourceLine" id="cb5-27" title="27"><span class="co">#&gt;  2      2 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.217</span></a>
+<a class="sourceLine" id="cb5-28" title="28"><span class="co">#&gt;  3      3 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.234</span></a>
+<a class="sourceLine" id="cb5-29" title="29"><span class="co">#&gt;  4      4 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.239</span></a>
+<a class="sourceLine" id="cb5-30" title="30"><span class="co">#&gt;  5      5 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.251</span></a>
+<a class="sourceLine" id="cb5-31" title="31"><span class="co">#&gt;  6      6 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.248</span></a>
+<a class="sourceLine" id="cb5-32" title="32"><span class="co">#&gt;  7      7 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.265</span></a>
+<a class="sourceLine" id="cb5-33" title="33"><span class="co">#&gt;  8      8 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.245</span></a>
+<a class="sourceLine" id="cb5-34" title="34"><span class="co">#&gt;  9      9 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.268</span></a>
+<a class="sourceLine" id="cb5-35" title="35"><span class="co">#&gt; 10     10 &lt;named list [2]&gt; &lt;tibble [3,030 x 14]&gt; &lt;tibble [1,009 x 14~ 0.247</span></a>
 <a class="sourceLine" id="cb5-36" title="36"><span class="co">#&gt; # ... with 25 more rows</span></a></code></pre></div>
-<p>Results show that the optimum value of K is somewhere around 20-25. Good thing we didn’t use the default value of 5!</p>
+<p>Results show that there is a fair bit of variability in our scaled Brier score depending on K. The optimum value of K seems to be somewhere around 20-25. Good thing we didn’t use the default value of 5!</p>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb6-1" title="1">      </a>
 <a class="sourceLine" id="cb6-2" title="2"><span class="kw">ggplot</span>(anly, <span class="kw">aes</span>(<span class="dt">x =</span> impute, <span class="dt">y =</span> bscor)) <span class="op">+</span></a>
 <a class="sourceLine" id="cb6-3" title="3"><span class="st">  </span><span class="kw">theme_bw</span>() <span class="op">+</span><span class="st"> </span></a>
@@ -214,6 +227,7 @@
 </div>
 </div>
 </div>
+
   </div>
 
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
@@ -231,7 +245,14 @@
 </ul>
 </div>
 
-  </div>
+  <div class="dev-status">
+<h2>Dev status</h2>
+<ul class="list-unstyled">
+<li><a href="https://travis-ci.org/bcjaeger/ipa"><img src="https://travis-ci.org/bcjaeger/ipa.svg?branch=master" alt="Travis build status"></a></li>
+<li><a href="https://www.tidyverse.org/lifecycle/#maturing"><img src="https://img.shields.io/badge/lifecycle-maturing-blue.svg" alt="Lifecycle: maturing"></a></li>
+</ul>
+</div>
+</div>
 </div>
 
 

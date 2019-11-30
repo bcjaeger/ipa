@@ -130,15 +130,15 @@
 <a class="sourceLine" id="cb1-34" title="34">error_sd =<span class="st"> </span><span class="dv">1</span><span class="op">/</span><span class="dv">5</span></a>
 <a class="sourceLine" id="cb1-35" title="35">tst_miss =<span class="st"> </span><span class="fl">0.0</span></a>
 <a class="sourceLine" id="cb1-36" title="36">trn_miss =<span class="st"> </span><span class="fl">0.50</span></a>
-<a class="sourceLine" id="cb1-37" title="37">nobs =<span class="st"> </span><span class="dv">100000</span></a>
-<a class="sourceLine" id="cb1-38" title="38">split_prop =<span class="st"> </span><span class="dv">1</span><span class="op">/</span><span class="dv">20</span></a>
+<a class="sourceLine" id="cb1-37" title="37">nobs =<span class="st"> </span><span class="dv">5000</span></a>
+<a class="sourceLine" id="cb1-38" title="38">split_prop =<span class="st"> </span><span class="dv">1</span><span class="op">/</span><span class="dv">2</span></a>
 <a class="sourceLine" id="cb1-39" title="39">rho =<span class="st"> </span><span class="dv">1</span><span class="op">/</span><span class="dv">2</span></a>
 <a class="sourceLine" id="cb1-40" title="40">nimpute =<span class="st"> </span><span class="dv">10</span></a></code></pre></div>
 <p>As this is a simulation example, we’ll need to set a few parameters, describe the context we are simulating data for, and then generate our data. Suppose that</p>
 <ul>
 <li><p><span class="math inline">\(Y = X\beta + \epsilon\)</span>, where <span class="math inline">\(Y\)</span> is a continuous outcome, <span class="math inline">\(X\)</span> is a matrix with <code>ncov</code> = 50 covariates, <span class="math inline">\(\beta\)</span> is a vector containing coefficients that correspond to each column in <span class="math inline">\(X\)</span>, and <span class="math inline">\(\epsilon\)</span> is a random error term with standard deviation = 0.2. <code>nint</code> = 0 is the number of interactions between the columns in <span class="math inline">\(X\)</span> that impact the value of <span class="math inline">\(Y\)</span>.</p></li>
 <li><p>Columns in <span class="math inline">\(X\)</span> follow an autoregressive correlation structure characterized by a correlation constant (<code>rho</code> = 0.5) such that corr<span class="math inline">\((x_i, x_j)\)</span> = <code>rho</code><span class="math inline">\(^{\left|i-j\right|}\)</span>, where <span class="math inline">\(i\)</span> and <span class="math inline">\(j\)</span> indicate column indices in <span class="math inline">\(X\)</span>.</p></li>
-<li><p>We sample a proportion of these data (<code>split_prop</code> = 0.05) from a population of size <code>nobs</code> = 1e+05.</p></li>
+<li><p>We sample a proportion of these data (<code>split_prop</code> = 0.5) from a population of size <code>nobs</code> = 5,000.</p></li>
 <li><p>A proportion (<code>trn_miss</code> = 0.5) of the values in our sample are missing at random (i.e., the missing status of a given variable is related to other variables we measured).</p></li>
 <li><p>We want to identify a strategy to handle these missing values that will optimize the accuracy of a gradient boosted decision tree ensemble, which will be constructed using <code>xgboost</code>.</p></li>
 <li><p>We will test the accuracy of each <code>xgboost</code> model by using it to predict <span class="math inline">\(Y \mid X\)</span> among the full population (minus the observations in our training data).</p></li>
@@ -164,20 +164,20 @@
 <a class="sourceLine" id="cb2-18" title="18"></a>
 <a class="sourceLine" id="cb2-19" title="19"><span class="kw"><a href="https://rdrr.io/r/base/print.html">print</a></span>(data)</a>
 <a class="sourceLine" id="cb2-20" title="20"><span class="co">#&gt; $training</span></a>
-<a class="sourceLine" id="cb2-21" title="21"><span class="co">#&gt; # A tibble: 5,000 x 51</span></a>
-<a class="sourceLine" id="cb2-22" title="22"><span class="co">#&gt;    response     x1      x2     x3      x4      x5     x6     x7     x8</span></a>
-<a class="sourceLine" id="cb2-23" title="23"><span class="co">#&gt;       &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;</span></a>
-<a class="sourceLine" id="cb2-24" title="24"><span class="co">#&gt;  1  -0.0898 -0.646 NA       0.491  0.492  NA      NA     -1.35  NA    </span></a>
-<a class="sourceLine" id="cb2-25" title="25"><span class="co">#&gt;  2   0.715   0.684  0.0149  1.39  NA       0.509  -0.958 NA     -1.70 </span></a>
-<a class="sourceLine" id="cb2-26" title="26"><span class="co">#&gt;  3   0.610  -0.754  0.380   0.820  0.875  -0.216  -1.28  -2.14  -0.773</span></a>
-<a class="sourceLine" id="cb2-27" title="27"><span class="co">#&gt;  4   0.358  -0.124 -0.461   0.294 NA      -0.990  -0.595 NA     NA    </span></a>
-<a class="sourceLine" id="cb2-28" title="28"><span class="co">#&gt;  5   0.137  NA      0.372  NA      0.710  NA      NA     -0.277 -0.304</span></a>
-<a class="sourceLine" id="cb2-29" title="29"><span class="co">#&gt;  6  -0.388  -0.658 -0.205  -1.31  -1.54   -1.69   -1.24   0.493  1.03 </span></a>
-<a class="sourceLine" id="cb2-30" title="30"><span class="co">#&gt;  7   0.916  -0.235 -0.297   0.773  1.58    0.0585 -0.722 -1.31  -1.77 </span></a>
-<a class="sourceLine" id="cb2-31" title="31"><span class="co">#&gt;  8  -0.297   0.708  1.29    1.29   1.53   -0.255   0.761  0.765 -0.285</span></a>
-<a class="sourceLine" id="cb2-32" title="32"><span class="co">#&gt;  9  -0.545   0.721 NA      -0.810  0.101  NA      NA     -1.24  NA    </span></a>
-<a class="sourceLine" id="cb2-33" title="33"><span class="co">#&gt; 10  -0.240  NA     -1.61   NA     -0.0528 NA      NA     -0.510 -0.880</span></a>
-<a class="sourceLine" id="cb2-34" title="34"><span class="co">#&gt; # ... with 4,990 more rows, and 42 more variables: x9 &lt;dbl&gt;, x10 &lt;dbl&gt;,</span></a>
+<a class="sourceLine" id="cb2-21" title="21"><span class="co">#&gt; # A tibble: 2,500 x 51</span></a>
+<a class="sourceLine" id="cb2-22" title="22"><span class="co">#&gt;    response      x1      x2     x3       x4       x5      x6     x7     x8</span></a>
+<a class="sourceLine" id="cb2-23" title="23"><span class="co">#&gt;       &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;</span></a>
+<a class="sourceLine" id="cb2-24" title="24"><span class="co">#&gt;  1   0.0413 NA      -1.18   -1.06  NA       NA       NA      -0.252 NA    </span></a>
+<a class="sourceLine" id="cb2-25" title="25"><span class="co">#&gt;  2   0.341  -1.43   -0.581  -1.13  -1.30    -1.85    -1.75   -0.986 -1.19 </span></a>
+<a class="sourceLine" id="cb2-26" title="26"><span class="co">#&gt;  3   0.217   0.633   0.589   0.429 -0.532   -0.662    0.318  -0.764  0.217</span></a>
+<a class="sourceLine" id="cb2-27" title="27"><span class="co">#&gt;  4   0.299   0.0255  0.0395  0.408  1.24     0.512    1.21    1.88   0.498</span></a>
+<a class="sourceLine" id="cb2-28" title="28"><span class="co">#&gt;  5  -0.392   0.430  -0.780   0.854  0.00402  0.00335  0.598  -0.440 -0.348</span></a>
+<a class="sourceLine" id="cb2-29" title="29"><span class="co">#&gt;  6   0.551  -1.89   NA      NA     NA       NA       -1.09    0.469 NA    </span></a>
+<a class="sourceLine" id="cb2-30" title="30"><span class="co">#&gt;  7   0.229   1.05    1.36    0.509  0.0988   0.225    0.746   1.30   0.648</span></a>
+<a class="sourceLine" id="cb2-31" title="31"><span class="co">#&gt;  8   0.0995 NA      NA      NA     -0.906   -0.661   NA      -1.90  NA    </span></a>
+<a class="sourceLine" id="cb2-32" title="32"><span class="co">#&gt;  9   0.171   0.442  -0.435   0.265 -0.358   -0.784   -1.25   -0.975 -0.287</span></a>
+<a class="sourceLine" id="cb2-33" title="33"><span class="co">#&gt; 10   0.213  NA      -1.20   NA      0.00361 -0.164   -0.0167 NA     NA    </span></a>
+<a class="sourceLine" id="cb2-34" title="34"><span class="co">#&gt; # ... with 2,490 more rows, and 42 more variables: x9 &lt;dbl&gt;, x10 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb2-35" title="35"><span class="co">#&gt; #   x11 &lt;dbl&gt;, x12 &lt;dbl&gt;, x13 &lt;dbl&gt;, x14 &lt;dbl&gt;, x15 &lt;dbl&gt;, x16 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb2-36" title="36"><span class="co">#&gt; #   x17 &lt;dbl&gt;, x18 &lt;dbl&gt;, x19 &lt;dbl&gt;, x20 &lt;dbl&gt;, x21 &lt;dbl&gt;, x22 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb2-37" title="37"><span class="co">#&gt; #   x23 &lt;dbl&gt;, x24 &lt;dbl&gt;, x25 &lt;dbl&gt;, x26 &lt;dbl&gt;, x27 &lt;dbl&gt;, x28 &lt;dbl&gt;,</span></a>
@@ -187,20 +187,20 @@
 <a class="sourceLine" id="cb2-41" title="41"><span class="co">#&gt; #   x47 &lt;dbl&gt;, x48 &lt;dbl&gt;, x49 &lt;dbl&gt;, x50 &lt;dbl&gt;</span></a>
 <a class="sourceLine" id="cb2-42" title="42"><span class="co">#&gt; </span></a>
 <a class="sourceLine" id="cb2-43" title="43"><span class="co">#&gt; $testing</span></a>
-<a class="sourceLine" id="cb2-44" title="44"><span class="co">#&gt; # A tibble: 95,000 x 51</span></a>
-<a class="sourceLine" id="cb2-45" title="45"><span class="co">#&gt;    response     x1     x2      x3    x4      x5     x6      x7      x8</span></a>
-<a class="sourceLine" id="cb2-46" title="46"><span class="co">#&gt;       &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;</span></a>
-<a class="sourceLine" id="cb2-47" title="47"><span class="co">#&gt;  1  -0.0879 -0.903 -1.29  -1.11   0.264  0.484   0.395  0.776   0.963 </span></a>
-<a class="sourceLine" id="cb2-48" title="48"><span class="co">#&gt;  2  -0.408   1.79   0.338 -0.227  0.570 -0.121  -0.479  0.328   0.368 </span></a>
-<a class="sourceLine" id="cb2-49" title="49"><span class="co">#&gt;  3  -0.450  -0.734 -0.835  1.03   0.316  0.647  -0.614 -0.296  -1.36  </span></a>
-<a class="sourceLine" id="cb2-50" title="50"><span class="co">#&gt;  4   0.414   1.24   1.69   0.886  1.37  -0.218   1.48   0.0870  0.782 </span></a>
-<a class="sourceLine" id="cb2-51" title="51"><span class="co">#&gt;  5   0.128   1.31   2.14   1.19   0.134  1.33    1.73   1.37   -0.201 </span></a>
-<a class="sourceLine" id="cb2-52" title="52"><span class="co">#&gt;  6  -0.419  -0.292 -0.505 -0.0426 0.150 -0.853  -0.961  0.0218  0.806 </span></a>
-<a class="sourceLine" id="cb2-53" title="53"><span class="co">#&gt;  7   0.316  -0.544 -0.188  0.227  0.496  1.54    0.963  0.215   0.0687</span></a>
-<a class="sourceLine" id="cb2-54" title="54"><span class="co">#&gt;  8   0.0231  2.20   1.83   0.848  1.27   1.93   -0.175 -0.0720  0.558 </span></a>
-<a class="sourceLine" id="cb2-55" title="55"><span class="co">#&gt;  9   0.0744  1.12   1.72   1.70   0.582 -0.0269  0.209 -0.530  -0.848 </span></a>
-<a class="sourceLine" id="cb2-56" title="56"><span class="co">#&gt; 10   0.451   0.372 -1.66   0.150  0.877  0.274  -0.646  0.252   0.793 </span></a>
-<a class="sourceLine" id="cb2-57" title="57"><span class="co">#&gt; # ... with 94,990 more rows, and 42 more variables: x9 &lt;dbl&gt;, x10 &lt;dbl&gt;,</span></a>
+<a class="sourceLine" id="cb2-44" title="44"><span class="co">#&gt; # A tibble: 2,500 x 51</span></a>
+<a class="sourceLine" id="cb2-45" title="45"><span class="co">#&gt;    response     x1     x2      x3     x4      x5     x6       x7      x8</span></a>
+<a class="sourceLine" id="cb2-46" title="46"><span class="co">#&gt;       &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;</span></a>
+<a class="sourceLine" id="cb2-47" title="47"><span class="co">#&gt;  1  -0.170  -0.903 -1.29  -1.11    0.264  0.484   0.395  7.76e-1  0.963 </span></a>
+<a class="sourceLine" id="cb2-48" title="48"><span class="co">#&gt;  2  -0.402   1.79   0.338 -0.227   0.570 -0.121  -0.479  3.28e-1  0.368 </span></a>
+<a class="sourceLine" id="cb2-49" title="49"><span class="co">#&gt;  3  -0.195  -0.292 -0.505 -0.0426  0.150 -0.853  -0.961  2.18e-2  0.806 </span></a>
+<a class="sourceLine" id="cb2-50" title="50"><span class="co">#&gt;  4   0.397  -0.544 -0.188  0.227   0.496  1.54    0.963  2.15e-1  0.0687</span></a>
+<a class="sourceLine" id="cb2-51" title="51"><span class="co">#&gt;  5   0.333   2.20   1.83   0.848   1.27   1.93   -0.175 -7.20e-2  0.558 </span></a>
+<a class="sourceLine" id="cb2-52" title="52"><span class="co">#&gt;  6   0.138   1.12   1.72   1.70    0.582 -0.0269  0.209 -5.30e-1 -0.848 </span></a>
+<a class="sourceLine" id="cb2-53" title="53"><span class="co">#&gt;  7   0.284   0.372 -1.66   0.150   0.877  0.274  -0.646  2.52e-1  0.793 </span></a>
+<a class="sourceLine" id="cb2-54" title="54"><span class="co">#&gt;  8  -1.35   -1.22  -0.508  0.0816  0.121  0.0735  0.498 -2.14e-5  0.996 </span></a>
+<a class="sourceLine" id="cb2-55" title="55"><span class="co">#&gt;  9  -0.0264  0.608 -1.13   1.64   -0.167 -0.324  -1.06   4.45e-1 -0.300 </span></a>
+<a class="sourceLine" id="cb2-56" title="56"><span class="co">#&gt; 10   0.282  -0.254 -1.66  -1.34   -1.31  -0.486   0.863  7.90e-2  0.202 </span></a>
+<a class="sourceLine" id="cb2-57" title="57"><span class="co">#&gt; # ... with 2,490 more rows, and 42 more variables: x9 &lt;dbl&gt;, x10 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb2-58" title="58"><span class="co">#&gt; #   x11 &lt;dbl&gt;, x12 &lt;dbl&gt;, x13 &lt;dbl&gt;, x14 &lt;dbl&gt;, x15 &lt;dbl&gt;, x16 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb2-59" title="59"><span class="co">#&gt; #   x17 &lt;dbl&gt;, x18 &lt;dbl&gt;, x19 &lt;dbl&gt;, x20 &lt;dbl&gt;, x21 &lt;dbl&gt;, x22 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb2-60" title="60"><span class="co">#&gt; #   x23 &lt;dbl&gt;, x24 &lt;dbl&gt;, x25 &lt;dbl&gt;, x26 &lt;dbl&gt;, x27 &lt;dbl&gt;, x28 &lt;dbl&gt;,</span></a>
@@ -221,9 +221,9 @@
 <a class="sourceLine" id="cb3-6" title="6"><span class="co"># Model, predictions, and mean squared error</span></a>
 <a class="sourceLine" id="cb3-7" title="7"><span class="co"># using mean imputation (the reference approach)</span></a>
 <a class="sourceLine" id="cb3-8" title="8"></a>
-<a class="sourceLine" id="cb3-9" title="9">mdl_ref &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/stats/lm.html">lm</a></span>(response <span class="op">~</span><span class="st"> </span>., <span class="dt">data =</span> <span class="kw">juice</span>(reci))</a>
-<a class="sourceLine" id="cb3-10" title="10">prd_ref &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/stats/predict.html">predict</a></span>(mdl_ref, <span class="dt">newdata =</span> <span class="kw">bake</span>(reci, data<span class="op">$</span>testing))</a>
-<a class="sourceLine" id="cb3-11" title="11">mse_ref &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/base/mean.html">mean</a></span>((prd_ref <span class="op">-</span><span class="st"> </span>data<span class="op">$</span>testing<span class="op">$</span>response)<span class="op">^</span><span class="dv">2</span>)</a></code></pre></div>
+<a class="sourceLine" id="cb3-9" title="9">ref_mdl &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/stats/lm.html">lm</a></span>(response <span class="op">~</span><span class="st"> </span>., <span class="dt">data =</span> <span class="kw">juice</span>(reci))</a>
+<a class="sourceLine" id="cb3-10" title="10">ref_prd &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/stats/predict.html">predict</a></span>(ref_mdl, <span class="dt">newdata =</span> <span class="kw">bake</span>(reci, data<span class="op">$</span>testing))</a>
+<a class="sourceLine" id="cb3-11" title="11">ref_mse &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/base/mean.html">mean</a></span>((ref_prd <span class="op">-</span><span class="st"> </span>data<span class="op">$</span>testing<span class="op">$</span>response)<span class="op">^</span><span class="dv">2</span>)</a></code></pre></div>
 </div>
 <div id="softimpute" class="section level2">
 <h2 class="hasAnchor">
@@ -243,20 +243,20 @@
 <a class="sourceLine" id="cb4-7" title="7"><span class="co">#&gt; </span></a>
 <a class="sourceLine" id="cb4-8" title="8"><span class="co">#&gt; Data used for imputation (outcomes are wittheld): </span></a>
 <a class="sourceLine" id="cb4-9" title="9"><span class="co">#&gt; </span></a>
-<a class="sourceLine" id="cb4-10" title="10"><span class="co">#&gt; # A tibble: 5,000 x 50</span></a>
-<a class="sourceLine" id="cb4-11" title="11"><span class="co">#&gt;        x1      x2     x3      x4      x5     x6     x7     x8      x9</span></a>
-<a class="sourceLine" id="cb4-12" title="12"><span class="co">#&gt;     &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;</span></a>
-<a class="sourceLine" id="cb4-13" title="13"><span class="co">#&gt;  1 -0.646 NA       0.491  0.492  NA      NA     -1.35  NA     -0.259 </span></a>
-<a class="sourceLine" id="cb4-14" title="14"><span class="co">#&gt;  2  0.684  0.0149  1.39  NA       0.509  -0.958 NA     -1.70  -0.0839</span></a>
-<a class="sourceLine" id="cb4-15" title="15"><span class="co">#&gt;  3 -0.754  0.380   0.820  0.875  -0.216  -1.28  -2.14  -0.773 -0.862 </span></a>
-<a class="sourceLine" id="cb4-16" title="16"><span class="co">#&gt;  4 -0.124 -0.461   0.294 NA      -0.990  -0.595 NA     NA     NA     </span></a>
-<a class="sourceLine" id="cb4-17" title="17"><span class="co">#&gt;  5 NA      0.372  NA      0.710  NA      NA     -0.277 -0.304 -0.285 </span></a>
-<a class="sourceLine" id="cb4-18" title="18"><span class="co">#&gt;  6 -0.658 -0.205  -1.31  -1.54   -1.69   -1.24   0.493  1.03   0.663 </span></a>
-<a class="sourceLine" id="cb4-19" title="19"><span class="co">#&gt;  7 -0.235 -0.297   0.773  1.58    0.0585 -0.722 -1.31  -1.77  -1.47  </span></a>
-<a class="sourceLine" id="cb4-20" title="20"><span class="co">#&gt;  8  0.708  1.29    1.29   1.53   -0.255   0.761  0.765 -0.285 -0.473 </span></a>
-<a class="sourceLine" id="cb4-21" title="21"><span class="co">#&gt;  9  0.721 NA      -0.810  0.101  NA      NA     -1.24  NA      0.351 </span></a>
-<a class="sourceLine" id="cb4-22" title="22"><span class="co">#&gt; 10 NA     -1.61   NA     -0.0528 NA      NA     -0.510 -0.880 -0.394 </span></a>
-<a class="sourceLine" id="cb4-23" title="23"><span class="co">#&gt; # ... with 4,990 more rows, and 41 more variables: x10 &lt;dbl&gt;, x11 &lt;dbl&gt;,</span></a>
+<a class="sourceLine" id="cb4-10" title="10"><span class="co">#&gt; # A tibble: 2,500 x 50</span></a>
+<a class="sourceLine" id="cb4-11" title="11"><span class="co">#&gt;         x1      x2     x3       x4       x5      x6     x7     x8      x9</span></a>
+<a class="sourceLine" id="cb4-12" title="12"><span class="co">#&gt;      &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;</span></a>
+<a class="sourceLine" id="cb4-13" title="13"><span class="co">#&gt;  1 NA      -1.18   -1.06  NA       NA       NA      -0.252 NA     NA     </span></a>
+<a class="sourceLine" id="cb4-14" title="14"><span class="co">#&gt;  2 -1.43   -0.581  -1.13  -1.30    -1.85    -1.75   -0.986 -1.19  -0.217 </span></a>
+<a class="sourceLine" id="cb4-15" title="15"><span class="co">#&gt;  3  0.633   0.589   0.429 -0.532   -0.662    0.318  -0.764  0.217 -0.238 </span></a>
+<a class="sourceLine" id="cb4-16" title="16"><span class="co">#&gt;  4  0.0255  0.0395  0.408  1.24     0.512    1.21    1.88   0.498  0.508 </span></a>
+<a class="sourceLine" id="cb4-17" title="17"><span class="co">#&gt;  5  0.430  -0.780   0.854  0.00402  0.00335  0.598  -0.440 -0.348  0.0257</span></a>
+<a class="sourceLine" id="cb4-18" title="18"><span class="co">#&gt;  6 -1.89   NA      NA     NA       NA       -1.09    0.469 NA     -0.442 </span></a>
+<a class="sourceLine" id="cb4-19" title="19"><span class="co">#&gt;  7  1.05    1.36    0.509  0.0988   0.225    0.746   1.30   0.648  0.0267</span></a>
+<a class="sourceLine" id="cb4-20" title="20"><span class="co">#&gt;  8 NA      NA      NA     -0.906   -0.661   NA      -1.90  NA     NA     </span></a>
+<a class="sourceLine" id="cb4-21" title="21"><span class="co">#&gt;  9  0.442  -0.435   0.265 -0.358   -0.784   -1.25   -0.975 -0.287  0.961 </span></a>
+<a class="sourceLine" id="cb4-22" title="22"><span class="co">#&gt; 10 NA      -1.20   NA      0.00361 -0.164   -0.0167 NA     NA     NA     </span></a>
+<a class="sourceLine" id="cb4-23" title="23"><span class="co">#&gt; # ... with 2,490 more rows, and 41 more variables: x10 &lt;dbl&gt;, x11 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb4-24" title="24"><span class="co">#&gt; #   x12 &lt;dbl&gt;, x13 &lt;dbl&gt;, x14 &lt;dbl&gt;, x15 &lt;dbl&gt;, x16 &lt;dbl&gt;, x17 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb4-25" title="25"><span class="co">#&gt; #   x18 &lt;dbl&gt;, x19 &lt;dbl&gt;, x20 &lt;dbl&gt;, x21 &lt;dbl&gt;, x22 &lt;dbl&gt;, x23 &lt;dbl&gt;,</span></a>
 <a class="sourceLine" id="cb4-26" title="26"><span class="co">#&gt; #   x24 &lt;dbl&gt;, x25 &lt;dbl&gt;, x26 &lt;dbl&gt;, x27 &lt;dbl&gt;, x28 &lt;dbl&gt;, x29 &lt;dbl&gt;,</span></a>
@@ -268,26 +268,27 @@
 <div id="spice-if-you-want-to" class="section level3">
 <h3 class="hasAnchor">
 <a href="#spice-if-you-want-to" class="anchor"></a>Spice (if you want to)</h3>
-<p>If you are going to make all these imputed datasets, you might as well make them how you like them! Spicing your brew gives you more control over how many datasets are created and the values of parameters that will be used to generate them.</p>
-<p>Of course, different brews take different spices, and it is a little overwhelming trying to remember which spice goes where. For this reason, <code>ipa</code> includes helper functions <code>spicer_soft</code>, <code>spicer_nbrs</code>, and <code>spicer_rngr</code> to help add the correct arguments into the <code>spice</code> function.</p>
+<p>If you are going to make all these imputed datasets, you might as well make them how you like them. Spicing your brew gives you more control over how many datasets are created and the values of parameters that will be used to generate them.</p>
+<p>Of course, different brews take different spices, and it is a little overwhelming trying to remember which spice goes where. For this reason, <code>ipa</code> includes helper functions (see <code>spicer_soft</code>, <code>spicer_nbrs</code>, and <code>spicer_rngr</code>) to help add the correct arguments into the <code>spice</code> function via the <code>with</code> input.</p>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb5-1" title="1"></a>
 <a class="sourceLine" id="cb5-2" title="2">brew_sft &lt;-<span class="st"> </span>brew_sft <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb5-3" title="3"><span class="st">  </span><span class="kw"><a href="../reference/spice.html">spice</a></span>(<span class="dt">with =</span> <span class="kw"><a href="../reference/spicer_soft.html">spicer_soft</a></span>(<span class="dt">n_impute =</span> <span class="dv">24</span>, <span class="dt">step_size =</span> <span class="dv">2</span>))</a>
 <a class="sourceLine" id="cb5-4" title="4"></a>
 <a class="sourceLine" id="cb5-5" title="5"><span class="co"># Note that I chose step_size so that n_impute * step_size &lt; max_rank</span></a>
 <a class="sourceLine" id="cb5-6" title="6"><span class="co"># (spice would throw an error at me if I messed that up)</span></a>
-<a class="sourceLine" id="cb5-7" title="7">brew_sft<span class="op">$</span>pars</a>
-<a class="sourceLine" id="cb5-8" title="8"><span class="co">#&gt; $min_rank</span></a>
-<a class="sourceLine" id="cb5-9" title="9"><span class="co">#&gt; [1] 1</span></a>
-<a class="sourceLine" id="cb5-10" title="10"><span class="co">#&gt; </span></a>
-<a class="sourceLine" id="cb5-11" title="11"><span class="co">#&gt; $max_rank</span></a>
-<a class="sourceLine" id="cb5-12" title="12"><span class="co">#&gt; [1] 49</span></a>
-<a class="sourceLine" id="cb5-13" title="13"><span class="co">#&gt; </span></a>
-<a class="sourceLine" id="cb5-14" title="14"><span class="co">#&gt; $n_impute</span></a>
-<a class="sourceLine" id="cb5-15" title="15"><span class="co">#&gt; [1] 24</span></a>
-<a class="sourceLine" id="cb5-16" title="16"><span class="co">#&gt; </span></a>
-<a class="sourceLine" id="cb5-17" title="17"><span class="co">#&gt; $step_size</span></a>
-<a class="sourceLine" id="cb5-18" title="18"><span class="co">#&gt; [1] 2</span></a></code></pre></div>
+<a class="sourceLine" id="cb5-7" title="7"></a>
+<a class="sourceLine" id="cb5-8" title="8">brew_sft<span class="op">$</span>pars</a>
+<a class="sourceLine" id="cb5-9" title="9"><span class="co">#&gt; $min_rank</span></a>
+<a class="sourceLine" id="cb5-10" title="10"><span class="co">#&gt; [1] 1</span></a>
+<a class="sourceLine" id="cb5-11" title="11"><span class="co">#&gt; </span></a>
+<a class="sourceLine" id="cb5-12" title="12"><span class="co">#&gt; $max_rank</span></a>
+<a class="sourceLine" id="cb5-13" title="13"><span class="co">#&gt; [1] 49</span></a>
+<a class="sourceLine" id="cb5-14" title="14"><span class="co">#&gt; </span></a>
+<a class="sourceLine" id="cb5-15" title="15"><span class="co">#&gt; $n_impute</span></a>
+<a class="sourceLine" id="cb5-16" title="16"><span class="co">#&gt; [1] 24</span></a>
+<a class="sourceLine" id="cb5-17" title="17"><span class="co">#&gt; </span></a>
+<a class="sourceLine" id="cb5-18" title="18"><span class="co">#&gt; $step_size</span></a>
+<a class="sourceLine" id="cb5-19" title="19"><span class="co">#&gt; [1] 2</span></a></code></pre></div>
 </div>
 <div id="mash" class="section level3">
 <h3 class="hasAnchor">
@@ -298,85 +299,141 @@
 <a class="sourceLine" id="cb6-2" title="2">brew_sft &lt;-<span class="st"> </span>brew_sft <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb6-3" title="3"><span class="st">  </span><span class="kw"><a href="../reference/verbose_on.html">verbose_on</a></span>(<span class="dt">level =</span> <span class="dv">1</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb6-4" title="4"><span class="st">  </span><span class="kw"><a href="../reference/mash.html">mash</a></span>(<span class="dt">with =</span> <span class="kw"><a href="../reference/masher_soft.html">masher_soft</a></span>(<span class="dt">scale_lambda =</span> <span class="fl">0.90</span>))</a>
-<a class="sourceLine" id="cb6-5" title="5"><span class="co">#&gt; Identifying max lambda and scaling by 0.9</span></a>
+<a class="sourceLine" id="cb6-5" title="5"><span class="co">#&gt; </span></a>
 <a class="sourceLine" id="cb6-6" title="6"><span class="co">#&gt; Applying biScale() to data</span></a>
-<a class="sourceLine" id="cb6-7" title="7"><span class="co">#&gt; Iter 1 Total Changes 441.2108 </span></a>
-<a class="sourceLine" id="cb6-8" title="8"><span class="co">#&gt; Iter 2 Total Changes 0.09442143 </span></a>
-<a class="sourceLine" id="cb6-9" title="9"><span class="co">#&gt; Iter 3 Total Changes 0.002450227 </span></a>
-<a class="sourceLine" id="cb6-10" title="10"><span class="co">#&gt; Iter 4 Total Changes 2.479918e-05 </span></a>
-<a class="sourceLine" id="cb6-11" title="11"><span class="co">#&gt; Iter 5 Total Changes 3.041207e-07 </span></a>
-<a class="sourceLine" id="cb6-12" title="12"><span class="co">#&gt; Iter 6 Total Changes 4.22631e-09 </span></a>
-<a class="sourceLine" id="cb6-13" title="13"><span class="co">#&gt; Iter 7 Total Changes 6.345478e-11</span></a>
+<a class="sourceLine" id="cb6-7" title="7"><span class="co">#&gt; Iter 1 Total Changes 235.1867 </span></a>
+<a class="sourceLine" id="cb6-8" title="8"><span class="co">#&gt; Iter 2 Total Changes 0.04572546 </span></a>
+<a class="sourceLine" id="cb6-9" title="9"><span class="co">#&gt; Iter 3 Total Changes 0.00123552 </span></a>
+<a class="sourceLine" id="cb6-10" title="10"><span class="co">#&gt; Iter 4 Total Changes 1.056586e-05 </span></a>
+<a class="sourceLine" id="cb6-11" title="11"><span class="co">#&gt; Iter 5 Total Changes 1.171546e-07 </span></a>
+<a class="sourceLine" id="cb6-12" title="12"><span class="co">#&gt; Iter 6 Total Changes 1.551795e-09 </span></a>
+<a class="sourceLine" id="cb6-13" title="13"><span class="co">#&gt; Iter 7 Total Changes 2.293011e-11</span></a>
 <a class="sourceLine" id="cb6-14" title="14"><span class="co">#&gt; Fitting soft-impute models</span></a>
-<a class="sourceLine" id="cb6-15" title="15"><span class="co">#&gt; fit 1 of 24: lambda = 91.050, rank.max = 7 rank.fit = 5</span></a>
-<a class="sourceLine" id="cb6-16" title="16"><span class="co">#&gt; fit 2 of 24: lambda = 87.135, rank.max = 8 rank.fit = 6</span></a>
-<a class="sourceLine" id="cb6-17" title="17"><span class="co">#&gt; fit 3 of 24: lambda = 83.220, rank.max = 10 rank.fit = 8</span></a>
-<a class="sourceLine" id="cb6-18" title="18"><span class="co">#&gt; fit 4 of 24: lambda = 79.304, rank.max = 11 rank.fit = 9</span></a>
-<a class="sourceLine" id="cb6-19" title="19"><span class="co">#&gt; fit 5 of 24: lambda = 75.389, rank.max = 12 rank.fit = 10</span></a>
-<a class="sourceLine" id="cb6-20" title="20"><span class="co">#&gt; fit 6 of 24: lambda = 71.474, rank.max = 13 rank.fit = 11</span></a>
-<a class="sourceLine" id="cb6-21" title="21"><span class="co">#&gt; fit 7 of 24: lambda = 67.559, rank.max = 15 rank.fit = 13</span></a>
-<a class="sourceLine" id="cb6-22" title="22"><span class="co">#&gt; fit 8 of 24: lambda = 63.643, rank.max = 17 rank.fit = 15</span></a>
-<a class="sourceLine" id="cb6-23" title="23"><span class="co">#&gt; fit 9 of 24: lambda = 59.728, rank.max = 18 rank.fit = 16</span></a>
-<a class="sourceLine" id="cb6-24" title="24"><span class="co">#&gt; fit 10 of 24: lambda = 55.813, rank.max = 20 rank.fit = 18</span></a>
-<a class="sourceLine" id="cb6-25" title="25"><span class="co">#&gt; fit 11 of 24: lambda = 51.898, rank.max = 22 rank.fit = 20</span></a>
-<a class="sourceLine" id="cb6-26" title="26"><span class="co">#&gt; fit 12 of 24: lambda = 47.983, rank.max = 24 rank.fit = 22</span></a>
-<a class="sourceLine" id="cb6-27" title="27"><span class="co">#&gt; fit 13 of 24: lambda = 44.067, rank.max = 26 rank.fit = 24</span></a>
-<a class="sourceLine" id="cb6-28" title="28"><span class="co">#&gt; fit 14 of 24: lambda = 40.152, rank.max = 28 rank.fit = 26</span></a>
-<a class="sourceLine" id="cb6-29" title="29"><span class="co">#&gt; fit 15 of 24: lambda = 36.237, rank.max = 30 rank.fit = 28</span></a>
-<a class="sourceLine" id="cb6-30" title="30"><span class="co">#&gt; fit 16 of 24: lambda = 32.322, rank.max = 32 rank.fit = 30</span></a>
-<a class="sourceLine" id="cb6-31" title="31"><span class="co">#&gt; fit 17 of 24: lambda = 28.407, rank.max = 34 rank.fit = 32</span></a>
-<a class="sourceLine" id="cb6-32" title="32"><span class="co">#&gt; fit 18 of 24: lambda = 24.491, rank.max = 36 rank.fit = 34</span></a>
-<a class="sourceLine" id="cb6-33" title="33"><span class="co">#&gt; fit 19 of 24: lambda = 20.576, rank.max = 38 rank.fit = 36</span></a>
-<a class="sourceLine" id="cb6-34" title="34"><span class="co">#&gt; fit 20 of 24: lambda = 16.661, rank.max = 40 rank.fit = 38</span></a>
-<a class="sourceLine" id="cb6-35" title="35"><span class="co">#&gt; fit 21 of 24: lambda = 12.746, rank.max = 42 rank.fit = 40</span></a>
-<a class="sourceLine" id="cb6-36" title="36"><span class="co">#&gt; fit 22 of 24: lambda = 8.830, rank.max = 44 rank.fit = 42</span></a>
-<a class="sourceLine" id="cb6-37" title="37"><span class="co">#&gt; fit 23 of 24: lambda = 4.915, rank.max = 46 rank.fit = 44</span></a>
-<a class="sourceLine" id="cb6-38" title="38"><span class="co">#&gt; fit 24 of 24: lambda = 1.000, rank.max = 48 rank.fit = 46</span></a></code></pre></div>
+<a class="sourceLine" id="cb6-15" title="15"><span class="co">#&gt; fit 1 of 24: lambda = 67.406, rank.max = 5 rank.fit = 3</span></a>
+<a class="sourceLine" id="cb6-16" title="16"><span class="co">#&gt; fit 2 of 24: lambda = 64.519, rank.max = 7 rank.fit = 5</span></a>
+<a class="sourceLine" id="cb6-17" title="17"><span class="co">#&gt; fit 3 of 24: lambda = 61.632, rank.max = 9 rank.fit = 7</span></a>
+<a class="sourceLine" id="cb6-18" title="18"><span class="co">#&gt; fit 4 of 24: lambda = 58.744, rank.max = 9 rank.fit = 7</span></a>
+<a class="sourceLine" id="cb6-19" title="19"><span class="co">#&gt; fit 5 of 24: lambda = 55.857, rank.max = 11 rank.fit = 9</span></a>
+<a class="sourceLine" id="cb6-20" title="20"><span class="co">#&gt; fit 6 of 24: lambda = 52.970, rank.max = 12 rank.fit = 10</span></a>
+<a class="sourceLine" id="cb6-21" title="21"><span class="co">#&gt; fit 7 of 24: lambda = 50.083, rank.max = 13 rank.fit = 11</span></a>
+<a class="sourceLine" id="cb6-22" title="22"><span class="co">#&gt; fit 8 of 24: lambda = 47.196, rank.max = 15 rank.fit = 13</span></a>
+<a class="sourceLine" id="cb6-23" title="23"><span class="co">#&gt; fit 9 of 24: lambda = 44.308, rank.max = 17 rank.fit = 15</span></a>
+<a class="sourceLine" id="cb6-24" title="24"><span class="co">#&gt; fit 10 of 24: lambda = 41.421, rank.max = 19 rank.fit = 17</span></a>
+<a class="sourceLine" id="cb6-25" title="25"><span class="co">#&gt; fit 11 of 24: lambda = 38.534, rank.max = 21 rank.fit = 19</span></a>
+<a class="sourceLine" id="cb6-26" title="26"><span class="co">#&gt; fit 12 of 24: lambda = 35.647, rank.max = 23 rank.fit = 21</span></a>
+<a class="sourceLine" id="cb6-27" title="27"><span class="co">#&gt; fit 13 of 24: lambda = 32.759, rank.max = 25 rank.fit = 23</span></a>
+<a class="sourceLine" id="cb6-28" title="28"><span class="co">#&gt; fit 14 of 24: lambda = 29.872, rank.max = 27 rank.fit = 25</span></a>
+<a class="sourceLine" id="cb6-29" title="29"><span class="co">#&gt; fit 15 of 24: lambda = 26.985, rank.max = 29 rank.fit = 27</span></a>
+<a class="sourceLine" id="cb6-30" title="30"><span class="co">#&gt; fit 16 of 24: lambda = 24.098, rank.max = 31 rank.fit = 29</span></a>
+<a class="sourceLine" id="cb6-31" title="31"><span class="co">#&gt; fit 17 of 24: lambda = 21.211, rank.max = 33 rank.fit = 31</span></a>
+<a class="sourceLine" id="cb6-32" title="32"><span class="co">#&gt; fit 18 of 24: lambda = 18.323, rank.max = 35 rank.fit = 33</span></a>
+<a class="sourceLine" id="cb6-33" title="33"><span class="co">#&gt; fit 19 of 24: lambda = 15.436, rank.max = 37 rank.fit = 35</span></a>
+<a class="sourceLine" id="cb6-34" title="34"><span class="co">#&gt; fit 20 of 24: lambda = 12.549, rank.max = 39 rank.fit = 37</span></a>
+<a class="sourceLine" id="cb6-35" title="35"><span class="co">#&gt; fit 21 of 24: lambda = 9.662, rank.max = 41 rank.fit = 39</span></a>
+<a class="sourceLine" id="cb6-36" title="36"><span class="co">#&gt; fit 22 of 24: lambda = 6.774, rank.max = 43 rank.fit = 41</span></a>
+<a class="sourceLine" id="cb6-37" title="37"><span class="co">#&gt; fit 23 of 24: lambda = 3.887, rank.max = 45 rank.fit = 43</span></a>
+<a class="sourceLine" id="cb6-38" title="38"><span class="co">#&gt; fit 24 of 24: lambda = 1.000, rank.max = 47 rank.fit = 45</span></a></code></pre></div>
 <p>The <code>ipa_brew</code> object’s <code>wort</code> will be filled with imputation models (i.e., the column called <code>fit</code>) after the mash is complete!</p>
 <div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb7-1" title="1"></a>
 <a class="sourceLine" id="cb7-2" title="2">brew_sft<span class="op">$</span>wort</a>
-<a class="sourceLine" id="cb7-3" title="3"><span class="co">#&gt; # A tibble: 24 x 4</span></a>
-<a class="sourceLine" id="cb7-4" title="4"><span class="co">#&gt;    impute lambda  rank fit             </span></a>
-<a class="sourceLine" id="cb7-5" title="5"><span class="co">#&gt;     &lt;int&gt;  &lt;dbl&gt; &lt;int&gt; &lt;list&gt;          </span></a>
-<a class="sourceLine" id="cb7-6" title="6"><span class="co">#&gt;  1      1   91.1     5 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-7" title="7"><span class="co">#&gt;  2      2   87.1     6 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-8" title="8"><span class="co">#&gt;  3      3   83.2     8 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-9" title="9"><span class="co">#&gt;  4      4   79.3     9 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-10" title="10"><span class="co">#&gt;  5      5   75.4    10 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-11" title="11"><span class="co">#&gt;  6      6   71.5    11 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-12" title="12"><span class="co">#&gt;  7      7   67.6    13 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-13" title="13"><span class="co">#&gt;  8      8   63.6    15 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-14" title="14"><span class="co">#&gt;  9      9   59.7    16 &lt;named list [3]&gt;</span></a>
-<a class="sourceLine" id="cb7-15" title="15"><span class="co">#&gt; 10     10   55.8    18 &lt;named list [3]&gt;</span></a>
+<a class="sourceLine" id="cb7-3" title="3"><span class="co">#&gt; # A tibble: 24 x 3</span></a>
+<a class="sourceLine" id="cb7-4" title="4"><span class="co">#&gt;    impute fit              args            </span></a>
+<a class="sourceLine" id="cb7-5" title="5"><span class="co">#&gt;     &lt;int&gt; &lt;list&gt;           &lt;list&gt;          </span></a>
+<a class="sourceLine" id="cb7-6" title="6"><span class="co">#&gt;  1      1 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-7" title="7"><span class="co">#&gt;  2      2 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-8" title="8"><span class="co">#&gt;  3      3 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-9" title="9"><span class="co">#&gt;  4      4 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-10" title="10"><span class="co">#&gt;  5      5 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-11" title="11"><span class="co">#&gt;  6      6 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-12" title="12"><span class="co">#&gt;  7      7 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-13" title="13"><span class="co">#&gt;  8      8 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-14" title="14"><span class="co">#&gt;  9      9 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
+<a class="sourceLine" id="cb7-15" title="15"><span class="co">#&gt; 10     10 &lt;named list [3]&gt; &lt;named list [7]&gt;</span></a>
 <a class="sourceLine" id="cb7-16" title="16"><span class="co">#&gt; # ... with 14 more rows</span></a></code></pre></div>
 </div>
 <div id="ferment" class="section level3">
 <h3 class="hasAnchor">
 <a href="#ferment" class="anchor"></a>Ferment</h3>
-<p>Missing values can occur in the training data, testing data, and validation data. An important requirement for missing value strategies is that only information from the training data should be used to impute missing data.</p>
-<p>Unfortunately, some imputation strategies are not designed to work this way! For example, <code>softImpute</code> imputes missing values based on the index of the missing value in the training data, and this doesn’t generalize to testing data because testing data (by definition) are not in the training data.</p>
-<p>Fortunately, <code>ferment</code> gives you options. For example, you can use <code>softImpute</code> to impute missing training data, and then use <code>kneighbors</code> to impute the testing data by matching the testing observations to their nearest neighbors in the training data. More specifically, you can tell <code>ferment</code> to impute the testing data using either the original unimputed training data or using each of the imputed training datasets, separately. The same options apply for all <code>ipa_brew</code> objects.</p>
-<p>However, in this case, there are no missing values in the testing data, so we don’t need to rely on these tricks.</p>
-<p>The <code>...</code> argument in <code>ferment</code> lets you supply a dataset paired with a name. The dataset you supply will get imputed, and the name you give it will appear as the column name of the imputed sets in the <code>wort</code>. For example,</p>
+<p>Missing values can occur in the training data but also the testing data. There are two few principles that <code>ipa</code> follows regarding missing values in testing data.</p>
+<ol style="list-style-type: decimal">
+<li><p>Outcome columns should not be used to impute missing values. <em>Why?</em> First, the outcome column will naturally be missing in the testing data, so any imputation model that depends on accessing the outcome column will be unable to impute missing values in testing data. Second, foregoing the use of any outcome column in imputation models allows analysts to impute data and then apply cross-validation to tune downstream predictive models rather than re-imputing the data in each step of cross-validation (the second option requires far more computation time).</p></li>
+<li><p>A missing data strategy should not fit imputation models solely to the testing data. <em>Why?</em> Sometimes testing data are a single observation - it’s hard to fit a model to that.</p></li>
+</ol>
+<p>There are at least two ways to handle missing data according to these principles.</p>
+<p><strong>Stack and fit:</strong> Training and testing data are stacked. Imputation models are re-fitted to the stacked dataset.</p>
+<p><strong>Training neighbors</strong> A set of nearest neighbors in the training data is identified for each observation in the testing data. Observed values for these training observations are used to impute missing values in the testing data.</p>
+<p>In an ideal world, imputation models are fitted to the training data and then applied to the testing data without needing to be re-fit. Unfortunately, some imputation strategies are not designed to work this way! For example, <code>softImpute</code> imputes missing values based on the index of the missing value in the training data, and this doesn’t generalize to testing data because testing data (by definition) are not in the training data. However, the stack and fit strategy works quite well for <code>softImpute</code>.</p>
+<p>The <code>...</code> argument in <code>ferment</code> lets you create a new column in the <code>wort</code> of the brew using the test impute strategy of your choice. For example, we’ll use <code>test_stkr</code> below to apply the stack and fit strategy:</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb8-1" title="1"></a>
-<a class="sourceLine" id="cb8-2" title="2">brew_sft &lt;-<span class="st"> </span><span class="kw"><a href="../reference/ferment.html">ferment</a></span>(brew_sft, <span class="dt">testing =</span> data<span class="op">$</span>testing)</a>
-<a class="sourceLine" id="cb8-3" title="3"><span class="co">#&gt; No missing values in testing - nothing to impute.</span></a>
-<a class="sourceLine" id="cb8-4" title="4"></a>
-<a class="sourceLine" id="cb8-5" title="5">brew_sft<span class="op">$</span>wort</a>
-<a class="sourceLine" id="cb8-6" title="6"><span class="co">#&gt; # A tibble: 24 x 6</span></a>
-<a class="sourceLine" id="cb8-7" title="7"><span class="co">#&gt;    impute lambda  rank fit            training           testing           </span></a>
-<a class="sourceLine" id="cb8-8" title="8"><span class="co">#&gt;     &lt;int&gt;  &lt;dbl&gt; &lt;int&gt; &lt;list&gt;         &lt;list&gt;             &lt;list&gt;            </span></a>
-<a class="sourceLine" id="cb8-9" title="9"><span class="co">#&gt;  1      1   91.1     5 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-10" title="10"><span class="co">#&gt;  2      2   87.1     6 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-11" title="11"><span class="co">#&gt;  3      3   83.2     8 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-12" title="12"><span class="co">#&gt;  4      4   79.3     9 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-13" title="13"><span class="co">#&gt;  5      5   75.4    10 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-14" title="14"><span class="co">#&gt;  6      6   71.5    11 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-15" title="15"><span class="co">#&gt;  7      7   67.6    13 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-16" title="16"><span class="co">#&gt;  8      8   63.6    15 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-17" title="17"><span class="co">#&gt;  9      9   59.7    16 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-18" title="18"><span class="co">#&gt; 10     10   55.8    18 &lt;named list [~ &lt;tibble [5,000 x ~ &lt;tibble [95,000 x~</span></a>
-<a class="sourceLine" id="cb8-19" title="19"><span class="co">#&gt; # ... with 14 more rows</span></a></code></pre></div>
+<a class="sourceLine" id="cb8-2" title="2">brew_sft &lt;-<span class="st"> </span><span class="kw"><a href="../reference/ferment.html">ferment</a></span>(brew_sft, <span class="dt">testing =</span> <span class="kw"><a href="../reference/test_stkr.html">test_stkr</a></span>(data<span class="op">$</span>testing))</a>
+<a class="sourceLine" id="cb8-3" title="3"><span class="co">#&gt; imputing training data</span></a>
+<a class="sourceLine" id="cb8-4" title="4"><span class="co">#&gt; Stacking testing data with each imputed training set</span></a>
+<a class="sourceLine" id="cb8-5" title="5"><span class="co">#&gt; Applying biScale() to stacked data (1 of 24)</span></a>
+<a class="sourceLine" id="cb8-6" title="6"><span class="co">#&gt; fit 1 of 24: lambda = 67.406, rank.max = 49 rank.fit = 18</span></a>
+<a class="sourceLine" id="cb8-7" title="7"><span class="co">#&gt; Applying biScale() to stacked data (2 of 24)</span></a>
+<a class="sourceLine" id="cb8-8" title="8"><span class="co">#&gt; fit 2 of 24: lambda = 64.519, rank.max = 5 rank.fit = 5</span></a>
+<a class="sourceLine" id="cb8-9" title="9"><span class="co">#&gt; Applying biScale() to stacked data (3 of 24)</span></a>
+<a class="sourceLine" id="cb8-10" title="10"><span class="co">#&gt; Warning in simpute.als(x, J, thresh, lambda, maxit, trace.it, warm.start, :</span></a>
+<a class="sourceLine" id="cb8-11" title="11"><span class="co">#&gt; Convergence not achieved by 100 iterations</span></a>
+<a class="sourceLine" id="cb8-12" title="12"><span class="co">#&gt; fit 3 of 24: lambda = 61.632, rank.max = 7 rank.fit = 7</span></a>
+<a class="sourceLine" id="cb8-13" title="13"><span class="co">#&gt; Applying biScale() to stacked data (4 of 24)</span></a>
+<a class="sourceLine" id="cb8-14" title="14"><span class="co">#&gt; fit 4 of 24: lambda = 58.744, rank.max = 9 rank.fit = 9</span></a>
+<a class="sourceLine" id="cb8-15" title="15"><span class="co">#&gt; Applying biScale() to stacked data (5 of 24)</span></a>
+<a class="sourceLine" id="cb8-16" title="16"><span class="co">#&gt; fit 5 of 24: lambda = 55.857, rank.max = 9 rank.fit = 9</span></a>
+<a class="sourceLine" id="cb8-17" title="17"><span class="co">#&gt; Applying biScale() to stacked data (6 of 24)</span></a>
+<a class="sourceLine" id="cb8-18" title="18"><span class="co">#&gt; fit 6 of 24: lambda = 52.970, rank.max = 11 rank.fit = 11</span></a>
+<a class="sourceLine" id="cb8-19" title="19"><span class="co">#&gt; Applying biScale() to stacked data (7 of 24)</span></a>
+<a class="sourceLine" id="cb8-20" title="20"><span class="co">#&gt; fit 7 of 24: lambda = 50.083, rank.max = 12 rank.fit = 12</span></a>
+<a class="sourceLine" id="cb8-21" title="21"><span class="co">#&gt; Applying biScale() to stacked data (8 of 24)</span></a>
+<a class="sourceLine" id="cb8-22" title="22"><span class="co">#&gt; fit 8 of 24: lambda = 47.196, rank.max = 13 rank.fit = 13</span></a>
+<a class="sourceLine" id="cb8-23" title="23"><span class="co">#&gt; Applying biScale() to stacked data (9 of 24)</span></a>
+<a class="sourceLine" id="cb8-24" title="24"><span class="co">#&gt; fit 9 of 24: lambda = 44.308, rank.max = 15 rank.fit = 15</span></a>
+<a class="sourceLine" id="cb8-25" title="25"><span class="co">#&gt; Applying biScale() to stacked data (10 of 24)</span></a>
+<a class="sourceLine" id="cb8-26" title="26"><span class="co">#&gt; fit 10 of 24: lambda = 41.421, rank.max = 17 rank.fit = 17</span></a>
+<a class="sourceLine" id="cb8-27" title="27"><span class="co">#&gt; Applying biScale() to stacked data (11 of 24)</span></a>
+<a class="sourceLine" id="cb8-28" title="28"><span class="co">#&gt; fit 11 of 24: lambda = 38.534, rank.max = 19 rank.fit = 19</span></a>
+<a class="sourceLine" id="cb8-29" title="29"><span class="co">#&gt; Applying biScale() to stacked data (12 of 24)</span></a>
+<a class="sourceLine" id="cb8-30" title="30"><span class="co">#&gt; fit 12 of 24: lambda = 35.647, rank.max = 21 rank.fit = 21</span></a>
+<a class="sourceLine" id="cb8-31" title="31"><span class="co">#&gt; Applying biScale() to stacked data (13 of 24)</span></a>
+<a class="sourceLine" id="cb8-32" title="32"><span class="co">#&gt; fit 13 of 24: lambda = 32.759, rank.max = 23 rank.fit = 23</span></a>
+<a class="sourceLine" id="cb8-33" title="33"><span class="co">#&gt; Applying biScale() to stacked data (14 of 24)</span></a>
+<a class="sourceLine" id="cb8-34" title="34"><span class="co">#&gt; fit 14 of 24: lambda = 29.872, rank.max = 25 rank.fit = 25</span></a>
+<a class="sourceLine" id="cb8-35" title="35"><span class="co">#&gt; Applying biScale() to stacked data (15 of 24)</span></a>
+<a class="sourceLine" id="cb8-36" title="36"><span class="co">#&gt; fit 15 of 24: lambda = 26.985, rank.max = 27 rank.fit = 27</span></a>
+<a class="sourceLine" id="cb8-37" title="37"><span class="co">#&gt; Applying biScale() to stacked data (16 of 24)</span></a>
+<a class="sourceLine" id="cb8-38" title="38"><span class="co">#&gt; fit 16 of 24: lambda = 24.098, rank.max = 29 rank.fit = 29</span></a>
+<a class="sourceLine" id="cb8-39" title="39"><span class="co">#&gt; Applying biScale() to stacked data (17 of 24)</span></a>
+<a class="sourceLine" id="cb8-40" title="40"><span class="co">#&gt; fit 17 of 24: lambda = 21.211, rank.max = 31 rank.fit = 31</span></a>
+<a class="sourceLine" id="cb8-41" title="41"><span class="co">#&gt; Applying biScale() to stacked data (18 of 24)</span></a>
+<a class="sourceLine" id="cb8-42" title="42"><span class="co">#&gt; fit 18 of 24: lambda = 18.323, rank.max = 33 rank.fit = 33</span></a>
+<a class="sourceLine" id="cb8-43" title="43"><span class="co">#&gt; Applying biScale() to stacked data (19 of 24)</span></a>
+<a class="sourceLine" id="cb8-44" title="44"><span class="co">#&gt; fit 19 of 24: lambda = 15.436, rank.max = 35 rank.fit = 35</span></a>
+<a class="sourceLine" id="cb8-45" title="45"><span class="co">#&gt; Applying biScale() to stacked data (20 of 24)</span></a>
+<a class="sourceLine" id="cb8-46" title="46"><span class="co">#&gt; fit 20 of 24: lambda = 12.549, rank.max = 37 rank.fit = 37</span></a>
+<a class="sourceLine" id="cb8-47" title="47"><span class="co">#&gt; Applying biScale() to stacked data (21 of 24)</span></a>
+<a class="sourceLine" id="cb8-48" title="48"><span class="co">#&gt; fit 21 of 24: lambda = 9.662, rank.max = 39 rank.fit = 39</span></a>
+<a class="sourceLine" id="cb8-49" title="49"><span class="co">#&gt; Applying biScale() to stacked data (22 of 24)</span></a>
+<a class="sourceLine" id="cb8-50" title="50"><span class="co">#&gt; fit 22 of 24: lambda = 6.774, rank.max = 41 rank.fit = 41</span></a>
+<a class="sourceLine" id="cb8-51" title="51"><span class="co">#&gt; Applying biScale() to stacked data (23 of 24)</span></a>
+<a class="sourceLine" id="cb8-52" title="52"><span class="co">#&gt; fit 23 of 24: lambda = 3.887, rank.max = 43 rank.fit = 43</span></a>
+<a class="sourceLine" id="cb8-53" title="53"><span class="co">#&gt; Applying biScale() to stacked data (24 of 24)</span></a>
+<a class="sourceLine" id="cb8-54" title="54"><span class="co">#&gt; fit 24 of 24: lambda = 1.000, rank.max = 45 rank.fit = 45</span></a>
+<a class="sourceLine" id="cb8-55" title="55"></a>
+<a class="sourceLine" id="cb8-56" title="56">brew_sft<span class="op">$</span>wort</a>
+<a class="sourceLine" id="cb8-57" title="57"><span class="co">#&gt; # A tibble: 24 x 5</span></a>
+<a class="sourceLine" id="cb8-58" title="58"><span class="co">#&gt;    impute fit            args           training          testing          </span></a>
+<a class="sourceLine" id="cb8-59" title="59"><span class="co">#&gt;     &lt;int&gt; &lt;list&gt;         &lt;list&gt;         &lt;list&gt;            &lt;list&gt;           </span></a>
+<a class="sourceLine" id="cb8-60" title="60"><span class="co">#&gt;  1      1 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-61" title="61"><span class="co">#&gt;  2      2 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-62" title="62"><span class="co">#&gt;  3      3 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-63" title="63"><span class="co">#&gt;  4      4 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-64" title="64"><span class="co">#&gt;  5      5 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-65" title="65"><span class="co">#&gt;  6      6 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-66" title="66"><span class="co">#&gt;  7      7 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-67" title="67"><span class="co">#&gt;  8      8 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-68" title="68"><span class="co">#&gt;  9      9 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-69" title="69"><span class="co">#&gt; 10     10 &lt;named list [~ &lt;named list [~ &lt;tibble [2,500 x~ &lt;tibble [2,500 x~</span></a>
+<a class="sourceLine" id="cb8-70" title="70"><span class="co">#&gt; # ... with 14 more rows</span></a></code></pre></div>
 </div>
 <div id="bottle" class="section level3">
 <h3 class="hasAnchor">
@@ -386,24 +443,24 @@
 <a class="sourceLine" id="cb9-2" title="2">brew_sft &lt;-<span class="st"> </span><span class="kw"><a href="../reference/bottle.html">bottle</a></span>(brew_sft, <span class="dt">type =</span> <span class="st">'tibble'</span>)</a>
 <a class="sourceLine" id="cb9-3" title="3"></a>
 <a class="sourceLine" id="cb9-4" title="4">brew_sft</a>
-<a class="sourceLine" id="cb9-5" title="5"><span class="co">#&gt; # A tibble: 24 x 5</span></a>
-<a class="sourceLine" id="cb9-6" title="6"><span class="co">#&gt;    impute lambda  rank training              testing               </span></a>
-<a class="sourceLine" id="cb9-7" title="7"><span class="co">#&gt;     &lt;int&gt;  &lt;dbl&gt; &lt;int&gt; &lt;list&gt;                &lt;list&gt;                </span></a>
-<a class="sourceLine" id="cb9-8" title="8"><span class="co">#&gt;  1      1   91.1     5 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-9" title="9"><span class="co">#&gt;  2      2   87.1     6 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-10" title="10"><span class="co">#&gt;  3      3   83.2     8 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-11" title="11"><span class="co">#&gt;  4      4   79.3     9 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-12" title="12"><span class="co">#&gt;  5      5   75.4    10 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-13" title="13"><span class="co">#&gt;  6      6   71.5    11 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-14" title="14"><span class="co">#&gt;  7      7   67.6    13 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-15" title="15"><span class="co">#&gt;  8      8   63.6    15 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-16" title="16"><span class="co">#&gt;  9      9   59.7    16 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
-<a class="sourceLine" id="cb9-17" title="17"><span class="co">#&gt; 10     10   55.8    18 &lt;tibble [5,000 x 51]&gt; &lt;tibble [95,000 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-5" title="5"><span class="co">#&gt; # A tibble: 24 x 4</span></a>
+<a class="sourceLine" id="cb9-6" title="6"><span class="co">#&gt;    impute args             training              testing              </span></a>
+<a class="sourceLine" id="cb9-7" title="7"><span class="co">#&gt;     &lt;int&gt; &lt;list&gt;           &lt;list&gt;                &lt;list&gt;               </span></a>
+<a class="sourceLine" id="cb9-8" title="8"><span class="co">#&gt;  1      1 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-9" title="9"><span class="co">#&gt;  2      2 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-10" title="10"><span class="co">#&gt;  3      3 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-11" title="11"><span class="co">#&gt;  4      4 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-12" title="12"><span class="co">#&gt;  5      5 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-13" title="13"><span class="co">#&gt;  6      6 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-14" title="14"><span class="co">#&gt;  7      7 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-15" title="15"><span class="co">#&gt;  8      8 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-16" title="16"><span class="co">#&gt;  9      9 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
+<a class="sourceLine" id="cb9-17" title="17"><span class="co">#&gt; 10     10 &lt;named list [7]&gt; &lt;tibble [2,500 x 51]&gt; &lt;tibble [2,500 x 51]&gt;</span></a>
 <a class="sourceLine" id="cb9-18" title="18"><span class="co">#&gt; # ... with 14 more rows</span></a></code></pre></div>
 </div>
-<div id="pipes-and-brews" class="section level3">
+<div id="a-pipe-with-your-brew" class="section level3">
 <h3 class="hasAnchor">
-<a href="#pipes-and-brews" class="anchor"></a>Pipes and brews</h3>
+<a href="#a-pipe-with-your-brew" class="anchor"></a>A pipe with your brew</h3>
 <p>The main functions in <code>ipa_brew</code> are designed to fit neatly with the <code>%&gt;%</code> operator. We know you like to pipe while you brew.</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb10-1" title="1"></a>
 <a class="sourceLine" id="cb10-2" title="2">brew_sft &lt;-<span class="st"> </span>data<span class="op">$</span>training <span class="op">%&gt;%</span><span class="st"> </span></a>
@@ -411,7 +468,7 @@
 <a class="sourceLine" id="cb10-4" title="4"><span class="st">  </span><span class="kw"><a href="../reference/verbose_on.html">verbose_on</a></span>(<span class="dt">level =</span> <span class="dv">1</span>) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb10-5" title="5"><span class="st">  </span><span class="kw"><a href="../reference/spice.html">spice</a></span>(<span class="dt">with =</span> <span class="kw"><a href="../reference/spicer_soft.html">spicer_soft</a></span>(<span class="dt">n_impute =</span> <span class="dv">24</span>, <span class="dt">step_size =</span> <span class="dv">2</span>)) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb10-6" title="6"><span class="st">  </span><span class="kw"><a href="../reference/mash.html">mash</a></span>(<span class="dt">with =</span> <span class="kw"><a href="../reference/masher_soft.html">masher_soft</a></span>(<span class="dt">scale_lambda =</span> <span class="fl">0.90</span>)) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb10-7" title="7"><span class="st">  </span><span class="kw"><a href="../reference/ferment.html">ferment</a></span>(<span class="dt">testing =</span> data<span class="op">$</span>testing) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb10-7" title="7"><span class="st">  </span><span class="kw"><a href="../reference/ferment.html">ferment</a></span>(<span class="dt">testing =</span> <span class="kw"><a href="../reference/test_nbrs.html">test_nbrs</a></span>(data<span class="op">$</span>testing)) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb10-8" title="8"><span class="st">  </span><span class="kw"><a href="../reference/bottle.html">bottle</a></span>(<span class="dt">type =</span> <span class="st">'tibble'</span>)</a></code></pre></div>
 <p>Now that we have our data, we can fit a linear model to each training set, and evaluate that model’s predictions using the testing data. Our main questions are</p>
 <ol style="list-style-type: decimal">
@@ -419,12 +476,12 @@
 <li><p>What are the ideal parameters for softImpute in this case?</p></li>
 </ol>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb11-1" title="1"></a>
-<a class="sourceLine" id="cb11-2" title="2">yhat_train &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/base/mean.html">mean</a></span>(data<span class="op">$</span>training<span class="op">$</span>response)</a>
-<a class="sourceLine" id="cb11-3" title="3">mse_naive &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/base/mean.html">mean</a></span>((yhat_train <span class="op">-</span><span class="st"> </span>data<span class="op">$</span>testing<span class="op">$</span>response)<span class="op">^</span><span class="dv">2</span>)</a>
+<a class="sourceLine" id="cb11-2" title="2">trn_yhat &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/base/mean.html">mean</a></span>(data<span class="op">$</span>training<span class="op">$</span>response)</a>
+<a class="sourceLine" id="cb11-3" title="3">trn_mse &lt;-<span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/base/mean.html">mean</a></span>((trn_yhat <span class="op">-</span><span class="st"> </span>data<span class="op">$</span>testing<span class="op">$</span>response)<span class="op">^</span><span class="dv">2</span>)</a>
 <a class="sourceLine" id="cb11-4" title="4"></a>
 <a class="sourceLine" id="cb11-5" title="5">ggdat &lt;-<span class="st"> </span>brew_sft <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb11-6" title="6"><span class="st">  </span><span class="kw">mutate</span>(</a>
-<a class="sourceLine" id="cb11-7" title="7">    <span class="dt">mse_sft =</span> <span class="kw">map2_dbl</span>(training, testing,</a>
+<a class="sourceLine" id="cb11-7" title="7">    <span class="dt">sft_mse =</span> <span class="kw">map2_dbl</span>(training, testing,</a>
 <a class="sourceLine" id="cb11-8" title="8">      <span class="dt">.f =</span> <span class="op">~</span><span class="st"> </span><span class="kw"><a href="https://rdrr.io/r/stats/lm.html">lm</a></span>(response <span class="op">~</span><span class="st"> </span>., <span class="dt">data =</span> .x) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb11-9" title="9"><span class="st">        </span><span class="kw"><a href="https://rdrr.io/r/stats/predict.html">predict</a></span>(<span class="dt">newdata =</span> .y) <span class="op">%&gt;%</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb11-10" title="10"><span class="st">        </span><span class="kw">subtract</span>(data<span class="op">$</span>testing<span class="op">$</span>response) <span class="op">%&gt;%</span><span class="st"> </span></a>
@@ -432,14 +489,14 @@
 <a class="sourceLine" id="cb11-12" title="12"><span class="st">        </span><span class="kw"><a href="https://rdrr.io/r/base/mean.html">mean</a></span>()</a>
 <a class="sourceLine" id="cb11-13" title="13">    )</a>
 <a class="sourceLine" id="cb11-14" title="14">  ) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb11-15" title="15"><span class="st">  </span><span class="kw">select</span>(impute, mse_sft) <span class="op">%&gt;%</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb11-16" title="16"><span class="st">  </span><span class="kw">mutate</span>(<span class="dt">r2_sft =</span> <span class="dv">1</span> <span class="op">-</span><span class="st"> </span>mse_sft <span class="op">/</span><span class="st"> </span>mse_naive)</a></code></pre></div>
-<p>Results show that all instances of softImpute have an advantage over mean imputation and that imputes 16-21 seem to provide the most accurate linear models. Using these imputed datasets rather than the reference approach (imputation to the mean) improves the testing r-squared statistic by approximately 0.014</p>
+<a class="sourceLine" id="cb11-15" title="15"><span class="st">  </span><span class="kw">select</span>(impute, sft_mse) <span class="op">%&gt;%</span><span class="st"> </span></a>
+<a class="sourceLine" id="cb11-16" title="16"><span class="st">  </span><span class="kw">mutate</span>(<span class="dt">r2_sft =</span> <span class="dv">1</span> <span class="op">-</span><span class="st"> </span>sft_mse <span class="op">/</span><span class="st"> </span>trn_mse)</a></code></pre></div>
+<p>Results show that all instances of softImpute have an advantage over mean imputation and that imputes 16-21 seem to provide the most accurate linear models. Using these imputed datasets rather than the reference approach (imputation to the mean) improves the testing r-squared statistic by approximately 0.017</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb12-1" title="1"></a>
 <a class="sourceLine" id="cb12-2" title="2"><span class="kw">ggplot</span>(ggdat, <span class="kw">aes</span>(<span class="dt">x =</span> impute, <span class="dt">y =</span> r2_sft)) <span class="op">+</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb12-3" title="3"><span class="st">  </span><span class="kw">geom_line</span>(<span class="dt">col =</span> <span class="st">'grey'</span>) <span class="op">+</span></a>
 <a class="sourceLine" id="cb12-4" title="4"><span class="st">  </span><span class="kw">geom_point</span>(<span class="dt">size =</span> <span class="dv">2</span>, <span class="dt">shape =</span> <span class="dv">21</span>, <span class="dt">fill =</span> <span class="st">'red'</span>, <span class="dt">col =</span> <span class="st">'grey'</span>) <span class="op">+</span><span class="st"> </span></a>
-<a class="sourceLine" id="cb12-5" title="5"><span class="st">  </span><span class="kw">geom_hline</span>(<span class="dt">yintercept =</span> <span class="dv">1</span> <span class="op">-</span><span class="st"> </span>mse_ref <span class="op">/</span><span class="st"> </span>mse_naive, <span class="dt">linetype =</span> <span class="dv">2</span>) <span class="op">+</span></a>
+<a class="sourceLine" id="cb12-5" title="5"><span class="st">  </span><span class="kw">geom_hline</span>(<span class="dt">yintercept =</span> <span class="dv">1</span> <span class="op">-</span><span class="st"> </span>ref_mse <span class="op">/</span><span class="st"> </span>trn_mse, <span class="dt">linetype =</span> <span class="dv">2</span>) <span class="op">+</span></a>
 <a class="sourceLine" id="cb12-6" title="6"><span class="st">  </span><span class="kw">labs</span>(<span class="dt">x =</span> <span class="st">'Imputation'</span>, <span class="dt">y =</span> <span class="st">'Testing R-squared statistic'</span>) <span class="op">+</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb12-7" title="7"><span class="st">  </span><span class="kw">theme_bw</span>() <span class="op">+</span><span class="st"> </span></a>
 <a class="sourceLine" id="cb12-8" title="8"><span class="st">  </span><span class="kw">theme</span>(<span class="dt">panel.grid =</span> <span class="kw">element_blank</span>())</a></code></pre></div>
