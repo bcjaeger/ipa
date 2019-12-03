@@ -1,13 +1,33 @@
 
 #' a simple framework to simulate simple dataframes
 #'
+#'  Simulated data allow analysts to conduct controlled experiments
+#'  using specific parameters to generate data. This function provides
+#'  a general framework to simulate missing data under different patterns:
+#'
+#'  1. missing completely at random (MCAR): missingness occurs at random,
+#'     independent of all variables
+#'
+#'  2. missing at random (MAR): missingness occurs at random, conditional
+#'     on measured variables in the observed data.
+#'
+#'  3. missing not at random (MNAR) missingess occurs non-randomly and is
+#'     dependent on unmeasured variables.
+#'
+#'  All simulated predictor variables are numeric. Regression coefficients
+#'  are generated randomly (all values are between -1 and 1).
+#'
 #' @param problem_type A character value indicating the problem type to
 #'   simulate data for. Valid options are 'regression', 'classification',
 #'   or 'survival'.
 #' @param ncov the number of main effects used to generate an outcome variable
 #' @param nint the number of interaction effects used to generate an outcome
 #'   variable.
-#' @param rho the auto correlation constant among predictors in the X matrix.
+#' @param degree the degree of each predictor variable's relationship to
+#'   the outcome. For example, `degree = 2` makes the relationship between
+#'   each predictor variable and the outcome quadratic.
+#' @param rho the correlation constant among predictors in the X matrix.
+#' @param corstr The correlation structure among predictors in the X matrix.
 #' @param nobs the total number of observations in the simulated data.
 #' @param error_sd the standard deviation of error applied when generating
 #'   outcome values.
@@ -21,16 +41,23 @@
 #'   mnar = missing not at random.
 #' @param trn_miss_prop The proportion of data in the training set that will
 #'   be set to missing.
+#' @param npatterns The number of missing patterns used to ampute data.
 #' @param tst_miss_prop The proportion of data in the testing set that will
 #'   be set to missing.
 #' @export
 #'
 #' @examples
 #'
-
-#' gen_simdata(ncov = 1, nint = 0, nobs = 100)
-#' gen_simdata(ncov = 2, nint = 2, nobs = 100)
-
+#' regr = gen_simdata(problem_type = 'regression',
+#'   ncov = 3, nint = 2, degree = 3, nobs = 2000,
+#'   tst_miss_prop = 0)
+#'
+#' clsf = gen_simdata(problem_type = 'classification',
+#'   ncov = 3, nint = 2, degree = 3, nobs = 2000)
+#'
+#'
+#' surv = gen_simdata(problem_type = 'survival',
+#'   ncov = 3, nint = 2, degree = 3, nobs = 2000)
 
 # problem_type = 'regression'
 # ncov = 5
@@ -48,7 +75,7 @@
 
 
 gen_simdata <- function(
-  problem_type = 'regression',
+  problem_type = c('regression', 'classification', 'survival'),
   ncov = 3,
   nint = 2,
   degree = 3,
@@ -64,6 +91,7 @@ gen_simdata <- function(
   tst_miss_prop = 0
 ){
 
+  problem_type = problem_type[1]
   corstr = corstr[1]
 
   # Main effects
@@ -278,9 +306,9 @@ gen_simdata <- function(
 #'
 #' @param data data to ampute
 #' @param omit_cols column names of variables that will not be amputed
-#' @param miss_proportion proportion of data that will be amputed
-#' @param miss_pattern the pattern of missing data. valid options
-#'  are 'mar','mcar', and 'mnar'.
+#' @param miss_proportion The proportion of `data` that will
+#'   be set to missing.
+#' @inheritParams gen_simdata
 #'
 #' @export
 add_missing <- function(

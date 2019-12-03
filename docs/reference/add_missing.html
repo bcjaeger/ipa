@@ -121,7 +121,8 @@
     <p>easy wrapper for ampute</p>
     </div>
 
-    <pre class="usage"><span class='fu'>add_missing</span>(<span class='no'>data</span>, <span class='no'>omit_cols</span>, <span class='no'>miss_proportion</span>, <span class='no'>miss_pattern</span>)</pre>
+    <pre class="usage"><span class='fu'>add_missing</span>(<span class='no'>data</span>, <span class='no'>omit_cols</span>, <span class='no'>miss_proportion</span>, <span class='no'>miss_pattern</span>,
+  <span class='kw'>npatterns</span> <span class='kw'>=</span> <span class='fl'>10</span>)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -136,12 +137,19 @@
     </tr>
     <tr>
       <th>miss_proportion</th>
-      <td><p>proportion of data that will be amputed</p></td>
+      <td><p>The proportion of <code>data</code> that will
+be set to missing.</p></td>
     </tr>
     <tr>
       <th>miss_pattern</th>
-      <td><p>the pattern of missing data. valid options
-are 'mar','mcar', and 'mnar'.</p></td>
+      <td><p>A character value indicating what type of missingness
+pattern to apply. Valid options are 'mcar', 'mar', and 'mnar'.
+mcar = missing completely at random, mar = missing at random, and
+mnar = missing not at random.</p></td>
+    </tr>
+    <tr>
+      <th>npatterns</th>
+      <td><p>The number of missing patterns used to ampute data.</p></td>
     </tr>
     </table>
 

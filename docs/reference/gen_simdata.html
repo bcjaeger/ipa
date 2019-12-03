@@ -36,7 +36,9 @@
 
 
 <meta property="og:title" content="a simple framework to simulate simple dataframes — gen_simdata" />
-<meta property="og:description" content="a simple framework to simulate simple dataframes" />
+<meta property="og:description" content="Simulated data allow analysts to conduct controlled experiments
+using specific parameters to generate data. This function provides
+a general framework to simulate missing data under different patterns:" />
 <meta name="twitter:card" content="summary" />
 
 
@@ -118,13 +120,16 @@
     </div>
 
     <div class="ref-description">
-    <p>a simple framework to simulate simple dataframes</p>
+    <p>Simulated data allow analysts to conduct controlled experiments
+using specific parameters to generate data. This function provides
+a general framework to simulate missing data under different patterns:</p>
     </div>
 
-    <pre class="usage"><span class='fu'>gen_simdata</span>(<span class='kw'>problem_type</span> <span class='kw'>=</span> <span class='st'>"regression"</span>, <span class='kw'>ncov</span> <span class='kw'>=</span> <span class='fl'>50</span>, <span class='kw'>nint</span> <span class='kw'>=</span> <span class='fl'>20</span>,
-  <span class='kw'>rho</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>, <span class='kw'>nobs</span> <span class='kw'>=</span> <span class='fl'>10000</span>, <span class='kw'>error_sd</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>, <span class='kw'>prevalence</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
-  <span class='kw'>split_prop</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>, <span class='kw'>miss_pattern</span> <span class='kw'>=</span> <span class='st'>"mar"</span>, <span class='kw'>trn_miss_prop</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>,
-  <span class='kw'>tst_miss_prop</span> <span class='kw'>=</span> <span class='fl'>0</span>)</pre>
+    <pre class="usage"><span class='fu'>gen_simdata</span>(<span class='kw'>problem_type</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='st'>"regression"</span>, <span class='st'>"classification"</span>, <span class='st'>"survival"</span>),
+  <span class='kw'>ncov</span> <span class='kw'>=</span> <span class='fl'>3</span>, <span class='kw'>nint</span> <span class='kw'>=</span> <span class='fl'>2</span>, <span class='kw'>degree</span> <span class='kw'>=</span> <span class='fl'>3</span>, <span class='kw'>rho</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>, <span class='kw'>corstr</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='st'>"AR1"</span>,
+  <span class='st'>"CS"</span>), <span class='kw'>nobs</span> <span class='kw'>=</span> <span class='fl'>10000</span>, <span class='kw'>error_sd</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>, <span class='kw'>prevalence</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
+  <span class='kw'>split_prop</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>, <span class='kw'>miss_pattern</span> <span class='kw'>=</span> <span class='st'>"mar"</span>, <span class='kw'>npatterns</span> <span class='kw'>=</span> <span class='fl'>10</span>,
+  <span class='kw'>trn_miss_prop</span> <span class='kw'>=</span> <span class='fl'>1</span>/<span class='fl'>2</span>, <span class='kw'>tst_miss_prop</span> <span class='kw'>=</span> <span class='fl'>0</span>)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -145,8 +150,18 @@ or 'survival'.</p></td>
 variable.</p></td>
     </tr>
     <tr>
+      <th>degree</th>
+      <td><p>the degree of each predictor variable's relationship to
+the outcome. For example, <code>degree = 2</code> makes the relationship between
+each predictor variable and the outcome quadratic.</p></td>
+    </tr>
+    <tr>
       <th>rho</th>
-      <td><p>the auto correlation constant among predictors in the X matrix.</p></td>
+      <td><p>the correlation constant among predictors in the X matrix.</p></td>
+    </tr>
+    <tr>
+      <th>corstr</th>
+      <td><p>The correlation structure among predictors in the X matrix.</p></td>
     </tr>
     <tr>
       <th>nobs</th>
@@ -175,6 +190,10 @@ mcar = missing completely at random, mar = missing at random, and
 mnar = missing not at random.</p></td>
     </tr>
     <tr>
+      <th>npatterns</th>
+      <td><p>The number of missing patterns used to ampute data.</p></td>
+    </tr>
+    <tr>
       <th>trn_miss_prop</th>
       <td><p>The proportion of data in the training set that will
 be set to missing.</p></td>
@@ -186,12 +205,27 @@ be set to missing.</p></td>
     </tr>
     </table>
 
+    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
+
+    
+<ol>
+<li><p>missing completely at random (MCAR): missingness occurs at random,
+independent of all variables</p></li>
+<li><p>missing at random (MAR): missingness occurs at random, conditional
+on measured variables in the observed data.</p></li>
+<li><p>missing not at random (MNAR) missingess occurs non-randomly and is
+dependent on unmeasured variables.</p></li>
+</ol>
+
+<p>All simulated predictor variables are numeric. Regression coefficients
+are generated randomly (all values are between -1 and 1).</p>
 
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>
     <ul class="nav nav-pills nav-stacked">
       <li><a href="#arguments">Arguments</a></li>
+      <li><a href="#details">Details</a></li>
     </ul>
 
   </div>

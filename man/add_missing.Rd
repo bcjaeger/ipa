@@ -4,17 +4,23 @@
 \alias{add_missing}
 \title{easy wrapper for ampute}
 \usage{
-add_missing(data, omit_cols, miss_proportion, miss_pattern)
+add_missing(data, omit_cols, miss_proportion, miss_pattern,
+  npatterns = 10)
 }
 \arguments{
 \item{data}{data to ampute}
 
 \item{omit_cols}{column names of variables that will not be amputed}
 
-\item{miss_proportion}{proportion of data that will be amputed}
+\item{miss_proportion}{The proportion of \code{data} that will
+be set to missing.}
 
-\item{miss_pattern}{the pattern of missing data. valid options
-are 'mar','mcar', and 'mnar'.}
+\item{miss_pattern}{A character value indicating what type of missingness
+pattern to apply. Valid options are 'mcar', 'mar', and 'mnar'.
+mcar = missing completely at random, mar = missing at random, and
+mnar = missing not at random.}
+
+\item{npatterns}{The number of missing patterns used to ampute data.}
 }
 \description{
 easy wrapper for ampute
