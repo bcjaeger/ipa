@@ -24,90 +24,50 @@
 #' @param tst_miss_prop The proportion of data in the testing set that will
 #'   be set to missing.
 #' @export
+#'
+#' @examples
+#'
+
+#' gen_simdata(ncov = 1, nint = 0, nobs = 100)
+#' gen_simdata(ncov = 2, nint = 2, nobs = 100)
 
 
-# problem_type = 'survival'
-# ncov = 50
-# nint = 20
+# problem_type = 'regression'
+# ncov = 5
+# nint = 4
+# degree = 3
 # rho = 1/2
+# corstr = c('AR1','CS')
 # nobs = 10000
 # error_sd = 1/2
 # prevalence = NULL
 # split_prop = 1/2
 # miss_pattern = 'mar'
 # trn_miss_prop = 1/2
-# tst_miss_prop = 0
-
-
-# var_vals <- rnorm(1000)
-# var_name = 'x'
-# var_dgrs = 3
-#
-# var_pwrs <- seq(var_dgrs) %>%
-#   purrr::map(~ var_vals^.x) %>%
-#   purrr::set_names(glue::glue("{var_name}_{seq(var_dgrs)}")) %>%
-#   dplyr::bind_cols()
-#
-# var_coefs <- purrr::map_dbl(
-#   .x = var_pwrs,
-#   .f = ~ stats::runif(
-#     n = 1,
-#     min = stats::quantile(.x, probs = 0.25),
-#     max = stats::quantile(.x, probs = 0.75)
-#   )
-# )
-#
-# y <- as.matrix(var_pwrs) %*% var_coefs
-#
-# plot(x = var_vals, y=y)
+# tst_miss_prop = 1/2
 
 
 gen_simdata <- function(
   problem_type = 'regression',
-  ncov = 50,
-  nint = 20,
+  ncov = 3,
+  nint = 2,
+  degree = 3,
   rho = 1/2,
+  corstr = c('AR1','CS'),
   nobs = 10000,
   error_sd = 1/2,
   prevalence = NULL,
   split_prop = 1/2,
   miss_pattern = 'mar',
+  npatterns = 10,
   trn_miss_prop = 1/2,
   tst_miss_prop = 0
 ){
 
+  corstr = corstr[1]
+
   # Main effects
   xnames = paste0('x', 1:ncov)
-
-  beta <- stats::runif(
-    n = ncov,
-    min = -1,
-    max = 1
-  ) %>%
-    magrittr::divide_by(sqrt(ncov)) %>%
-    purrr::set_names(xnames)
-
-  # Interaction effects
-  if(nint > 0){
-
-    int_ind <- replicate(
-      n = nint,
-      expr = sample(xnames, 2),
-      simplify = FALSE
-    )
-
-    inames = purrr::map_chr(
-      .x = int_ind,
-      .f = ~ glue::glue("{.x[1]}_i_{.x[2]}")
-    )
-
-    icoefs <- stats::runif(n = nint, min = -1, max = 1) %>%
-      magrittr::divide_by(sqrt(ncov)) %>%
-      magrittr::set_names(inames)
-
-    beta %<>% c(icoefs)
-
-  }
 
   # Covariance matrix between fixed effects
   Sigma = matrix(0, ncol = ncov, nrow = ncov)
@@ -119,30 +79,72 @@ gen_simdata <- function(
   for (i in 1:ncov) {
     for (j in 1:ncov) {
 
-      Sigma[i, j] = rho ^ (abs(i - j))
+      expo <- switch(
+        corstr,
+        'AR1' = abs(i-j),
+        'CS' = 1L
+      )
+
+      Sigma[i, j] = rho^expo
 
     }
   }
 
   diag(Sigma) <- 1
 
-  x_true = x_obsr <- mvtnorm::rmvnorm(
+  x_obsr <- mvtnorm::rmvnorm(
     mean = rep(0, nrow(Sigma)),
     n = nobs,
     sigma = Sigma
   ) %>%
     magrittr::set_colnames(xnames)
 
+  x_true <- purrr::map2(
+    .x = tibble::as_tibble(x_obsr),
+    .y = xnames,
+    .f = non_lin,
+    degree = degree
+  ) %>%
+    dplyr::bind_cols()
+
+  beta <- stats::runif(
+    n = ncol(x_true),
+    min = -1,
+    max = 1
+  ) %>%
+    magrittr::divide_by(sqrt(ncol(x_true))) %>%
+    purrr::set_names(names(x_true))
+
+  # Interaction effects
   if(nint > 0){
 
-    intr = purrr::map(
-      .x = int_ind,
-      .f =  function(i) x_obsr[, i[1]] * x_obsr[, i[2]]
-    ) %>%
-      purrr::set_names(names(icoefs)) %>%
+    interactions <- outer(X = xnames, Y = xnames, FUN = paste, sep = '_i_')
+    interactions <- interactions[upper.tri(interactions)]
+
+    max_intr <- length(interactions)
+
+    if(nint > max_intr) stop(
+      glue::glue("maximum no. of interactions for",
+        "ncov = {ncov} is {max_intr}"),
+      call. = FALSE
+    )
+
+    inames <- sample(interactions, nint)
+
+    icoefs <- stats::runif(n = nint, min = -1, max = 1) %>%
+      magrittr::divide_by(sqrt(ncov)) %>%
+      magrittr::set_names(inames)
+
+    beta %<>% c(icoefs)
+
+    intr <- names(icoefs) %>%
+      purrr::set_names() %>%
+      strsplit("_i_", fixed = TRUE) %>%
+      purrr::map(~x_obsr[,.x[1]] * x_obsr[,.x[2]]) %>%
       dplyr::bind_cols()
 
     x_true %<>% cbind(intr)
+
 
   }
 
@@ -196,10 +198,11 @@ gen_simdata <- function(
     tst = tibble::as_tibble(data[-trn_indx, ])
   )
 
+
   patterns <-
     mice::ampute.default.patterns(n = ncol(orig$trn)) %>%
     magrittr::set_colnames(names(orig$trn)) %>%
-    .[1:min(10, ncov), ]
+    .[1:min(npatterns, ncov), , drop = FALSE]
 
   for(i in 1:nrow(patterns)){
     patterns[i, 1:ncol(patterns)] <- sample(
@@ -223,7 +226,8 @@ gen_simdata <- function(
   type <- sample(
     x = c("LEFT","RIGHT","MID","TAIL"),
     size = nrow(patterns),
-    replace = TRUE)
+    replace = TRUE
+  )
 
   fctrs <- purrr::map_chr(orig$trn, class) %>%
     tibble::enframe() %>%
@@ -283,7 +287,8 @@ add_missing <- function(
   data,
   omit_cols,
   miss_proportion,
-  miss_pattern
+  miss_pattern,
+  npatterns = 10
 ){
 
   ncov = ncol(data)
@@ -291,7 +296,7 @@ add_missing <- function(
   patterns <-
     mice::ampute.default.patterns(n = ncol(data)) %>%
     magrittr::set_colnames(names(data)) %>%
-    .[1:min(10, ncov), ]
+    .[1:min(npatterns, ncov), , drop = FALSE]
 
   for(i in 1:nrow(patterns)){
 
@@ -351,5 +356,15 @@ add_missing <- function(
   }
 
   miss_df
+
+}
+
+
+non_lin <- function(xvals, xname, degree){
+
+  seq(degree) %>%
+    purrr::map(function(dgr) xvals^dgr) %>%
+    purrr::set_names(glue::glue("{xname}_raiseto_{seq(degree)}")) %>%
+    dplyr::bind_cols()
 
 }
