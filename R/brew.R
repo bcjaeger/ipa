@@ -17,6 +17,13 @@
 #'   character values (e.g., outcome = c('a','b','c') for multiple outcomes
 #'   or outcome = 'a' for a single outcome).
 #'
+#' @param bind_miss (`TRUE` / `FALSE`). If `TRUE`, a set of additional
+#'   indicator columns (one for each non-outcome column) are added
+#'   to `data`. The indicator columns take values of 0 and 1, with
+#'   0 indicating that this variable is not missing for this row
+#'   and 1 indicating that this variable is missing for this row.
+#'   If `FALSE`, no additional columns are added to `data`.
+#'
 #' @param flavor the computational approach that will be used to
 #'   impute missing data. Valid options are 'kneighbors', 'softImpute',
 #'   and 'missRanger.' These values should be input as characters
@@ -91,7 +98,8 @@
 brew <- function(
   data,
   outcome,
-  flavor = c('kneighbors', 'missRanger', 'softImpute')
+  flavor = c('kneighbors', 'missRanger', 'softImpute'),
+  bind_miss = FALSE
 ) {
 
   # Check outcome and transform to simple character value
@@ -111,7 +119,7 @@ brew <- function(
   }
 
   # prepare data for brewing
-  data %<>% brew_data(flavor = flavor, outcome = outcome)
+  data %<>% brew_data(flavor = flavor, outcome = outcome, bind_miss)
 
   # Initiate the brew
   structure(
@@ -219,7 +227,7 @@ get_verbosity <- function(brew){
 
 
 
-brew_data <- function(data, outcome, flavor){
+brew_data <- function(data, outcome, flavor, bind_miss = FALSE){
 
   if(!tibble::is_tibble(data)){
     imp_data <- tibble::as_tibble(data)
@@ -265,6 +273,16 @@ brew_data <- function(data, outcome, flavor){
     stop("Unsupported variable types in data\n",
       "For softImpute brews, all variables should be integer/numeric.",
       call. = FALSE)
+  }
+
+  if(bind_miss){
+
+    miss_cols <- imp_data %>%
+      purrr::map_dfc(.f = ~as.integer(is.na(.x))) %>%
+      purrr::set_names(glue::glue("{names(.)}_missing"))
+
+    imp_data %<>% dplyr::bind_cols(miss_cols)
+
   }
 
   list(

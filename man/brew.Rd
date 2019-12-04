@@ -4,7 +4,8 @@
 \alias{brew}
 \title{Brews for Imputation}
 \usage{
-brew(data, outcome, flavor = c("kneighbors", "missRanger", "softImpute"))
+brew(data, outcome, flavor = c("kneighbors", "missRanger", "softImpute"),
+  bind_miss = FALSE)
 }
 \arguments{
 \item{data}{a data frame with missing values.}
@@ -19,6 +20,13 @@ or outcome = 'a' for a single outcome).}
 impute missing data. Valid options are 'kneighbors', 'softImpute',
 and 'missRanger.' These values should be input as characters
 (e.g., 'kneighbors').}
+
+\item{bind_miss}{(\code{TRUE} / \code{FALSE}). If \code{TRUE}, a set of additional
+indicator columns (one for each non-outcome column) are added
+to \code{data}. The indicator columns take values of 0 and 1, with
+0 indicating that this variable is not missing for this row
+and 1 indicating that this variable is missing for this row.
+If \code{FALSE}, no additional columns are added to \code{data}.}
 }
 \value{
 an \code{ipa_brew} object with your specified \code{flavor}
