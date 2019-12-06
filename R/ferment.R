@@ -349,6 +349,20 @@ ferment_stkr_soft <- function(
   verbose_1 <- verbose >= 1
   verbose_2 <- verbose >= 2
 
+  # Nothing to do if there are no missing values
+  if(!any(is.na(new_data))){
+
+    brew$wort[[new_name]] <- list(new_data)
+    attr(brew, 'fermented_cols') %<>% c(new_name)
+
+    if(verbose_1) message(
+      glue::glue("No missing values in {new_name} - nothing to impute.")
+    )
+
+    return(brew)
+
+  }
+
   nfit <- nrow(brew$wort)
   ntrn <- nrow(brew$data)
   ntst <- nrow(new_data)
