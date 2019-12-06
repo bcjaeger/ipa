@@ -44,6 +44,11 @@
 #' @param npatterns The number of missing patterns used to ampute data.
 #' @param tst_miss_prop The proportion of data in the testing set that will
 #'   be set to missing.
+#' @param return_complete_trn Should the complete training set be provided
+#'   in the output?
+#' @param return_complete_tst Should the complete testing set be provided
+#'   in the output?
+#'
 #' @export
 #'
 #' @examples
@@ -88,7 +93,9 @@ gen_simdata <- function(
   miss_pattern = 'mar',
   npatterns = 10,
   trn_miss_prop = 1/2,
-  tst_miss_prop = 0
+  tst_miss_prop = 0,
+  return_complete_trn = FALSE,
+  return_complete_tst = FALSE
 ){
 
   problem_type = problem_type[1]
@@ -268,7 +275,7 @@ gen_simdata <- function(
     ) %>%
     tibble::deframe()
 
-  output <- purrr::map2(
+  amputed <- purrr::map2(
     .x = orig,
     .y = list(trn_miss_prop, tst_miss_prop),
     .f = function(df, miss_prop){
@@ -294,11 +301,16 @@ gen_simdata <- function(
     }
   )
 
-  list(
+  output <- list(
     beta = beta,
-    training = output$trn,
-    testing = output$tst
+    training = amputed$trn,
+    testing = amputed$tst
   )
+
+  if(return_complete_trn) output$training_complete = orig$trn
+  if(return_complete_tst) output$testing_complete = orig$tst
+
+  output
 
 }
 

@@ -8,7 +8,8 @@ gen_simdata(problem_type = c("regression", "classification", "survival"),
   ncov = 3, nint = 2, degree = 3, rho = 1/2, corstr = c("AR1",
   "CS"), nobs = 10000, error_sd = 1/2, prevalence = NULL,
   split_prop = 1/2, miss_pattern = "mar", npatterns = 10,
-  trn_miss_prop = 1/2, tst_miss_prop = 0)
+  trn_miss_prop = 1/2, tst_miss_prop = 0,
+  return_complete_trn = FALSE, return_complete_tst = FALSE)
 }
 \arguments{
 \item{problem_type}{A character value indicating the problem type to
@@ -51,6 +52,12 @@ be set to missing.}
 
 \item{tst_miss_prop}{The proportion of data in the testing set that will
 be set to missing.}
+
+\item{return_complete_trn}{Should the complete training set be provided
+in the output?}
+
+\item{return_complete_tst}{Should the complete testing set be provided
+in the output?}
 }
 \description{
 Simulated data allow analysts to conduct controlled experiments
