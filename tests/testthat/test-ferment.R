@@ -201,5 +201,45 @@ test_that(
       as.matrix(sft_brew$wort$testing[[1]]),
       as.matrix(new_data[,c('x1','x2')])
     )
+
+
+    sft_brew <- brew(data,
+      outcome = outcome,
+      flavor = 'softImpute',
+      bind_miss = TRUE)
+    rgr_brew <- brew(data,
+      outcome = outcome,
+      flavor = 'missRanger',
+      bind_miss = TRUE)
+
+    sft_brew <- verbose_on(sft_brew, level = 2)
+    rgr_brew <- verbose_on(rgr_brew, level = 2)
+
+    sft_brew <- spice(sft_brew, n_impute = 1)
+    rgr_brew <- spice(rgr_brew, min_node_sizes = 1, pmm_donor_sizes = 1)
+
+    sft_brew <- mash(sft_brew, masher_soft(scale_data = F))
+    rgr_brew <- mash(rgr_brew, masher_rngr(num.trees = 10))
+
+    # knn_brew <- ferment(knn_brew,
+    #   testing = test_nbrs(new_data, dbl_impute = T))
+
+    sft_brew <- ferment(sft_brew,
+      testing = test_stkr(new_data, dbl_impute = T))
+
+    expect_equal(
+      names(sft_brew$wort$training[[1]]),
+      names(sft_brew$wort$testing[[1]])
+    )
+
+    rgr_brew <- ferment(rgr_brew,
+      testing = test_stkr(new_data, dbl_impute = T))
+
+    expect_equal(
+      names(rgr_brew$wort$training[[1]]),
+      names(rgr_brew$wort$testing[[1]])
+    )
+
+
   }
 )

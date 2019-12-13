@@ -130,6 +130,17 @@ ferment <- function(brew, ...){
 
     timpers[[i]]$data[, outcome] = NULL
 
+    if(attr(brew, 'bind_miss')){
+
+      miss_cols <- timpers[[i]]$data %>%
+        purrr::map_dfc(.f = ~as.integer(is.na(.x))) %>%
+        purrr::set_names(glue::glue("{names(.)}_missing"))
+
+      timpers[[i]]$data %<>% dplyr::bind_cols(miss_cols)
+
+    }
+
+
     if(timpers[[i]]$strat == 'nbrs'){
 
       neighbor_sequence <-

@@ -2,6 +2,7 @@
 test_that(
   "correct inputs work and incorrect inputs get correct message",
   {
+
     data <- data.frame(
       x1 = 1:10,
       x2 = 10:1,
@@ -32,6 +33,8 @@ test_that(
     knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
     sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
     rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
+
+    expect_true(!attr(knn_brew, 'bind_miss'))
 
     expect_error(
       brew(data, outcome = outcome, flavor = 'kneighbor'),
@@ -72,6 +75,17 @@ test_that(
     prt = print(knn_brew)
 
     expect_is(prt, 'tbl_df')
+
+    knn_brew <- data %>%
+      brew(outcome = outcome, flavor = 'kneighbors', bind_miss = T)
+
+    expect_equal(
+      names(knn_brew$data),
+      c("x1", "x2", "x3", "x1_missing", "x2_missing", "x3_missing")
+    )
+
+    expect_true(attr(knn_brew, 'bind_miss'))
+
 
   }
 )

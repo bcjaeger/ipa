@@ -131,6 +131,7 @@ brew <- function(
     ),
     class = c('ipa_brew', paste(flavor, 'brew', sep = '_')),
     flavor = flavor,
+    bind_miss = bind_miss,
     outcome = list(name = outcome, data = list(training = data$outcome)),
     verbose = 0,
     spiced = FALSE,
