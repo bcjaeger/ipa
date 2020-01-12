@@ -2,26 +2,78 @@
 % Please edit documentation in R/simulation.R
 \name{add_missing}
 \alias{add_missing}
-\title{easy wrapper for ampute}
+\title{Ampute data}
 \usage{
-add_missing(data, omit_cols, miss_proportion, miss_pattern,
-  npatterns = 10)
+add_missing(
+  data,
+  miss_proportion,
+  by_cases = TRUE,
+  omit_cols = NULL,
+  miss_cols_range = NULL,
+  miss_mech = c("mcar", "mar", "mnar"),
+  miss_type = NULL,
+  miss_ptrn_count = 10,
+  miss_ptrn_prop = NULL
+)
 }
 \arguments{
 \item{data}{data to ampute}
 
-\item{omit_cols}{column names of variables that will not be amputed}
-
-\item{miss_proportion}{The proportion of \code{data} that will
+\item{miss_proportion}{the proportion of \code{data} that will
 be set to missing.}
 
-\item{miss_pattern}{A character value indicating what type of missingness
-pattern to apply. Valid options are 'mcar', 'mar', and 'mnar'.
-mcar = missing completely at random, mar = missing at random, and
-mnar = missing not at random.}
+\item{by_cases}{logical. If \code{TRUE}, the proportion of missingness is
+defined in terms of cases. If \code{FALSE}, the proportion of missingness
+is defined in terms of cells. Default is \code{TRUE}. Setting to \code{FALSE}
+may cause errors when the desired proportion of missingness cannot
+be obtained.}
 
-\item{npatterns}{The number of missing patterns used to ampute data.}
+\item{omit_cols}{column names of variables that will not be amputed.}
+
+\item{miss_cols_range}{an integer vector of length 2 containing
+The minimum followed by maximum number of columns that
+can be set to missing in any given missing pattern. If nothing is
+specified, then the minimum number of columns will be set to 1 and
+the maximum number of columns will be set to  the number of
+columns in \code{data} minus the number of columns in \code{omit_cols}.}
+
+\item{miss_mech}{a string specifying the missingness mechanism,
+either MCAR (Missing Completely At Random), MAR (Missing At Random)
+or MNAR (Missing Not At Random). Default is a MCAR mechanism.}
+
+\item{miss_type}{a vector of strings containing the type of missingness
+for each pattern. Either "LEFT", "MID", "TAIL" or '"RIGHT". If a single
+missingness type is entered, all patterns will be created by the same
+type. If missingness types should differ over patterns, a vector of
+missingness types should be entered. If nothing is specified,
+missing patterns will be generated at random.}
+
+\item{miss_ptrn_count}{integer. The desired number of missing patterns
+for the amputed data. Patterns are generated at random. Default is 10.}
+
+\item{miss_ptrn_prop}{a vector of length equal \code{miss_ptrn_count}
+containing the relative frequency with which the patterns should occur.
+For example, for three missing data patterns, the vector could be
+\code{c(0.4, 0.4, 0.2)}, meaning that of all cases with missing values,
+40\% should have pattern 1, 40\% should have pattern 2, and 20\% should
+have pattern 3. The vector should sum to 1. If nothing is specified,
+then \code{miss_ptrn_prop} is created using random values.}
 }
 \description{
-easy wrapper for ampute
+This function provides a general framework to simulate missing data
+under different mechanisms:
+}
+\details{
+\enumerate{
+\item missing completely at random (MCAR): missingness occurs at random,
+independent of all variables
+\item missing at random (MAR): missingness occurs at random, conditional
+on measured variables in the observed data.
+\item missing not at random (MNAR) missingess occurs non-randomly and is
+dependent on unmeasured variables.
+}
+
+Notably, this function is a wrapper for the more granular \code{\link[mice:ampute]{mice::ampute()}}
+function. The current function creates missing patterns and types at
+random, whereas \code{\link[mice:ampute]{mice::ampute()}} allows them to be specified manually.
 }

@@ -4,8 +4,12 @@
 \alias{brew}
 \title{Brews for Imputation}
 \usage{
-brew(data, outcome, flavor = c("kneighbors", "missRanger", "softImpute"),
-  bind_miss = FALSE)
+brew(
+  data,
+  outcome,
+  flavor = c("kneighbors", "missRanger", "softImpute"),
+  bind_miss = FALSE
+)
 }
 \arguments{
 \item{data}{a data frame with missing values.}

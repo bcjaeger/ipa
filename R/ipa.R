@@ -30,16 +30,17 @@
 ## quiets concerns of R CMD check re: the .'s that appear in pipelines
 if(getRversion() >= "2.15.1")  utils::globalVariables(
   c(".",
-    '._ID_.',
-    'aggr_fun',
-    'donor_size',
     'fit',
-    'impute',
-    'k_neighbors',
-    'lambda',
-    'node_size',
+    'name',
     'value',
-    'name'
+    '._ID_.',
+    'impute',
+    'lambda',
+    'aggr_fun',
+    'variable',
+    'node_size',
+    'donor_size',
+    'k_neighbors'
   )
 )
 

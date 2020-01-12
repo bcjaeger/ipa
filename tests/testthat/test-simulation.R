@@ -5,8 +5,7 @@ test_that(
 
     set.seed(1)
     regr = gen_simdata(problem_type = 'regression',
-      ncov = 3, nint = 2, degree = 3, nobs = 2000,
-      tst_miss_prop = 0)
+      ncov = 3, nint = 2, degree = 3, nobs = 2000)
 
     expect_true(length(regr$beta) == 11L)
 
@@ -31,15 +30,30 @@ test_that(
       regexp = 'maximum'
     )
 
-  amputed_dat <- regr$testing %>%
-    add_missing(omit_cols = 'response', miss_proportion = 1/2,
-      miss_pattern = 'mar', npatterns = 10)
+    expect_warning(
+      regr$test %>%
+        add_missing(omit_cols = 'response', miss_proportion = 1/2,
+          miss_mech = 'mar', miss_ptrn_count = 10, miss_cols_range = c(1,5)),
+      regexp = 'were duplicates'
+    )
 
-  expect_true(!any(is.na(amputed_dat$response)))
+    expect_error(
+      regr$test %>%
+        add_missing(omit_cols = 'response', miss_proportion = 1/2,
+          miss_mech = 'mar', miss_ptrn_count = 10, miss_cols_range = c(3,5)),
+      regexp = 'Minimum'
+    )
 
-  expect_true(sum(is.na(amputed_dat$x2))>0)
+    set.seed(2)
+    amputed_dat <- regr$test %>%
+      add_missing(omit_cols = 'response', miss_proportion = 1/2,
+        miss_mech = 'mar', miss_ptrn_count = 3, miss_cols_range = c(1,3))
 
-  expect_true(sum(is.na(amputed_dat$x3))>0)
+    expect_true(!any(is.na(amputed_dat$response)))
+
+    expect_true(sum(is.na(amputed_dat$x2))>0)
+
+    expect_true(sum(is.na(amputed_dat$x3))>0)
 
 
   }

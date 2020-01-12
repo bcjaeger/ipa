@@ -4,8 +4,7 @@
 \alias{test_nbrs}
 \title{Impute test data}
 \usage{
-test_nbrs(data, dbl_impute = FALSE, neighbors = NULL,
-  aggr_neighbors = NULL)
+test_nbrs(data, dbl_impute = FALSE, neighbors = NULL, aggr_neighbors = NULL)
 }
 \arguments{
 \item{data}{data to be imputed.}

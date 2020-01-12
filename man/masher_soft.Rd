@@ -4,9 +4,16 @@
 \alias{masher_soft}
 \title{Soft masher}
 \usage{
-masher_soft(type = "als", maxit = 100L, thresh = 1e-05,
-  final.svd = TRUE, scale_data = TRUE, scale_iter = 20,
-  scale_lambda = 0.95, lambda_sequence = NULL)
+masher_soft(
+  type = "als",
+  maxit = 100L,
+  thresh = 1e-05,
+  final.svd = TRUE,
+  scale_data = TRUE,
+  scale_iter = 20,
+  scale_lambda = 0.95,
+  lambda_sequence = NULL
+)
 }
 \arguments{
 \item{type}{two algorithms are implements, type="svd" or the default

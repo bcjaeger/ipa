@@ -4,12 +4,19 @@
 \alias{gen_simdata}
 \title{a simple framework to simulate simple dataframes}
 \usage{
-gen_simdata(problem_type = c("regression", "classification", "survival"),
-  ncov = 3, nint = 2, degree = 3, rho = 1/2, corstr = c("AR1",
-  "CS"), nobs = 10000, error_sd = 1/2, prevalence = NULL,
-  split_prop = 1/2, miss_pattern = "mar", npatterns = 10,
-  trn_miss_prop = 1/2, tst_miss_prop = 0,
-  return_complete_trn = FALSE, return_complete_tst = FALSE)
+gen_simdata(
+  problem_type = c("regression", "classification", "survival"),
+  ncov = 3,
+  nint = 2,
+  degree = 3,
+  x_mean = 0,
+  rho = 1/2,
+  corstr = c("AR1", "CS"),
+  nobs = 10000,
+  error_sd = 1/2,
+  prevalence = NULL,
+  split_prop = 1/2
+)
 }
 \arguments{
 \item{problem_type}{A character value indicating the problem type to
@@ -25,7 +32,9 @@ variable.}
 the outcome. For example, \code{degree = 2} makes the relationship between
 each predictor variable and the outcome quadratic.}
 
-\item{rho}{the correlation constant among predictors in the X matrix.}
+\item{x_mean}{the expected value of all predictors in the X matrix.}
+
+\item{rho}{the correlation coefficient among predictors in the X matrix.}
 
 \item{corstr}{The correlation structure among predictors in the X matrix.}
 
@@ -34,54 +43,24 @@ each predictor variable and the outcome quadratic.}
 \item{error_sd}{the standard deviation of error applied when generating
 outcome values.}
 
-\item{prevalence}{(this is only relevant for classification problems).
-The prevalence of the outcome.}
+\item{prevalence}{the prevalence of the outcome.
+(only relevant for classification problems).}
 
 \item{split_prop}{the proportion of data that will be randomly assigned
 to the training dataset.}
-
-\item{miss_pattern}{A character value indicating what type of missingness
-pattern to apply. Valid options are 'mcar', 'mar', and 'mnar'.
-mcar = missing completely at random, mar = missing at random, and
-mnar = missing not at random.}
-
-\item{npatterns}{The number of missing patterns used to ampute data.}
-
-\item{trn_miss_prop}{The proportion of data in the training set that will
-be set to missing.}
-
-\item{tst_miss_prop}{The proportion of data in the testing set that will
-be set to missing.}
-
-\item{return_complete_trn}{Should the complete training set be provided
-in the output?}
-
-\item{return_complete_tst}{Should the complete testing set be provided
-in the output?}
 }
 \description{
 Simulated data allow analysts to conduct controlled experiments
-using specific parameters to generate data. This function provides
-a general framework to simulate missing data under different patterns:
+using specific parameters to generate data.
 }
 \details{
-\enumerate{
-\item missing completely at random (MCAR): missingness occurs at random,
-independent of all variables
-\item missing at random (MAR): missingness occurs at random, conditional
-on measured variables in the observed data.
-\item missing not at random (MNAR) missingess occurs non-randomly and is
-dependent on unmeasured variables.
-}
-
 All simulated predictor variables are numeric. Regression coefficients
 are generated randomly (all values are between -1 and 1).
 }
 \examples{
 
 regr = gen_simdata(problem_type = 'regression',
-  ncov = 3, nint = 2, degree = 3, nobs = 2000,
-  tst_miss_prop = 0)
+  ncov = 3, nint = 2, degree = 3, nobs = 2000)
 
 clsf = gen_simdata(problem_type = 'classification',
   ncov = 3, nint = 2, degree = 3, nobs = 2000)
