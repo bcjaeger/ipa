@@ -5,7 +5,8 @@ test_that(
 
     set.seed(1)
     regr = gen_simdata(problem_type = 'regression',
-      ncov = 3, nint = 2, degree = 3, nobs = 2000)
+      ncov = 3, nint = 2, degree = 3, nobs = 2000,
+      ngrp = 2)
 
     expect_true(length(regr$beta) == 11L)
 

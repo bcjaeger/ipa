@@ -13,10 +13,13 @@
 #' @param ncov the number of main effects used to generate an outcome variable
 #' @param nint the number of interaction effects used to generate an outcome
 #'   variable.
+#' @param ngrp the number of X groups in the data. Each X group will have
+#'   different mean values for the `ncov` predictor variables, but will
+#'   not have different rules governing the relationship between response
+#'   and predictor variables.
 #' @param degree the degree of each predictor variable's relationship to
 #'   the outcome. For example, `degree = 2` makes the relationship between
 #'   each predictor variable and the outcome quadratic.
-#' @param x_mean the expected value of all predictors in the X matrix.
 #' @param rho the correlation coefficient among predictors in the X matrix.
 #' @param corstr The correlation structure among predictors in the X matrix.
 #' @param nobs the total number of observations in the simulated data.
@@ -58,8 +61,8 @@ gen_simdata <- function(
   problem_type = c('regression', 'classification', 'survival'),
   ncov = 3,
   nint = 2,
+  ngrp = 1,
   degree = 3,
-  x_mean = 0,
   rho = 1/2,
   corstr = c('AR1','CS'),
   nobs = 10000,
@@ -97,12 +100,20 @@ gen_simdata <- function(
 
   diag(Sigma) <- 1
 
-  x_obsr <- mvtnorm::rmvnorm(
-    mean = rep(x_mean, nrow(Sigma)),
-    n = nobs,
-    sigma = Sigma
+  if(ngrp == 1) x_mean = 0
+
+  if(ngrp > 1) x_mean = seq(-1, 1, length.out = ngrp)
+
+  x_obsr <- purrr::map(
+    .x = x_mean,
+    .f = ~ mvtnorm::rmvnorm(
+      mean = rep(.x, ncov),
+      n = round(nobs / ngrp),
+      sigma = Sigma
+    ) %>%
+      magrittr::set_colnames(xnames)
   ) %>%
-    magrittr::set_colnames(xnames)
+    purrr::reduce(rbind)
 
   x_true <- purrr::map2(
     .x = tibble::as_tibble(x_obsr),

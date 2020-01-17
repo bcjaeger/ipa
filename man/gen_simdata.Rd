@@ -8,8 +8,8 @@ gen_simdata(
   problem_type = c("regression", "classification", "survival"),
   ncov = 3,
   nint = 2,
+  ngrp = 1,
   degree = 3,
-  x_mean = 0,
   rho = 1/2,
   corstr = c("AR1", "CS"),
   nobs = 10000,
@@ -28,11 +28,14 @@ or 'survival'.}
 \item{nint}{the number of interaction effects used to generate an outcome
 variable.}
 
+\item{ngrp}{the number of X groups in the data. Each X group will have
+different mean values for the \code{ncov} predictor variables, but will
+not have different rules governing the relationship between response
+and predictor variables.}
+
 \item{degree}{the degree of each predictor variable's relationship to
 the outcome. For example, \code{degree = 2} makes the relationship between
 each predictor variable and the outcome quadratic.}
-
-\item{x_mean}{the expected value of all predictors in the X matrix.}
 
 \item{rho}{the correlation coefficient among predictors in the X matrix.}
 
