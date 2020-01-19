@@ -178,6 +178,7 @@ gen_simdata <- function(
     data <- dplyr::bind_cols(
       time = y$eventtime,
       status = y$status,
+      group = rep(1:ngrp, each = round(nobs / ngrp)),
       tibble::as_tibble(x_obsr)
     )
 
@@ -199,6 +200,7 @@ gen_simdata <- function(
 
     data <- dplyr::bind_cols(
       response = y,
+      group = rep(1:ngrp, each = round(nobs / ngrp)),
       tibble::as_tibble(x_obsr)
     )
 

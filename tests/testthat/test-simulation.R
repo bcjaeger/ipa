@@ -33,22 +33,31 @@ test_that(
 
     expect_warning(
       regr$test %>%
-        add_missing(omit_cols = 'response', miss_proportion = 1/2,
-          miss_mech = 'mar', miss_ptrn_count = 10, miss_cols_range = c(1,5)),
+        add_missing(omit_cols = c('response', 'group'),
+          miss_proportion = 1/2,
+          miss_mech = 'mar',
+          miss_ptrn_count = 10,
+          miss_cols_range = c(1,5)),
       regexp = 'were duplicates'
     )
 
     expect_error(
       regr$test %>%
-        add_missing(omit_cols = 'response', miss_proportion = 1/2,
-          miss_mech = 'mar', miss_ptrn_count = 10, miss_cols_range = c(3,5)),
+        add_missing(omit_cols = c('response', 'group'),
+          miss_proportion = 1/2,
+          miss_mech = 'mar',
+          miss_ptrn_count = 10,
+          miss_cols_range = c(3,5)),
       regexp = 'Minimum'
     )
 
     set.seed(2)
     amputed_dat <- regr$test %>%
-      add_missing(omit_cols = 'response', miss_proportion = 1/2,
-        miss_mech = 'mar', miss_ptrn_count = 3, miss_cols_range = c(1,3))
+      add_missing(omit_cols = c('response', 'group'),
+        miss_proportion = 1/2,
+        miss_mech = 'mar',
+        miss_ptrn_count = 3,
+        miss_cols_range = c(1,3))
 
     expect_true(!any(is.na(amputed_dat$response)))
 
