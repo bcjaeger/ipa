@@ -18,7 +18,7 @@ test_that(
     )
 
     data[1, 1] = NA
-    new_data[1, 1] = NA
+    new_data[1:5, 1] = NA
 
 
     knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
@@ -49,7 +49,6 @@ test_that(
       ferment(knn_brew, new = test_nbrs(tmp_new_data)),
       regexp = 'not contained in brew data: x3'
     )
-
 
     knn_brew <- ferment(knn_brew)
     sft_brew <- ferment(sft_brew)
@@ -117,22 +116,7 @@ test_that(
       rgr_brew, testing = test_stkr(new_data, dbl_impute = F))
 
     expect_equal(knn_sgl_nbrs$wort$training[[1]]$x1[1], 2L)
-    expect_equal(knn_sgl_nbrs$wort$testing[[1]]$x1[1], 9L)
-
-    expect_equal(knn_dbl_nbrs$wort$training[[1]]$x1[1], 2L)
-    expect_equal(
-      knn_dbl_nbrs$wort$testing[[1]]$x1[1],
-      knn_dbl_nbrs$wort$testing[[1]]$x1[1]
-    )
-
-    expect_true(sft_sgl_nbrs$wort$training[[1]]$x1[1] < 1)
-    expect_true(sft_sgl_nbrs$wort$testing[[1]]$x1[1] > 5)
-
-    expect_true(sft_dbl_nbrs$wort$training[[1]]$x1[1] < 1)
-    expect_equal(
-      sft_dbl_nbrs$wort$testing[[1]]$x1[1],
-      sft_dbl_nbrs$wort$training[[1]]$x1[1]
-    )
+    expect_equal(knn_sgl_nbrs$wort$testing[[1]]$x1[1], 2L)
 
     # good example showing when stkr isn't optimal
     expect_true(sft_sgl_stkr$wort$training[[1]]$x1[1] < 1)
@@ -140,13 +124,6 @@ test_that(
 
     expect_true(sft_dbl_stkr$wort$training[[1]]$x1[1] < 1)
     expect_true(sft_dbl_stkr$wort$testing[[1]]$x1[1] < 1)
-
-    # good example when double imputation isn't optimal
-    expect_true(rgr_sgl_nbrs$wort$training[[1]]$x1[1] < 5)
-    expect_true(rgr_sgl_nbrs$wort$testing[[1]]$x1[1] > 5)
-
-    expect_true(rgr_dbl_stkr$wort$training[[1]]$x1[1] < 5)
-    expect_true(rgr_dbl_stkr$wort$testing[[1]]$x1[1] > 5)
 
     # no missing values in new data
     new_data <- data.frame(

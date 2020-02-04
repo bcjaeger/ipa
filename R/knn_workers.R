@@ -87,6 +87,8 @@ knn_work <- function(
     call. = FALSE
   )
 
+  new_data_supplied <- !is.null(new_data)
+
   new_data <- new_data %||% ref_data
 
   if(!tibble::is_tibble(new_data))
@@ -94,7 +96,7 @@ knn_work <- function(
 
   fit_args <- fits <- vector(mode = 'list', length = n_impute)
 
-  for( i in seq(n_impute) ){
+  for( i in seq(n_impute) ) {
     fits[[i]] <- new_data
     fit_args[[i]] <- list(
       neighbors = neighbor_sequence[i],
@@ -137,7 +139,11 @@ knn_work <- function(
           imp_data <- new_data[missing_rows, preds, drop = FALSE]
         }
 
-        imp_var_complete <- !is.na(new_data[[imp_var]])
+        imp_var_complete <- if(new_data_supplied){
+          !is.na(ref_data[[imp_var]])
+        } else {
+          !is.na(new_data[[imp_var]])
+        }
 
         n_complete <- sum(imp_var_complete)
 
@@ -153,13 +159,28 @@ knn_work <- function(
             )
           )
 
-        nn_index <- gower::gower_topn(
-          x = imp_data[, preds, drop = FALSE],
-          y = new_data[imp_var_complete, preds, drop = FALSE],
-          n = n_gower,
-          nthread = nthread,
-          eps = epsilon
-        )$index
+
+        y <- if(new_data_supplied){
+          ref_data[imp_var_complete, preds, drop = FALSE]
+        } else {
+          new_data[imp_var_complete, preds, drop = FALSE]
+        }
+
+        nn_index <- suppressWarnings(
+          gower::gower_topn(
+            x = imp_data[, preds, drop = FALSE],
+            y = y,
+            n = n_gower,
+            nthread = nthread,
+            eps = epsilon
+          )$index
+        )
+
+        dat <- if(new_data_supplied){
+          ref_data[imp_var_complete, imp_var, drop = FALSE]
+        } else {
+          new_data[imp_var_complete, imp_var, drop = FALSE]
+        }
 
         pred_vals <- purrr::map2(
           .x = neighbor_sequence,
@@ -168,7 +189,7 @@ knn_work <- function(
             X = nn_index,
             MARGIN = 2,
             FUN = nn_pred,
-            dat = new_data[imp_var_complete, imp_var, drop = FALSE],
+            dat = dat,
             random = !(.y),
             k = .x
           )
