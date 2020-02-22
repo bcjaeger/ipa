@@ -2,7 +2,10 @@
 % Please edit documentation in R/brew.R
 \name{brew}
 \alias{brew}
-\title{Brews for Imputation}
+\alias{brew_nbrs}
+\alias{brew_rngr}
+\alias{brew_soft}
+\title{New brew}
 \usage{
 brew(
   data,
@@ -10,6 +13,12 @@ brew(
   flavor = c("kneighbors", "missRanger", "softImpute"),
   bind_miss = FALSE
 )
+
+brew_nbrs(data, outcome, bind_miss = FALSE)
+
+brew_rngr(data, outcome, bind_miss = FALSE)
+
+brew_soft(data, outcome, bind_miss = FALSE)
 }
 \arguments{
 \item{data}{a data frame with missing values.}
@@ -36,12 +45,23 @@ If \code{FALSE}, no additional columns are added to \code{data}.}
 an \code{ipa_brew} object with your specified \code{flavor}
 }
 \description{
+\code{brew()} is the first function in a workflow that the \code{ipa} package
+tries to simplify. You may be wondering whether \code{ipa} stands for
+'imputation for predictive analytics' or 'india pale ale', given
+this ambiguous function name. Perhaps it can be both?
+}
+\details{
 Brewing a delicious beer is not that different from imputing
 missing data. Once a brew is started, you can add spices
 (set tuning parameters; see \link{spice}) or just go right to mashing
-(fitting imputation models; see \link{mash}). To finish off the brew, add
+(fitting imputation models; see \link{mash}). To finish the brew, add
 yeast (new data; see \link{ferment}), and then bottle it up (see \link{bottle})
-and share an \code{ipa_brew} with your friends!
+as a \code{tibble} or \code{matrix}.
+
+\code{brew()} includes an input variable called \code{flavor} that determines
+how data will be imputed.  \code{brew_nbrs()}, \code{brew_rngr()}, and
+\code{brew_soft()} are convenience functions, e.g. \code{brew_nbrs()} is a
+shortcut for calling \code{brew(flavor = 'kneighbors')}.
 }
 \note{
 Gower (1971) originally defined a similarity measure (s, say) with
@@ -96,6 +116,10 @@ data[1:2, 1:2] = NA
 knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
 sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
 rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
+
+knn_brew <- brew_nbrs(data, outcome = outcome)
+sft_brew <- brew_soft(data, outcome = outcome)
+rgr_brew <- brew_rngr(data, outcome = outcome)
 
 print(knn_brew)
 

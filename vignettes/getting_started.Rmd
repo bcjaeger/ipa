@@ -14,6 +14,8 @@ knitr::opts_chunk$set(
 )
 ```
 
+# Overview
+
 The `ipa` package helps create collections of imputed datasets using a specific method. The datasets are differentiated by specific tuning parameters that correspond to the method. For example, the number of neighbors used to impute missing values is a specific parameter for nearest neighbor imputation. True to its name, `ipa` is based around the process of brewing a great beer. The main steps involved are
 
 1. `brew` Create a container to hold your imputations
@@ -26,13 +28,16 @@ The `ipa` package helps create collections of imputed datasets using a specific 
 
 5. `bottle` output the imputed datasets in a tibble.
 
-## Simulated Example
+# Diabetes data
 
 ```{r}
 
 library(ipa)
 library(magrittr)
 library(recipes)
+library(rsample)
+library(parsnip)
+library(yardstick)
 library(dplyr)
 library(purrr)
 library(ggplot2)
@@ -40,67 +45,219 @@ library(ggplot2)
 # random seed for reproducing these results
 set.seed(329)
 
-# simulation parameters (these are explained below)
-ncov = 50
-nint = 0
-error_sd = 1/5
-tst_miss = 0.0
-trn_miss = 0.50
-nobs = 5000
-split_prop = 1/2
-rho = 1/2
-nimpute = 10
+data("Diabetes", package = 'Publish')
+
+diab_complete <- diab_missing <- as_tibble(Diabetes) %>%
+  select(-id, -bp.2s, -bp.2d, -AgeGroups, -BMI) %>%
+  rename(
+    sbp = bp.1s,
+    dbp = bp.1d,
+    height_cm = height.europe,
+    weight_kg = weight.europe,
+    time_ppn = time.ppn,
+    stable_glucose = stab.glu
+  ) %>%
+  mutate(diabetes = as.numeric(glyhb > 7)) %>%
+  select(-glyhb, -location) %>%
+  drop_na() 
+
+
+rows <- sample(nrow(diab_complete), 200)
+
+for(i in rows){
+  
+  cols <- sample(ncol(diab_complete)-1, size = ncol(diab_complete) - 5)
+  diab_missing[i, cols] <- NA
+  
+}
+
+diab_complete %<>% 
+  data.table::as.data.table() %>% 
+  mltools::one_hot() %>% 
+  as_tibble() %>% 
+  select(-gender_female, -frame_large)
+
+diab_missing %<>% 
+  data.table::as.data.table() %>% 
+  mltools::one_hot() %>% 
+  as_tibble() %>% 
+  select(-gender_female, -frame_large)
+
+
 
 ```
 
-As this is a simulation example, we'll need to set a few parameters, describe the context we are simulating data for, and then generate our data. Suppose that
+## Problem description
 
-- $Y = X\beta + \epsilon$, where $Y$ is a continuous outcome, $X$ is a matrix with `ncov` = `r ncov` covariates, $\beta$ is a vector containing coefficients that correspond to each column in $X$, and $\epsilon$ is a random error term with standard deviation = `r error_sd`. `nint` = `r nint` is the number of interactions between the columns in $X$ that impact the value of $Y$.
-
-- Columns in $X$ follow an autoregressive correlation structure characterized by a correlation constant (`rho` = `r rho`) such that corr$(x_i, x_j)$ =  `rho`$^{\left|i-j\right|}$, where $i$ and $j$ indicate column indices in $X$.
-
-- We sample a proportion of these data (`split_prop` = `r split_prop`) from a population of size `nobs` = `r format(nobs, big.mark=',')`. 
-
-- A proportion (`trn_miss` = `r trn_miss`) of the values in our sample are missing at random (i.e., the missing status of a given variable is related to other variables we measured).
-
-- We want to identify a strategy to handle these missing values that will optimize the accuracy of a gradient boosted decision tree ensemble, which will be constructed using `xgboost`. 
-
-- We will test the accuracy of each `xgboost` model by using it to predict $Y \mid X$ among the full population (minus the observations in our training data).
-
-In the following code, I set the parameters described above and use `gen_simdata` to create a set of 50,000 observations (with 2,500 in our training sample)
+A common task for prediction model development is handling missing values. `ipa` helps analysts access more options as they engage with this task. This vignette shows some of `ipa`'s features in the context of an example where the modeling problem is classification of diabetes status. The complete are shown below
 
 ```{r}
 
-sim <- gen_simdata(
-  problem_type = 'regression', # continuous outcome.
-  error_sd = error_sd,         # standard deviation of error.
-  ncov = ncov,                 # number of predictors.
-  nint = nint,                 # number of interactions.
-  rho = rho,                   # autoregression constant.
-  nobs = nobs,                 # total No. of observations.
-  split_prop = split_prop,     # proportion used to train model.
-  miss_pattern = 'mar',        # data are missing at random.
-  trn_miss_prop = trn_miss,    # proportion of missing training data.
-  tst_miss_prop = tst_miss     # proportion of missing training data.
-)
-
-# save the vector of beta coefficients
-betas <- sim[1]
-data <- sim[2:3]
-
-print(data)
+glimpse(diab_complete)
 
 ```
+
+The amputed data have roughly 40% missing value.
+
+```{r}
+
+glimpse(diab_missing)
+
+```
+
+We will fit a logistic regression model to these data after imputing missing values. Two questions stand out: 
+
+1. Which imputation technique most accurately imputes missing values?
+
+2. Which imputation technique provides the most accurate logistic regression model?
+
+# Imputation accuracy
+
+```{r}
+
+n_imp <- 15
+ls <- seq(25, 1, length.out = n_imp)
+
+resamples <- vfold_cv(diab_missing, strata = 'diabetes')
+
+resamples <- resamples %>% 
+  mutate(
+    soft_imp = map(
+      .x = splits, 
+      .f =  ~ {
+        brew_soft(data = training(.x), outcome = diabetes) %>% 
+          spice(with = spicer_soft(n_impute = n_imp, step_size = 1)) %>% 
+          mash(with = masher_soft(scale_iter = 50, lambda_sequence = ls)) %>% 
+          ferment(testing = test_stkr(testing(.x))) %>% 
+          bottle(type = 'tibble')
+      }
+    ),
+    nbrs_imp = map(
+      .x = splits, 
+      .f = ~ {
+        brew_nbrs(data = training(.x), outcome = diabetes) %>% 
+          spice(with = spicer_nbrs(neighbors = seq(6, 20))) %>% 
+          mash() %>% 
+          ferment(testing = test_nbrs(testing(.x))) %>% 
+          bottle(type = 'tibble')
+      }
+    )
+  )
+
+
+resamples
+
+```
+
+
+```{r}
+
+model_data <- resamples %>% 
+  select(id, ends_with('imp')) %>% 
+  pivot_longer(cols = ends_with('imp')) %>% 
+  unnest(cols = value)
+
+model_data
+
+```
+
+
+
+```{r}
+
+model_data <- model_data %>% 
+  mutate(
+    training = map(training, mutate, diabetes = factor(diabetes)),
+    testing = map(testing, mutate, diabetes = factor(diabetes)),
+    logit_predprob = map2(
+      .x = training, 
+      .y = testing, 
+      .f = ~ {
+        logistic_reg() %>% 
+          set_engine('glm') %>% 
+          fit(diabetes ~ ., data = .x) %>% 
+          predict(new_data = .y, type = 'prob')
+      }
+    )
+  )
+
+```
+
+
+```{r}
+
+results_data <- model_data %>%
+  mutate(
+    probs = map2(
+      .x = testing, 
+      .y = logit_predprob,
+      .f = ~ {
+        bind_cols(truth = .x$diabetes, .y)
+      }
+    )
+  ) %>% 
+  group_by(name, impute) %>% 
+  summarize(
+    probs = list(bind_rows(probs))
+  )
+
+```
+
+```{r}
+
+results <- results_data %>% 
+  mutate(
+    auc = map(
+      .x = probs, 
+      .f = yardstick::roc_auc, .pred_1, truth = truth
+    )
+  ) %>% 
+  unnest_wider(col = auc)
+
+```
+
+```{r}
+
+ggplot(results) + 
+  aes(x = impute, y = .estimate) + 
+  facet_wrap(~name) + 
+  geom_line(col = 'grey') + 
+  geom_point(shape = 21, col = 'black', fill = 'red')
+
+```
+
 
 ## Standard approach
 
-Imputation to the mean is a common strategy used to impute missing values for predictive models. We will use the performance of a linear model fitted to mean imputed data as a reference point for this example. 
+Imputation to the mean is a common strategy used to impute missing values for prediction models. We will use the performance of a linear model fitted to mean imputed data as a reference point for this example. 
 
 ```{r}
 
-reci <- recipe(response ~ ., data = data$training) %>% 
-  step_meanimpute(all_numeric()) %>% 
-  prep()
+
+tmp = resamples %>% 
+  mutate(
+    ref = map_dbl(
+      .x = splits, 
+      .f = ~ {
+
+        .reci <- prep(reci, training = training(.x))
+        
+        trn <- juice(.reci)
+        tst <- bake(.reci, new_data = testing(.x))
+        
+        trn %<>% mutate(diabetes = factor(diabetes))
+        tst %<>% mutate(diabetes = factor(diabetes))
+        
+        logistic_reg() %>% 
+          set_engine('glm') %>% 
+          fit(diabetes ~ ., data = trn) %>% 
+          predict(new_data = tst, type = 'prob') %>% 
+          yardstick::roc_auc(.pred_1, truth = tst$diabetes) %>% 
+          pull(.estimate)
+          
+      }
+    )
+  )
 
 # Model, predictions, and mean squared error
 # using mean imputation (the reference approach)

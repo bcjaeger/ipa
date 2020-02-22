@@ -4,7 +4,13 @@
 \alias{masher_nbrs}
 \title{Neighbor's masher}
 \usage{
-masher_nbrs(eps = 1e-08, nthread = getOption("gd_num_thread"))
+masher_nbrs(
+  eps = 1e-08,
+  nthread = getOption("gd_num_thread"),
+  fun_aggr_ctns = mean,
+  fun_aggr_intg = medn_est,
+  fun_aggr_catg = mode_est
+)
 }
 \arguments{
 \item{eps}{A numeric value > 0. Computed numbers (variable ranges)

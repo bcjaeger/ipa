@@ -64,16 +64,13 @@ spice.kneighbors_brew <- function(brew, with = NULL, ...){
     )
   )
 
-  size_nbrs <- length(args$neighbors)
-  size_aggr <- length(args$aggr_neighbors)
+  if(length(args$aggr_neighbors) > 1){
+    warning("aggr_neighbors should have only one value, but it has ",
+      length(args$aggr_neighbors), ". Only the first value will be used.")
 
-  if(size_nbrs > 1 && size_aggr == 1) args$aggr_neighbors %<>% rep(size_nbrs)
-  if(size_aggr > 1 && size_nbrs == 1) args$neighbors %<>% rep(size_aggr)
+    args$aggr_neighbors <- args$aggr_neighbors[1]
 
-  if(length(args$neighbors) != length(args$aggr_neighbors)) stop(
-    "neighbors and aggr_neighbors should be the same length or length one.",
-    call. = FALSE
-  )
+  }
 
   if( any(args$neighbors < brew$lims$neighbors$min) ) {
     stop(glue::glue("all neighbor sequence values ",
@@ -292,16 +289,10 @@ spicer_nbrs <- function(
 
   stopifnot(is.logical(aggr_neighbors))
 
-  size_nbrs <- length(neighbors)
-  size_aggr <- length(aggr_neighbors)
-
-  if(size_nbrs > 1 && size_aggr == 1) aggr_neighbors %<>% rep(size_nbrs)
-  if(size_aggr > 1 && size_nbrs == 1) neighbors %<>% rep(size_aggr)
-
-  if(length(neighbors) != length(aggr_neighbors)) stop(
-    "neighbors and aggr_neighbors should be the same length or length one.",
-    call. = FALSE
-  )
+  if(length(aggr_neighbors) != 1)
+    stop("neighborhood_aggregate should be length 1",
+      " but is length ", length(neighbor_aggregate)
+    )
 
   structure(
     .Data = list(neighbors = neighbors,

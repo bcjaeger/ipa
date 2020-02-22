@@ -1,13 +1,23 @@
 
 
-#' Brews for Imputation
+#' New brew
+#'
+#' `brew()` is the first function in a workflow that the `ipa` package
+#'   tries to simplify. You may be wondering whether `ipa` stands for
+#'   'imputation for predictive analytics' or 'india pale ale', given
+#'   this ambiguous function name. Perhaps it can be both?
 #'
 #' Brewing a delicious beer is not that different from imputing
 #'   missing data. Once a brew is started, you can add spices
 #'   (set tuning parameters; see [spice]) or just go right to mashing
-#'   (fitting imputation models; see [mash]). To finish off the brew, add
+#'   (fitting imputation models; see [mash]). To finish the brew, add
 #'   yeast (new data; see [ferment]), and then bottle it up (see [bottle])
-#'   and share an `ipa_brew` with your friends!
+#'   as a `tibble` or `matrix`.
+#'
+#'   `brew()` includes an input variable called `flavor` that determines
+#'     how data will be imputed.  `brew_nbrs()`, `brew_rngr()`, and
+#'     `brew_soft()` are convenience functions, e.g. `brew_nbrs()` is a
+#'     shortcut for calling `brew(flavor = 'kneighbors')`.
 #'
 #' @param data a data frame with missing values.
 #'
@@ -92,6 +102,10 @@
 #' sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
 #' rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
 #'
+#' knn_brew <- brew_nbrs(data, outcome = outcome)
+#' sft_brew <- brew_soft(data, outcome = outcome)
+#' rgr_brew <- brew_rngr(data, outcome = outcome)
+#'
 #' print(knn_brew)
 #'
 
@@ -105,6 +119,7 @@ brew <- function(
   # Check outcome and transform to simple character value
   # TODO: come up with a more informative error message
   # for this if outcome is not in names of data
+
   outcome <- names(data) %>%
     tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
     purrr::set_names(NULL)
@@ -141,6 +156,42 @@ brew <- function(
 
 }
 
+#' @rdname brew
+#' @export
+brew_nbrs <- function(data, outcome, bind_miss = FALSE){
+
+  outcome <- names(data) %>%
+    tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
+    purrr::set_names(NULL)
+
+  brew(data = data, outcome = outcome,
+    bind_miss = bind_miss, flavor = 'kneighbors')
+}
+
+#' @rdname brew
+#' @export
+brew_rngr <- function(data, outcome, bind_miss = FALSE){
+
+  outcome <- names(data) %>%
+    tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
+    purrr::set_names(NULL)
+
+  brew(data = data, outcome = outcome,
+    bind_miss = bind_miss, flavor = 'missRanger')
+}
+
+#' @rdname brew
+#' @export
+brew_soft <- function(data, outcome, bind_miss = FALSE){
+
+  outcome <- names(data) %>%
+    tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
+    purrr::set_names(NULL)
+
+  brew(data = data, outcome = outcome,
+    bind_miss = bind_miss, flavor = 'softImpute')
+
+}
 
 #' Print a brew
 #'

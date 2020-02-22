@@ -10,6 +10,10 @@ masher_soft(
   thresh = 1e-05,
   final.svd = TRUE,
   scale_data = TRUE,
+  row.center = TRUE,
+  row.scale = TRUE,
+  col.center = TRUE,
+  col.scale = TRUE,
   scale_iter = 20,
   scale_lambda = 0.95,
   lambda_sequence = NULL

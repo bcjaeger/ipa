@@ -1,15 +1,71 @@
 
-mode_est <- function(x){
 
-  if (!is.character(x) & !is.factor(x))
-    stop(
-      "The data should be character or factor to compute the mode.",
-      call. = FALSE
-    )
+
+#' Neighbor aggregates
+#'
+#' @param x a vector of character or integer values for `mode_est`. For
+#'   `medn_est`, only integer values are allowed.
+#' @param random_ties a logical value indicating whether ties should be
+#'   broken at random when two values occur at the same frequency in `x`.
+#'
+#' @return an aggregate scalar with the same type as `x`.
+#'
+#' @export
+#'
+#' @examples
+#'
+#' x <- c('a', 'a', 'b')
+#' mode_est(x)
+#'
+#' x <- c(1L, 1L, 2L)
+#' medn_est(x)
+#'
+#'
+#'
+mode_est <- function(x, random_ties = FALSE){
+
+  stopifnot(is.character(x) | is.integer(x))
+
+  if(any(is.na(x)))
+    stop("missing values should not be passed to mode_est",
+      call. = FALSE)
 
   tab <- table(x)
   modes <- names(tab)[tab == max(tab)]
-  sample(modes, size = 1)
+
+  if(random_ties){
+    sample(modes, size = 1)
+  } else {
+    modes[1L]
+  }
+
+}
+
+#' @rdname mode_est
+#' @export
+medn_est <- function(x){
+
+  stopifnot(is.integer(x))
+
+  if(any(is.na(x)))
+    stop("missing values should not be passed to medn_est",
+      call. = FALSE)
+
+  as.integer(round(median(x), digits = 0))
+
+}
+
+#' @rdname mode_est
+#' @export
+medn_est_conserve <- function(x){
+
+  output <- medn_est(x)
+
+  if(output %in% x){
+    return(output)
+  }
+
+  x[which.min(abs(x-output))]
 
 }
 
@@ -158,7 +214,6 @@ knn_work <- function(
               "Imputing {imp_var} (N = {n_complete})"
             )
           )
-
 
         y <- if(new_data_supplied){
           ref_data[imp_var_complete, preds, drop = FALSE]

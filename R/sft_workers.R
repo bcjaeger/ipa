@@ -11,6 +11,10 @@ softImpute_work <- function(
   verbose_2,
   final.svd,
   scale_data,
+  row.center,
+  row.scale,
+  col.center,
+  col.scale,
   scale_iter,
   lambda_sequence
 ){
@@ -30,6 +34,10 @@ softImpute_work <- function(
       softImpute::biScale(
         x = data,
         maxit = scale_iter,
+        row.center = row.center,
+        row.scale  = row.scale,
+        col.center = col.center,
+        col.scale  = col.scale,
         trace = verbose_1
       ),
       silent = TRUE

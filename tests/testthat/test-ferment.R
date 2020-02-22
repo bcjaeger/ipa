@@ -20,7 +20,6 @@ test_that(
     data[1, 1] = NA
     new_data[1:5, 1] = NA
 
-
     knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
     sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
     rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
@@ -82,7 +81,7 @@ test_that(
     expect_error(
       ferment(knn_brew,
         testing = test_nbrs(new_data, aggr_neighbors = rep(F, 100))),
-      regexp = 'length 100 but the number of imputed datasets is 5'
+      regexp = 'should be length 1'
     )
 
     knn_sgl_nbrs <- ferment(

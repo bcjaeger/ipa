@@ -65,6 +65,10 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
         'thresh',
         'final.svd',
         'scale_data',
+        'row.center',
+        'row.scale',
+        'col.center',
+        'col.scale',
         'scale_iter',
         'scale_lambda',
         'lambda_sequence'
@@ -74,7 +78,9 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
   # scale_lambda needs to be taken out of .dots
   # (it isn't an input for the soft worker function)
   scale_lambda <- .dots$scale_lambda %||% 0.95
+
   check_fraction(scale_lambda, 'scale_lambda')
+
   .dots$scale_lambda <- NULL
 
   # .dots need to be modified, passed to soft worker function
@@ -87,6 +93,10 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
   .dots$step_size  <- brew$pars$step_size
   .dots$final.svd  <- .dots$final.svd %||% TRUE
   .dots$scale_data <- .dots$scale_data %||% TRUE
+  .dots$row.center <- .dots$row.center %||% TRUE
+  .dots$row.scale  <- .dots$row.center %||% TRUE
+  .dots$col.center <- .dots$row.center %||% TRUE
+  .dots$col.scale  <- .dots$row.center %||% TRUE
   .dots$scale_iter <- .dots$scale_iter %||% 20
   .dots$verbose_1  <- verbose >= 1
   .dots$verbose_2  <- verbose >= 2
@@ -142,17 +152,39 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
 
   .dots <- with %||% check_dots(
     list(...),
-    valid_args = c('eps', 'nthread')
+    valid_args = c('eps',
+      'nthread',
+      'fun_aggr_ctns',
+      'fun_aggr_intg',
+      'fun_aggr_catg'
+    )
   )
 
-  .dots$eps <- .dots$eps %||% 1e-08
-  .dots$nthread <- .dots$nthread %||% getOption("gd_num_thread")
-  .dots$verbose <- verbose_1
-  .dots$ref_data <- brew$data
-  .dots$neighbor_sequence <- brew$pars$nbrs
-  .dots$neighbor_aggregate <- brew$pars$aggr
+  .dots$data_ref <- brew$data
+  .dots$data_new <- NULL # b/c mash imputes training data
+  .dots$cols <- names(brew$data)
+  .dots$k_neighbors <- brew$pars$nbrs
+  .dots$aggregate_neighbors <- brew$pars$aggr
+  .dots$fun_aggr_ctns <- brew$pars$fun_aggr_ctns
+  .dots$fun_aggr_intg <- brew$pars$fun_aggr_intg
+  .dots$fun_aggr_catg <- brew$pars$fun_aggr_catg
+  .dots$nthread <- .dots$nthread
+  .dots$epsilon <- .dots$eps
+  .dots$verbose <- verbose
 
-  brew$wort <- do.call(knn_work, args = .dots)
+  imputes <- do.call(impute_knn, args = .dots)
+
+  fit_args <- tibble::tibble(
+    neighbors = brew$pars$nbrs,
+    aggregate = brew$pars$aggr
+  ) %>%
+    apply(1, as.list)
+
+  brew$wort <- tibble::tibble(
+    impute = seq(length(fit_args)),
+    args = fit_args,
+    fit = imputes
+  )
 
   attr(brew, 'mashed') = TRUE
 
@@ -252,6 +284,10 @@ masher_soft <- function(
   thresh = 1e-05,
   final.svd = TRUE,
   scale_data = TRUE,
+  row.center = TRUE,
+  row.scale = TRUE,
+  col.center = TRUE,
+  col.scale = TRUE,
   scale_iter = 20,
   scale_lambda = 0.95,
   lambda_sequence = NULL
@@ -330,10 +366,20 @@ masher_rngr <- function(
 #' @export
 #'
 
-masher_nbrs <- function(eps=1e-08, nthread = getOption("gd_num_thread")){
+masher_nbrs <- function(eps=1e-08,
+  nthread = getOption("gd_num_thread"),
+  fun_aggr_ctns = mean,
+  fun_aggr_intg = medn_est,
+  fun_aggr_catg = mode_est
+){
 
   structure(
-    .Data = list(eps = eps, nthread = nthread),
+    .Data = list(eps = eps,
+      nthread = nthread,
+      fun_aggr_ctns = fun_aggr_ctns,
+      fun_aggr_intg = fun_aggr_intg,
+      fun_aggr_catg = fun_aggr_catg
+    ),
     class = 'masher_nbrs'
   )
 
