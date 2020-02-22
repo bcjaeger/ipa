@@ -366,7 +366,8 @@ masher_rngr <- function(
 #' @export
 #'
 
-masher_nbrs <- function(eps=1e-08,
+masher_nbrs <- function(
+  epsilon = 1e-08,
   nthread = getOption("gd_num_thread"),
   fun_aggr_ctns = mean,
   fun_aggr_intg = medn_est,
@@ -374,7 +375,7 @@ masher_nbrs <- function(eps=1e-08,
 ){
 
   structure(
-    .Data = list(eps = eps,
+    .Data = list(epsilon = epsilon,
       nthread = nthread,
       fun_aggr_ctns = fun_aggr_ctns,
       fun_aggr_intg = fun_aggr_intg,

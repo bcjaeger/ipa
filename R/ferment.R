@@ -307,14 +307,6 @@ ferment_nbrs <- function(
       verbose = verbose
     )
 
-    #   knn_work(
-    #   ref_data = brew$data,
-    #   new_data = new_data,
-    #   neighbor_sequence = neighbor_sequence,
-    #   neighbor_aggregate = neighbor_aggregate,
-    #   verbose = verbose
-    # )$fit
-
   }
 
   attr(brew, 'fermented_cols') %<>% c(new_name)

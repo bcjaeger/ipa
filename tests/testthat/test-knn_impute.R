@@ -14,7 +14,7 @@ test_that(
     trn <- df[11:100, ]
     tst <- df[1:10, ]
 
-    knn_brew <- brew_nbrs(df, outcome = c) %>%
+    knn_brew <- brew_nbrs(trn, outcome = c) %>%
       spice(with = spicer_nbrs(neighbors = 1:5)) %>%
       mash() %>%
       ferment(tst = test_nbrs(tst))
@@ -24,9 +24,9 @@ test_that(
     knn_imps <- impute_knn(
       data_ref = dplyr::select(trn, -c),
       data_new = dplyr::select(tst, -c),
-      k = 1:5, fun_aggr_intg = mean)
+      k = 1:5)
 
-    brew_dfs$tst[[1]]$b == knn_imps[[5]]$b
+    expect_true(all(brew_dfs$tst[[5]]$b == knn_imps[[5]]$b))
 
   }
 )

@@ -15,7 +15,7 @@ diab_complete <- diab_missing <- as_tibble(Diabetes) %>%
     stable_glucose = stab.glu
   ) %>%
   mutate(diabetes = as.numeric(glyhb > 7)) %>%
-  select(-glyhb, -location) %>%
+  select(-glyhb, -location, -ratio, -height, -weight) %>%
   drop_na()
 
 
@@ -32,7 +32,7 @@ diab_complete %<>%
   data.table::as.data.table() %>%
   mltools::one_hot() %>%
   as_tibble() %>%
-  select(-gender_female, -frame_large, -height, -weight) %>%
+  select(-gender_female, -frame_large) %>%
   mutate(diabetes = factor(diabetes, labels = c("No", "Yes"))) %>%
   select(diabetes, everything())
 
@@ -40,7 +40,7 @@ diab_missing %<>%
   data.table::as.data.table() %>%
   mltools::one_hot() %>%
   as_tibble() %>%
-  select(-gender_female, -frame_large, -height, -weight) %>%
+  select(-gender_female, -frame_large) %>%
   mutate(diabetes = factor(diabetes, labels = c("No", "Yes"))) %>%
   select(diabetes, everything())
 

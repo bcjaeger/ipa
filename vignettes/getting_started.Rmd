@@ -30,14 +30,13 @@ The `ipa` package helps create collections of imputed datasets using a specific 
 
 # Diabetes data
 
+These data are courtesy of Dr John Schorling, Department of Medicine, University of Virginia School of Medicine. The data originally described 1046 participants who were interviewed in a study to understand the prevalence of obesity, diabetes, and other cardiovascular risk factors in central Virginia for African Americans. A total of 403 participants were screened for diabetes, which was defined as glycosolated hemoglobin > 7.0. Among those 403 participants, 366 provided complete data for the variables in these data.
+
+We'll work with the complete (`diab_complete`) and incomplete (`diab_incomplete`; , missingness added artificially and completely at random) versions of the `diabetes` data here, and we'll focus on developing a prediction model to classify whether someone has prevalent type II diabetes based on clinical risk factors. 
+
 ```{r}
 
 library(ipa)
-library(magrittr)
-library(recipes)
-library(rsample)
-library(parsnip)
-library(yardstick)
 library(dplyr)
 library(purrr)
 library(ggplot2)
@@ -45,51 +44,16 @@ library(ggplot2)
 # random seed for reproducing these results
 set.seed(329)
 
-data("Diabetes", package = 'Publish')
+data("diabetes", package = 'ipa')
 
-diab_complete <- diab_missing <- as_tibble(Diabetes) %>%
-  select(-id, -bp.2s, -bp.2d, -AgeGroups, -BMI) %>%
-  rename(
-    sbp = bp.1s,
-    dbp = bp.1d,
-    height_cm = height.europe,
-    weight_kg = weight.europe,
-    time_ppn = time.ppn,
-    stable_glucose = stab.glu
-  ) %>%
-  mutate(diabetes = as.numeric(glyhb > 7)) %>%
-  select(-glyhb, -location) %>%
-  drop_na() 
-
-
-rows <- sample(nrow(diab_complete), 200)
-
-for(i in rows){
-  
-  cols <- sample(ncol(diab_complete)-1, size = ncol(diab_complete) - 5)
-  diab_missing[i, cols] <- NA
-  
-}
-
-diab_complete %<>% 
-  data.table::as.data.table() %>% 
-  mltools::one_hot() %>% 
-  as_tibble() %>% 
-  select(-gender_female, -frame_large)
-
-diab_missing %<>% 
-  data.table::as.data.table() %>% 
-  mltools::one_hot() %>% 
-  as_tibble() %>% 
-  select(-gender_female, -frame_large)
-
-
+diab_complete <- diabetes$complete
+diab_missing <- diabetes$missing
 
 ```
 
 ## Problem description
 
-A common task for prediction model development is handling missing values. `ipa` helps analysts access more options as they engage with this task. This vignette shows some of `ipa`'s features in the context of an example where the modeling problem is classification of diabetes status. The complete are shown below
+A common task for prediction model development is handling missing values. `ipa` helps analysts access more options as they engage with this task. This vignette shows some of `ipa`'s features in the context of imputing missing values in the `diabetes` data. Here is a glimpse of the complete version of the data:
 
 ```{r}
 
@@ -97,7 +61,7 @@ glimpse(diab_complete)
 
 ```
 
-The amputed data have roughly 40% missing value.
+And here is the amputed data, missing roughly 40% of the original values.
 
 ```{r}
 
@@ -105,17 +69,139 @@ glimpse(diab_missing)
 
 ```
 
-We will fit a logistic regression model to these data after imputing missing values. Two questions stand out: 
+# Brew
+
+To start your workflow with `ipa`, initiate a brew using `brew_<flavor>`. The object created is essentially a list containing meta data about your missing data strategy. However, printing your `brew` object will always show the original data, because that's usually more helpful than overwhelming the console with all of the list elements. 
+
+```{r}
+
+diab_brew <- brew_nbrs(data = diab_missing, outcome = diabetes)
+
+diab_brew
+
+```
+
+Here we use `brew_nbrs` to create `diab_brew`. This function initiates an object that will use k-nearest neighbors to impute missing values. Other brewing functions include `brew_soft` for soft imputation and `brew_rngr` for imputation using `missRanger`.
+
+# Spice
+
+`spice` lets you control how many datasets are created and the primary tuning parameter for the given imputation flavor. For nearest neighbor imputation, the primary tuning parameter is the number of nearest neighbors.
+
+The `spice` function has an argument called `with` that depends on your brew's flavor. Basically, you want to use `with = spicer_<flavor>` for a `<flavor>` brew. Following that recipe, we use `spicer_nbrs` for our `nbrs` brew.
+
+```{r}
+
+spcd_brew <- spice(diab_brew, with = spicer_nbrs(neighbors = c(1:50)))
+
+# take a look at the brew's parameters (what we added using spice)
+spcd_brew$pars
+
+```
+
+# Mash
+
+`mash` allows you to set secondary parameters for imputing data with your brew. Additionally, `mash` will fit the models needed to impute the `brew`'s data. For a nearest neighbors brew, we can set the function that will be used to aggregate neighbors with continuous, integer, or categorical data using `masher_nbrs`. Just like `spice`, we want to use `masher_<flavor>` for a `<flavor>` brew.
+
+```{r}
+
+mshd_brew <- mash(spcd_brew, with = masher_nbrs(fun_aggr_ctns = median))
+
+mshd_brew$wort
+
+```
+
+The `brew`'s `wort` will be filled with imputation models (i.e., the column called `fit`) after `mash`ing:
+
+```{r}
+
+mshd_brew$wort
+
+```
+
+# Ferment
+
+Missing values can occur in the training data but also in testing data. `ipa` tries to adhere to a few principles when it comes to imputing missing values in testing data: 
+
+1. Outcome columns should not be used to impute missing values in training data. The outcome column will naturally be missing in the testing data, so any imputation model that depends on accessing the outcome column will be unable to impute missing values in testing data. This is why `outcome` is a required input for `brew`
+
+2. Missing data strategies should use the training data and only the training data to impute missing values in the testing data. Some imputation strategies cannot do this by design, e.g. `softImpute`, so `ipa` applies a workaround (see below).  
+
+3. The same strategy that was used to impute training data should also be used to impute testing data.
+
+Following these principles (and making exceptions when needed), `ipa` has two broad strategies to implement.
+
+**Impute with fit** Models developed from the training data are applied to create imputations for missing values in the testing data.
+
+**Stack and fit:** Training and testing data are stacked. Imputation models are re-fitted to the stacked dataset. This strategy works for any imputation method, but may give overly optimistic results if the testing set is much larger than the training set. 
+
+For nearest neighbors,  A set of nearest neighbors in the training data is identified for each observation in the testing data. Observed values for these training observations are used to impute missing values in the testing data.
+
+In an ideal world, imputation models are fitted to the training data and then applied to the testing data without needing to be re-fit. Unfortunately, some imputation strategies are not designed to work this way! For example, `softImpute` imputes missing values based on the index of the missing value in the training data, and this doesn't generalize to testing data because testing data (by definition) are not in the training data. However, the stack and fit strategy works quite well for `softImpute`.
+
+The `...` argument in `ferment` lets you create a new column in the `wort` of the brew using the test impute strategy of your choice. For example, we'll use `test_stkr` below to apply the stack and fit strategy:
+
+```{r}
+
+brew_sft <- ferment(brew_sft, testing = test_stkr(data$testing))
+
+brew_sft$wort
+
+```
+
+### Bottle
+
+Once everything is imputed, your brew is ready to be bottled. You can choose whether you'd prefer to get the data back in the form of a `tibble` or `matrix`.
+
+```{r}
+
+brew_sft <- bottle(brew_sft, type = 'tibble')
+
+brew_sft
+
+```
+
+### A pipe with your brew
+
+The main functions in `ipa_brew` are designed to fit neatly with the `%>%` operator. We know you like to pipe while you brew.
+
+```{r, eval = FALSE}
+
+brew_sft <- data$training %>% 
+  brew(outcome = response, flavor = 'softImpute') %>% 
+  verbose_on(level = 1) %>% 
+  spice(with = spicer_soft(n_impute = 24, step_size = 2)) %>% 
+  mash(with = masher_soft(scale_lambda = 0.90)) %>% 
+  ferment(testing = test_nbrs(data$testing)) %>% 
+  bottle(type = 'tibble')
+
+```
+
+We will fit a `parsnip` logistic regression model to these data after imputing missing values. Here is the function we'll apply to do that:
+
+```{r}
+
+fit_logit <- function(df_train, df_test){
+  logistic_reg() %>% 
+    set_engine('glm') %>% 
+    fit(diabetes ~ ., data = df_train) %>% 
+    predict(new_data = df_test, type = 'prob')
+}
+
+```
+
+Two questions stand out: 
 
 1. Which imputation technique most accurately imputes missing values?
 
 2. Which imputation technique provides the most accurate logistic regression model?
 
-# Imputation accuracy
+# 1. Imputation accuracy
+
+# 2. Model accuracy
 
 ```{r}
 
-n_imp <- 15
+n_imp <- 10
 ls <- seq(25, 1, length.out = n_imp)
 
 resamples <- vfold_cv(diab_missing, strata = 'diabetes')
@@ -172,12 +258,7 @@ model_data <- model_data %>%
     logit_predprob = map2(
       .x = training, 
       .y = testing, 
-      .f = ~ {
-        logistic_reg() %>% 
-          set_engine('glm') %>% 
-          fit(diabetes ~ ., data = .x) %>% 
-          predict(new_data = .y, type = 'prob')
-      }
+      .f = fit_logit
     )
   )
 
@@ -191,9 +272,7 @@ results_data <- model_data %>%
     probs = map2(
       .x = testing, 
       .y = logit_predprob,
-      .f = ~ {
-        bind_cols(truth = .x$diabetes, .y)
-      }
+      .f = ~ bind_cols(truth = .x$diabetes, .y)
     )
   ) %>% 
   group_by(name, impute) %>% 
@@ -209,7 +288,7 @@ results <- results_data %>%
   mutate(
     auc = map(
       .x = probs, 
-      .f = yardstick::roc_auc, .pred_1, truth = truth
+      .f = yardstick::roc_auc, .pred_Yes, truth = truth
     )
   ) %>% 
   unnest_wider(col = auc)
@@ -269,118 +348,7 @@ ref_mse <- mean((ref_prd - data$testing$response)^2)
 ```
 
 
-## `softImpute`
 
-soft imputation is a method based on singular value decomposition of a matrix. We will use the `softImpute` algorithm to brew a set of 20 imputed datasets with varying degrees of regularization. 
-
-### Brew
-
-When you start a brew, an object is initiated with an empty list containing meta data about your missing data strategy. 
-
-```{r}
-
-brew_sft <- data$training %>% 
-  brew(outcome = response, flavor = 'softImpute')
-
-brew_sft
-
-```
-
-
-### Spice (if you want to)
-
-If you are going to make all these imputed datasets, you might as well make them how you like them. Spicing your brew gives you more control over how many datasets are created and the values of parameters that will be used to generate them.
-
-Of course, different brews take different spices, and it is a little overwhelming trying to remember which spice goes where. For this reason, `ipa` includes helper functions (see `spicer_soft`, `spicer_nbrs`, and `spicer_rngr`) to help add the correct arguments into the `spice` function via the `with` input. 
-
-```{r}
-
-brew_sft <- brew_sft %>% 
-  spice(with = spicer_soft(n_impute = 24, step_size = 2))
-
-# Note that I chose step_size so that n_impute * step_size < max_rank
-# (spice would throw an error at me if I messed that up)
-
-brew_sft$pars
-
-```
-
-
-### Mash
-
-Mashing the brew corresponds to the initiation of imputation for `ipa_brew` objects. Inputs of the `mash` function include parameters that directly correspond to imputation models. Again, different models take different parameters, so we rely on the `masher_soft` function to help us set parameters that matter for the `softImpute` algorithm.
-
-Notably, the `softImpute` algorithm's convergence is influenced by parameters set in the `mash` function, and it is often helpful to see model fitting output printed to the screen to diagnose convergence problems. To see that output, we use the `set_verbose` function and make our brew a little noisier.
-
-```{r}
-
-brew_sft <- brew_sft %>% 
-  verbose_on(level = 1) %>% 
-  mash(with = masher_soft(scale_lambda = 0.90))
-
-```
-
-The `ipa_brew` object's `wort` will be filled with imputation models (i.e., the column called `fit`) after the mash is complete!
-
-```{r}
-
-brew_sft$wort
-
-```
-
-### Ferment
-
-Missing values can occur in the training data but also the testing data. There are two few principles that `ipa` follows regarding missing values in testing data. 
-
-1. Outcome columns should not be used to impute missing values. *Why?* First, the outcome column will naturally be missing in the testing data, so any imputation model that depends on accessing the outcome column will be unable to impute missing values in testing data. Second, foregoing the use of any outcome column in imputation models allows analysts to impute data and then apply cross-validation to tune downstream predictive models rather than re-imputing the data in each step of cross-validation (the second option requires far more computation time).   
-
-2. A missing data strategy should not fit imputation models solely to the testing data. *Why?* Sometimes testing data are a single observation - it's hard to fit a model to that. 
-
-There are at least two ways to handle missing data according to these principles. 
-
-**Stack and fit:** Training and testing data are stacked. Imputation models are re-fitted to the stacked dataset.
-
-**Training neighbors** A set of nearest neighbors in the training data is identified for each observation in the testing data. Observed values for these training observations are used to impute missing values in the testing data.
-
-In an ideal world, imputation models are fitted to the training data and then applied to the testing data without needing to be re-fit. Unfortunately, some imputation strategies are not designed to work this way! For example, `softImpute` imputes missing values based on the index of the missing value in the training data, and this doesn't generalize to testing data because testing data (by definition) are not in the training data. However, the stack and fit strategy works quite well for `softImpute`.
-
-The `...` argument in `ferment` lets you create a new column in the `wort` of the brew using the test impute strategy of your choice. For example, we'll use `test_stkr` below to apply the stack and fit strategy:
-
-```{r}
-
-brew_sft <- ferment(brew_sft, testing = test_stkr(data$testing))
-
-brew_sft$wort
-
-```
-
-### Bottle
-
-Once everything is imputed, your brew is ready to be bottled. You can choose whether you'd prefer to get the data back in the form of a `tibble` or `matrix`.
-
-```{r}
-
-brew_sft <- bottle(brew_sft, type = 'tibble')
-
-brew_sft
-
-```
-
-### A pipe with your brew
-
-The main functions in `ipa_brew` are designed to fit neatly with the `%>%` operator. We know you like to pipe while you brew.
-
-```{r, eval = FALSE}
-
-brew_sft <- data$training %>% 
-  brew(outcome = response, flavor = 'softImpute') %>% 
-  verbose_on(level = 1) %>% 
-  spice(with = spicer_soft(n_impute = 24, step_size = 2)) %>% 
-  mash(with = masher_soft(scale_lambda = 0.90)) %>% 
-  ferment(testing = test_nbrs(data$testing)) %>% 
-  bottle(type = 'tibble')
-
-```
 
 Now that we have our data, we can fit a linear model to each training set, and evaluate that model's predictions using the testing data. Our main questions are 
 
@@ -422,4 +390,6 @@ ggplot(ggdat, aes(x = impute, y = r2_sft)) +
 
 ```
 
+
+soft imputation is a method based on singular value decomposition of a matrix. We will use the `softImpute` algorithm to brew a set of 20 imputed datasets with varying degrees of regularization. 
 

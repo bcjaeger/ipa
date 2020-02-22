@@ -7,8 +7,7 @@
 #' of obesity, diabetes, and other cardiovascular risk factors in central
 #' Virginia for African Americans. A total of 403 participants were screened for
 #' diabetes, which was defined as glycosolated hemoglobin > 7.0. Among those
-#' 403 participants, 366 provided complete data for the 15 predictor variables
-#' comprised by these data.
+#' 403 participants, 366 provided complete data for the variables in these data.
 #'
 #' The data were originally shared in the `Publish` package, developed by
 #'   Thomas Gerds. They are modified slightly here for the purposes of the
@@ -21,7 +20,6 @@
 #'  - `chol`: Total cholesterol
 #'  - `stable_glucose`: Stabilized glucose
 #'  - `hdl`: High density lipoprotein
-#'  - `ratio`: ratio of total cholesterol to high density lipoprotein
 #'  - `age`: age, years
 #'  - `gender_male`: male gender
 #'  - `frame_medium`: medium frame (body type) indicator
