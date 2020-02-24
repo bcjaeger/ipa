@@ -91,7 +91,7 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
   .dots$trace.it   <- verbose >= 2
   .dots$rank_max   <- brew$pars$max_rank
   .dots$step_size  <- brew$pars$step_size
-  .dots$final.svd  <- .dots$final.svd %||% TRUE
+  .dots$final.svd  <- .dots$final.svd  %||% TRUE
   .dots$scale_data <- .dots$scale_data %||% TRUE
   .dots$row.center <- .dots$row.center %||% TRUE
   .dots$row.scale  <- .dots$row.center %||% TRUE
@@ -107,10 +107,7 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
     if(.dots$verbose_1) message(glue::glue(
       "Identifying max lambda and scaling by {.dots$scale_lambda}"))
 
-    lam0 <- softImpute::lambda0(
-      x = .dots$data,
-      trace.it = verbose_2
-    ) %>%
+    lam0 <- softImpute::lambda0(x = .dots$data, trace.it = verbose_2) %>%
       magrittr::multiply_by(scale_lambda)
 
     .dots$lambda_sequence <- seq(lam0, 1, length.out = brew$pars$n_impute)
@@ -128,10 +125,10 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
   # calling the soft worker function
   brew$wort <- do.call(softImpute_work, args = .dots)
 
+  .dots$data <- NULL
+
   attr(brew, 'mashed')  <- TRUE
-  attr(brew, 'unscale') <- .dots$scale_data
-  brew$pars$scale_data  <- .dots$scale_data
-  brew$pars$scale_iter  <- .dots$scale_iter
+  attr(brew, 'impute_args') <- .dots
 
   brew
 
@@ -160,23 +157,23 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
     )
   )
 
-  .dots$data_ref <- brew$data
-  .dots$data_new <- NULL # b/c mash imputes training data
-  .dots$cols <- names(brew$data)
-  .dots$k_neighbors <- brew$pars$nbrs
+  .dots$data_ref            <- brew$data
+  .dots$data_new            <- NULL # b/c mash imputes training data
+  .dots$cols                <- names(brew$data)
+  .dots$k_neighbors         <- brew$pars$nbrs
   .dots$aggregate_neighbors <- brew$pars$aggr
-  .dots$fun_aggr_ctns <- brew$pars$fun_aggr_ctns
-  .dots$fun_aggr_intg <- brew$pars$fun_aggr_intg
-  .dots$fun_aggr_catg <- brew$pars$fun_aggr_catg
-  .dots$nthread <- .dots$nthread
-  .dots$epsilon <- .dots$eps
-  .dots$verbose <- verbose
+  .dots$fun_aggr_ctns       <- .dots$pars$fun_aggr_ctns
+  .dots$fun_aggr_intg       <- .dots$pars$fun_aggr_intg
+  .dots$fun_aggr_catg       <- .dots$pars$fun_aggr_catg
+  .dots$nthread             <- .dots$nthread
+  .dots$epsilon             <- .dots$eps
+  .dots$verbose             <- verbose
 
   imputes <- do.call(impute_knn, args = .dots)
 
   fit_args <- tibble::tibble(
-    neighbors = brew$pars$nbrs,
-    aggregate = brew$pars$aggr
+    k_neighbors         = .dots$k_neighbors,
+    aggregate_neighbors = .dots$aggregate_neighbors
   ) %>%
     apply(1, as.list)
 
@@ -186,6 +183,8 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
     fit = imputes
   )
 
+  .dots$data_ref <- NULL
+  attr(brew, 'impute_args') <- .dots
   attr(brew, 'mashed') = TRUE
 
   brew
@@ -218,8 +217,22 @@ mash.missRanger_brew <- function(brew, with = NULL, ...){
   .dots$node_size <- brew$pars$node_size
   .dots$donor_size <- brew$pars$donor_size
 
-  brew$wort <- do.call(missRanger_work, args = .dots)
+  imputes <- do.call(impute_ranger, args = .dots)
 
+  fit_args <- tibble::tibble(
+    min_node_size = brew$pars$node_size,
+    pmm_donor_size = brew$pars$donor_size
+  ) %>%
+    apply(1, as.list)
+
+  brew$wort <- tibble::tibble(
+    impute = seq_along(fit_args),
+    args = fit_args,
+    fit = imputes
+  )
+
+  .dots$data <- NULL
+  attr(brew, 'impute_args') <- .dots
   attr(brew, 'mashed') = TRUE
 
   brew

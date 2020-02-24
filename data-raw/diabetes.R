@@ -29,18 +29,12 @@ for(i in rows){
 }
 
 diab_complete %<>%
-  data.table::as.data.table() %>%
-  mltools::one_hot() %>%
   as_tibble() %>%
-  select(-gender_female, -frame_large) %>%
   mutate(diabetes = factor(diabetes, labels = c("No", "Yes"))) %>%
   select(diabetes, everything())
 
 diab_missing %<>%
-  data.table::as.data.table() %>%
-  mltools::one_hot() %>%
   as_tibble() %>%
-  select(-gender_female, -frame_large) %>%
   mutate(diabetes = factor(diabetes, labels = c("No", "Yes"))) %>%
   select(diabetes, everything())
 

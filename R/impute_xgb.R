@@ -5,6 +5,8 @@
 # TODO: identify numeric 0/1 columns and throw error
 # stop(all binary variables should be coded as factors)
 
+# TODO: make this work as a random forest imputer as well.
+
 init_output <- function(data, max_iter){
 
   out = tibble::tibble(
@@ -40,6 +42,7 @@ xgb_impute <- function(
   min_child_weight = 1,
   subsample = 1,
   colsample_bytree = 1,
+  colsample_bynode = 1,
   num_parallel_tree = 1,
   verbose = 1,
   trn_prop = 2/3,
@@ -66,6 +69,7 @@ xgb_impute <- function(
       min_child_weight = min_child_weight,
       subsample = subsample,
       colsample_bytree = colsample_bytree,
+      colsample_bynode = colsample_bynode,
       num_parallel_tree = num_parallel_tree
     )
 
@@ -176,6 +180,7 @@ xgb_fit_and_impute <- function(
       nrounds_var <- output$nrounds[variable_indx]
 
       if(iter <= max_iter_cv) nrounds_var <- NA
+      if(iter > max_iter_cv & is.na(nrounds_var)) nrounds_var <- nrounds
 
       xgb_fit <- .xgb_fit(
         data      = xgb_Dtrn,

@@ -5,7 +5,7 @@
 \title{Neighbor's masher}
 \usage{
 masher_nbrs(
-  eps = 1e-08,
+  epsilon = 1e-08,
   nthread = getOption("gd_num_thread"),
   fun_aggr_ctns = mean,
   fun_aggr_intg = medn_est,
@@ -13,14 +13,14 @@ masher_nbrs(
 )
 }
 \arguments{
-\item{eps}{A numeric value > 0. Computed numbers (variable ranges)
-smaller than \code{eps} are treated as zero}
-
 \item{nthread}{Number of threads to use for parallelization.
 By default, for a dual-core machine, 2 threads are used.
 For any other machine n-1 cores are used so your machine doesn't
 freeze during a big computation. The maximum number of threads
 are determined using \code{omp_get_max_threads} at C level.}
+
+\item{eps}{A numeric value > 0. Computed numbers (variable ranges)
+smaller than \code{eps} are treated as zero}
 }
 \value{
 a list with \link[gower:gower_topn]{gower_topn} input values

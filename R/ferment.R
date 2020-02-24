@@ -22,12 +22,7 @@
 #'
 #' @param brew an `ipa_brew` object.
 #'
-#' @param ... Name-value pairs of expressions. The name of each
-#'  argument will be the name of a new variable in the `wort`
-#'  of the `ipa_brew` object. The value of each argument should be
-#'  an object created using the [test_nbrs] or [test_stkr] functions.
-#'  The inputs of these functions will determine how testing data
-#'  are imputed.
+#' @param new_data data frame with missing values.
 #'
 #' @note What is a `wort`? A component of a `brew` object that
 #'   contains imputed datasets, models used to impute those datasets,
@@ -75,275 +70,123 @@
 #'
 #'
 
+ferment_fit <- function(brew, new_data = NULL){
 
-ferment <- function(brew, ...){
+  if(get_flavor(brew) %in% c('missRanger', 'softImpute')){
 
-  # brew should be ready for spiced and mashed by now
+    stop(get_flavor(brew),
+      " brews are not compatible with ferment_fit.",
+      " ferment_stk is the function you want.",
+      call. = FALSE)
+
+  }
+
+  .ferment(brew = brew, new_data = new_data, method = 'fit')
+
+}
+
+#' @rdname ferment_fit
+#' @export
+ferment_stk <- function(brew, new_data = NULL){
+  .ferment(brew = brew, new_data = new_data, method = 'stk')
+}
+
+.ferment <- function(brew, new_data = NULL, method){
+
+  # brew should be spiced and mashed by now
   check_brew(brew, expected_stage = 'ferment')
 
-  # timpers = list of test_imputers
-  timpers   <- purrr::map(list(...), check_test_imputer)
-  new_data  <- purrr::map(timpers, 'data')
-  new_names <- names(new_data)
+  brew <- ferment_trn(brew)
 
-  # verbosity determines printed output
-  verbose   <- get_verbosity(brew)
-  verbose_1 <- verbose >= 1
-  verbose_2 <- verbose >= 2
-
-  # impute training data
-  if(verbose_1) message("imputing training data")
-  brew %<>% impute_train()
-
-  # highlight the fact that training imputes happened
-  attr(brew, 'fermented_cols') <- "training"
-
-  if(purrr::is_empty(new_data)){
-
-    if(verbose_1)
-      message("No new data supplied, returning imputed training sets")
+  # if there aren't any testing data, stop here
+  if(is.null(new_data)){
 
     attr(brew, 'fermented') <- TRUE
     return(brew)
 
   }
 
-  if(any(c(""," ") %in% new_names) || is.null(new_names)){
-    stop("Inputs should be name-value pairs.\n",
-      "For example, test_data = test_nbrs(data = your_data) ",
-      "is a valid input.\n",
-      "the name (i.e., test_data) will be the name of a new ",
-      "column in the wort",
-      call. = FALSE)
-  }
+  # outcome column name
+  outcome <- get_outcome(brew)$name
 
-  outcome <- attr(brew, 'outcome')$name
+  # pull the outcome out of testing data and attach
+  # it to the brew as an attribute if necessary.
+  if(outcome %in% names(new_data)){
 
-  for(i in seq_along(new_data)){
-
-    if( any( outcome %in% names(new_data[[i]]) ) ) {
-
-      attr(brew, 'outcome')$data[[ new_names[i] ]] <-
-        new_data[[i]][, outcome, drop = FALSE]
-
-    }
-  }
-
-  # checks are done - we don't need this list anymore
-  rm(new_data)
-
-  for(i in seq_along(timpers)){
-
-    timpers[[i]]$data[, outcome] = NULL
-
-    if(attr(brew, 'bind_miss')){
-
-      miss_cols <- timpers[[i]]$data %>%
-        purrr::map_dfc(.f = ~as.integer(is.na(.x))) %>%
-        purrr::set_names(glue::glue("{names(.)}_missing"))
-
-      timpers[[i]]$data %<>% dplyr::bind_cols(miss_cols)
-
-    }
-
-    if(timpers[[i]]$strat == 'nbrs'){
-
-      neighbor_sequence <-
-        timpers[[i]]$neighbors %||%
-        brew$pars$nbrs %||%
-        5L
-
-      neighbor_aggregate <-
-        timpers[[i]]$aggr_neighbors %||%
-        brew$pars$aggr %||%
-        TRUE
-
-      brew %<>% ferment_nbrs(
-        new_data = timpers[[i]]$data,
-        new_name = names(timpers)[i],
-        dbl_impute = timpers[[i]]$dbl_impute %||% FALSE,
-        neighbor_sequence = neighbor_sequence,
-        neighbor_aggregate = neighbor_aggregate
-      )
-
-    }
-
-    if(timpers[[i]]$strat == 'stack'){
-
-      stkr_fun <- switch(
-        attr(brew, 'flavor'),
-        'softImpute' = ferment_stkr_soft,
-        'missRanger' = ferment_stkr_rngr,
-        'kneighbors' = ferment_stkr_nbrs
-      )
-
-      brew %<>% stkr_fun(
-        new_data = timpers[[i]]$data,
-        new_name = names(timpers)[i],
-        dbl_impute = timpers[[i]]$dbl_impute %||% FALSE
-      )
-
-    }
+    attr(brew, 'outcome')$data$testing <- new_data[, outcome, drop = FALSE]
+    new_data[[outcome]] <- NULL
 
   }
 
+  # pre-process new_data to match the brew data
+  new_data %<>% brew_data(
+    flavor    = get_flavor(brew),
+    outcome   = outcome,
+    bind_miss = get_bind_miss(brew)
+  )
+
+  # check testing data names and types
+  # (they need to be equal to those of brew$data)
+  check_data_new_names(data_ref = brew$data, data_new = new_data$impute)
+  check_data_new_types(data_ref = brew$data, data_new = new_data$impute)
+
+
+  impute_args <- get_impute_args(brew)
+
+  if (method == 'fit') {
+
+    impute_args$data_ref <- brew$data
+    impute_args$data_new <- new_data$impute
+
+  } else if (method == 'stk') {
+
+    impute_args$data_ref <- dplyr::bind_rows(brew$data, new_data$impute)
+    impute_args$data_new <- NULL
+
+  }
+
+  brew$wort$testing <- do.call(
+    what = switch(
+      get_flavor(brew),
+      'kneighbors' = impute_knn,
+      'xgboosters' = impute_xgb,
+      'softImpute' = impute_soft,
+      'missRanger' = impute_ranger
+    ),
+    args = impute_args
+  )
+
+  if(method == 'stk'){
+
+    brew$wort %<>% dplyr::mutate(
+      testing = purrr::map2(
+        .x = training,
+        .y = testing,
+        .f = ~ .y[-(1:nrow(.x)), , drop = FALSE]
+      )
+    )
+
+  }
+
+  attr(brew, 'fermented_cols') %<>% c("testing")
   attr(brew, 'fermented') <- TRUE
+
   brew
 
 }
 
-
-#' @rdname ferment
-#' @export
 
 is_fermented <- function(brew){
   attr(brew, 'fermented')
 }
 
-ferment_nbrs <- function(
-  brew,
-  new_data,
-  new_name,
-  dbl_impute,
-  neighbor_sequence,
-  neighbor_aggregate
-){
+ferment_trn <- function(brew){
 
-  verbose        <- get_verbosity(brew)
-  verbose_1      <- verbose >= 1
-  verbose_2      <- verbose >= 2
-
-  # if new_data is supplied
-  outcome <- attr(brew, 'outcome')$name
-
-  # Nothing to do if there are no missing values
-  if(!any(is.na(new_data))){
-
-    brew$wort[[new_name]] <- list(new_data)
-    attr(brew, 'fermented_cols') %<>% c(new_name)
-
-    if(verbose_1) message(
-      glue::glue("No missing values in {new_name} - nothing to impute.")
-    )
-
-    return(brew)
-
-  }
-
-  # check the new_data - make sure it's okay for ferment
-  # can't move this up to main ferment function b/c outcome
-  # needs to be removed first.
-  check_ferment_data(brew, new_data)
-
-  # if new data have missing values
-  if(verbose_1)
-    message(glue::glue(
-      "Fitting models to impute missing values in",
-      " {new_name} using nearest neighbors")
-    )
-
-  n_impute <- brew$pars$n_impute
-
-  if(length(neighbor_sequence) == 1)
-    neighbor_sequence <- rep(neighbor_sequence, n_impute)
-
-  if(length(neighbor_sequence) != n_impute){
-    stop(glue::glue(
-      "The sequence of neighborhood sizes is length \\
-          {length(neighbor_sequence)} but the number of imputed \\
-          datasets is {n_impute}."),
-      call. = FALSE)
-  }
-
-  if(length(neighbor_aggregate) != 1){
-    stop("neighborhood_aggregate should be length 1",
-      " but is length ", length(neighbor_aggregate),
-      call. = FALSE)
-  }
-
-  if(dbl_impute){
-
-    imputes <- vector(mode = 'list', length = n_impute)
-
-    for(impute_index in seq_along(imputes)){
-
-      if(verbose_1) message(glue::glue(
-          "Identifying nearest neighbors using dataset {impute_index}")
-        )
-
-      imputes[[impute_index]] <- impute_knn(
-        data_ref = brew$wort$training[[impute_index]],
-        data_new = new_data,
-        k_neighbors = neighbor_sequence[impute_index],
-        aggregate_neighbors = neighbor_aggregate,
-        fun_aggr_ctns = brew$pars$fun_aggr_ctns %||% NULL,
-        fun_aggr_intg = brew$pars$fun_aggr_intg %||% NULL,
-        fun_aggr_catg = brew$pars$fun_aggr_catg %||% NULL,
-        verbose = verbose
-      )
-
-    }
-
-    brew$wort[[new_name]] <- imputes
-
-  } else {
-
-    if(verbose_2)
-      message(
-        glue::glue(
-          "Note: Only the original training data ",
-          "are being used to impute values in {new_name}"
-        )
-      )
-
-    brew$wort[[new_name]] <- impute_knn(
-      data_ref = brew$data,
-      data_new = new_data,
-      k_neighbors = neighbor_sequence,
-      aggregate_neighbors = neighbor_aggregate,
-      fun_aggr_ctns = brew$pars$fun_aggr_ctns %||% NULL,
-      fun_aggr_intg = brew$pars$fun_aggr_intg %||% NULL,
-      fun_aggr_catg = brew$pars$fun_aggr_catg %||% NULL,
-      verbose = verbose
-    )
-
-  }
-
-  attr(brew, 'fermented_cols') %<>% c(new_name)
+  # impute training data
+  brew <- impute_train(brew)
+  attr(brew, 'fermented_cols') <- "training"
 
   brew
-
-}
-
-stkr_data <- function(brew, new_data, new_name, dbl_impute, verbose){
-
-  if(dbl_impute){
-
-    if(verbose) message(
-      glue::glue("Stacking {new_name} data with each imputed training set")
-    )
-
-    stacked_data <- purrr::map(
-      .x = brew$wort$training,
-      .f = ~ dplyr::bind_rows(.x, new_data)
-    )
-
-  } else {
-
-    nfit <- brew$pars$n_impute
-
-    stacked_data <- vector(mode = 'list', length = nfit)
-
-    if(verbose >= 1) message(
-      glue::glue("Stacking {new_name} data with the unimputed training set")
-    )
-
-    for(j in seq(nfit))
-      stacked_data[[j]] <- dplyr::bind_rows(brew$data, new_data)
-
-  }
-
-  stacked_data
 
 }
 
@@ -505,3 +348,234 @@ ferment_stkr_rngr <- function(
 
 
 
+# an older version that was too complex
+# ferment <- function(brew, ...){
+#
+#   # brew should be ready for spiced and mashed by now
+#   check_brew(brew, expected_stage = 'ferment')
+#
+#   # timpers = list of test_imputers
+#   timpers   <- purrr::map(list(...), check_test_imputer)
+#   new_data  <- purrr::map(timpers, 'data')
+#   new_names <- names(new_data)
+#
+#   # verbosity determines printed output
+#   verbose   <- get_verbosity(brew)
+#   verbose_1 <- verbose >= 1
+#   verbose_2 <- verbose >= 2
+#
+#   # impute training data
+#   if(verbose_1) message("imputing training data")
+#   brew %<>% impute_train()
+#
+#   # highlight the fact that training imputes happened
+#   attr(brew, 'fermented_cols') <- "training"
+#
+#   if(purrr::is_empty(new_data)){
+#
+#     if(verbose_1)
+#       message("No new data supplied, returning imputed training sets")
+#
+#     attr(brew, 'fermented') <- TRUE
+#     return(brew)
+#
+#   }
+#
+#   if(any(c(""," ") %in% new_names) || is.null(new_names)){
+#     stop("Inputs should be name-value pairs.\n",
+#       "For example, test_data = test_nbrs(data = your_data) ",
+#       "is a valid input.\n",
+#       "the name (i.e., test_data) will be the name of a new ",
+#       "column in the wort",
+#       call. = FALSE)
+#   }
+#
+#   outcome <- attr(brew, 'outcome')$name
+#
+#   for(i in seq_along(new_data)){
+#
+#     if( any( outcome %in% names(new_data[[i]]) ) ) {
+#
+#       attr(brew, 'outcome')$data[[ new_names[i] ]] <-
+#         new_data[[i]][, outcome, drop = FALSE]
+#
+#     }
+#   }
+#
+#   # checks are done - we don't need this list anymore
+#   rm(new_data)
+#
+#   for(i in seq_along(timpers)){
+#
+#     timpers[[i]]$data[, outcome] = NULL
+#
+#     if(attr(brew, 'bind_miss')){
+#
+#       miss_cols <- timpers[[i]]$data %>%
+#         purrr::map_dfc(.f = ~as.integer(is.na(.x))) %>%
+#         purrr::set_names(glue::glue("{names(.)}_missing"))
+#
+#       timpers[[i]]$data %<>% dplyr::bind_cols(miss_cols)
+#
+#     }
+#
+#     if(timpers[[i]]$strat == 'nbrs'){
+#
+#       neighbor_sequence <-
+#         timpers[[i]]$neighbors %||%
+#         brew$pars$nbrs %||%
+#         5L
+#
+#       neighbor_aggregate <-
+#         timpers[[i]]$aggr_neighbors %||%
+#         brew$pars$aggr %||%
+#         TRUE
+#
+#       brew %<>% ferment_nbrs(
+#         new_data = timpers[[i]]$data,
+#         new_name = names(timpers)[i],
+#         dbl_impute = timpers[[i]]$dbl_impute %||% FALSE,
+#         neighbor_sequence = neighbor_sequence,
+#         neighbor_aggregate = neighbor_aggregate
+#       )
+#
+#     }
+#
+#     if(timpers[[i]]$strat == 'stack'){
+#
+#       stkr_fun <- switch(
+#         attr(brew, 'flavor'),
+#         'softImpute' = ferment_stkr_soft,
+#         'missRanger' = ferment_stkr_rngr,
+#         'kneighbors' = ferment_stkr_nbrs
+#       )
+#
+#       brew %<>% stkr_fun(
+#         new_data = timpers[[i]]$data,
+#         new_name = names(timpers)[i],
+#         dbl_impute = timpers[[i]]$dbl_impute %||% FALSE
+#       )
+#
+#     }
+#
+#   }
+#
+#   attr(brew, 'fermented') <- TRUE
+#   brew
+#
+# }
+
+# ferment_nbrs <- function(
+#   brew,
+#   new_data,
+#   new_name,
+#   dbl_impute,
+#   neighbor_sequence,
+#   neighbor_aggregate
+# ){
+#
+#   verbose        <- get_verbosity(brew)
+#   verbose_1      <- verbose >= 1
+#   verbose_2      <- verbose >= 2
+#
+#   # if new_data is supplied
+#   outcome <- attr(brew, 'outcome')$name
+#
+#   # Nothing to do if there are no missing values
+#   if(!any(is.na(new_data))){
+#
+#     brew$wort[[new_name]] <- list(new_data)
+#     attr(brew, 'fermented_cols') %<>% c(new_name)
+#
+#     if(verbose_1) message(
+#       glue::glue("No missing values in {new_name} - nothing to impute.")
+#     )
+#
+#     return(brew)
+#
+#   }
+#
+#   # check the new_data - make sure it's okay for ferment.
+#   # can't move this up to main ferment function b/c outcome
+#   # needs to be removed first.
+#   check_ferment_data(brew, new_data)
+#
+#   # if new data have missing values
+#   if(verbose_1)
+#     message(glue::glue(
+#       "Fitting models to impute missing values in",
+#       " {new_name} using nearest neighbors")
+#     )
+#
+#   n_impute <- brew$pars$n_impute
+#
+#   if(length(neighbor_sequence) == 1)
+#     neighbor_sequence <- rep(neighbor_sequence, n_impute)
+#
+#   if(length(neighbor_sequence) != n_impute){
+#     stop(glue::glue(
+#       "The sequence of neighborhood sizes is length \\
+#           {length(neighbor_sequence)} but the number of imputed \\
+#           datasets is {n_impute}."),
+#       call. = FALSE)
+#   }
+#
+#   if(length(neighbor_aggregate) != 1){
+#     stop("neighborhood_aggregate should be length 1",
+#       " but is length ", length(neighbor_aggregate),
+#       call. = FALSE)
+#   }
+#
+#   if(dbl_impute){
+#
+#     imputes <- vector(mode = 'list', length = n_impute)
+#
+#     for(impute_index in seq_along(imputes)){
+#
+#       if(verbose_1) message(glue::glue(
+#         "Identifying nearest neighbors using dataset {impute_index}")
+#       )
+#
+#       imputes[[impute_index]] <- impute_knn(
+#         data_ref = brew$wort$training[[impute_index]],
+#         data_new = new_data,
+#         k_neighbors = neighbor_sequence[impute_index],
+#         aggregate_neighbors = neighbor_aggregate,
+#         fun_aggr_ctns = brew$pars$fun_aggr_ctns %||% NULL,
+#         fun_aggr_intg = brew$pars$fun_aggr_intg %||% NULL,
+#         fun_aggr_catg = brew$pars$fun_aggr_catg %||% NULL,
+#         verbose = verbose
+#       )
+#
+#     }
+#
+#     brew$wort[[new_name]] <- imputes
+#
+#   } else {
+#
+#     if(verbose_2)
+#       message(
+#         glue::glue(
+#           "Note: Only the original training data ",
+#           "are being used to impute values in {new_name}"
+#         )
+#       )
+#
+#     brew$wort[[new_name]] <- impute_knn(
+#       data_ref = brew$data,
+#       data_new = new_data,
+#       k_neighbors = neighbor_sequence,
+#       aggregate_neighbors = neighbor_aggregate,
+#       fun_aggr_ctns = brew$pars$fun_aggr_ctns %||% NULL,
+#       fun_aggr_intg = brew$pars$fun_aggr_intg %||% NULL,
+#       fun_aggr_catg = brew$pars$fun_aggr_catg %||% NULL,
+#       verbose = verbose
+#     )
+#
+#   }
+#
+#   attr(brew, 'fermented_cols') %<>% c(new_name)
+#
+#   brew
+#
+# }

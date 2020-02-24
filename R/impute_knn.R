@@ -1,18 +1,14 @@
 
+
+# Internal functions ------------------------------------------------------
+
 impute_knn_col <- function(data_ref, impute_col,
-  data_new = NULL, k = 10, aggregate_neighbors = TRUE,
+  data_new = NULL, k_neighbors = 10, aggregate_neighbors = TRUE,
   fun_aggr_ctns = NULL, fun_aggr_intg = NULL, fun_aggr_catg = NULL,
   nthread = getOption("gd_num_thread"), epsilon = 1e-8, verbose = 0
 ){
 
-  var_type <- class(data_ref[[impute_col]])
-  valid_types <- c('numeric', 'integer', 'logical', 'character', 'factor')
-
-  if(!var_type %in% valid_types){
-    stop(impute_col, " has unsupported variable type: ", var_type,
-      ". \n supported types are", list_things(valid_types),
-      call. = FALSE)
-  }
+  var_type <- class(data_ref[[impute_col]])[1]
 
   aggregate_function <- switch(
     var_type,
@@ -43,7 +39,7 @@ impute_knn_col <- function(data_ref, impute_col,
   # the observed data, replicated a number of times equal to the
   # length of k.
   if(!any(is.na(data_new[[impute_col]]))){
-    return(purrr::map(k, ~ data_new[[impute_col]]))
+    return(purrr::map(k_neighbors, ~ data_new[[impute_col]]))
   }
 
   # protect against errors due to the imputed variable having
@@ -112,7 +108,7 @@ impute_knn_col <- function(data_ref, impute_col,
   }
 
   # this is needed when nrow(data_ref) is small. Should there be a warning?
-  gwr_n <- min( max(k), nrow(data_ref) )
+  gwr_n <- min( max(k_neighbors), nrow(data_ref) )
 
   # identify nearest neighbors via gower's distance
   # keep gower_topn quiet - it may send warnings about
@@ -147,7 +143,7 @@ impute_knn_col <- function(data_ref, impute_col,
   }
 
   impute_output <- purrr::map(
-    .x = k,
+    .x = k_neighbors,
     .f = aggr_neighbors,
     mtx = gwr_vals,
     fun = aggregate_function
@@ -178,7 +174,7 @@ impute_knn_col <- function(data_ref, impute_col,
 
 }
 
-aggr_neighbors <- function(k, mtx, fun){
+aggr_neighbors <- function(k_neighbors, mtx, fun){
 
   ### rationale for the warning below:
   # sometimes you can't get enough neighbors because the data
@@ -188,24 +184,92 @@ aggr_neighbors <- function(k, mtx, fun){
   # exceeded the number of observed cases.
 
   # truncate the number of neighbors if needed
-  if(nrow(mtx) < k){
+  if(nrow(mtx) < k_neighbors){
 
-    warning("neighbor count (", k, ") exceeds the number",
+    warning("neighbor count (", k_neighbors, ") exceeds the number",
       " of observed data points (", nrow(mtx), ").",
       "\nimputed values will only use observed data.",
       call. = FALSE
     )
 
-    k <- nrow(mtx)
+    k_neighbors <- nrow(mtx)
 
   }
 
-  apply(mtx[1:k, , drop = FALSE], 2, fun)
+  apply(mtx[1:k_neighbors, , drop = FALSE], 2, fun)
 
 
 }
 
+# Exported functions ------------------------------------------------------
 
+#' Neighbor aggregates
+#'
+#' @param x a vector of character or integer values for `mode_est`. For
+#'   `medn_est`, only integer values are allowed.
+#' @param random_ties a logical value indicating whether ties should be
+#'   broken at random when two values occur at the same frequency in `x`.
+#'
+#' @return an aggregate scalar with the same type as `x`.
+#'
+#' @export
+#'
+#' @examples
+#'
+#' x <- c('a', 'a', 'b')
+#' mode_est(x)
+#'
+#' x <- c(1L, 1L, 2L)
+#' medn_est(x)
+#'
+#'
+#'
+mode_est <- function(x, random_ties = FALSE){
+
+  stopifnot(is.character(x) | is.integer(x))
+
+  if(any(is.na(x)))
+    stop("missing values should not be passed to mode_est",
+      call. = FALSE)
+
+  tab <- table(x)
+  modes <- names(tab)[tab == max(tab)]
+
+  if(random_ties){
+    sample(modes, size = 1)
+  } else {
+    modes[1L]
+  }
+
+}
+
+#' @rdname mode_est
+#' @export
+medn_est <- function(x){
+
+  stopifnot(is.integer(x))
+
+  if(any(is.na(x)))
+    stop("missing values should not be passed to medn_est",
+      call. = FALSE)
+
+  as.integer(round(median(x), digits = 0))
+
+}
+
+#' @rdname mode_est
+#' @export
+medn_est_conserve <- function(x){
+
+  output <- medn_est(x)
+
+  if(output %in% x){
+    return(output)
+  }
+
+  x[which.min(abs(x-output))]
+
+}
 
 
 #' Nearest neighbor imputation
@@ -281,7 +345,7 @@ aggr_neighbors <- function(k, mtx, fun){
 impute_knn <- function(
   data_ref,
   data_new = NULL,
-  cols = names(data_ref),
+  cols = dplyr::everything(),
   k_neighbors = 10,
   aggregate_neighbors = TRUE,
   fun_aggr_ctns = NULL,
@@ -292,13 +356,38 @@ impute_knn <- function(
   verbose = 0
 ) {
 
-  output <- purrr::map(
-    .x = purrr::set_names(cols),
+  # .cols = columns to be imputed
+  .cols <- names(data_ref) %>%
+    tidyselect::vars_select(!!rlang::enquo(cols))
+
+  # Safety checks start:
+
+  # data_ref should have >0 observed values in each row/column
+  check_data_ref(data_ref, cols = .cols)
+
+  # variable types should be...
+  vt <- c('numeric', 'integer', 'logical', 'character', 'factor')
+  check_var_types(data_ref, valid_types = vt)
+
+  # if new data are supplied,
+  # it should have exactly the Same names and types as reference data
+  if(!is.null(data_new)){
+    check_data_new_names(data_ref, data_new)
+    check_data_new_types(data_ref, data_new)
+  }
+
+  # Safety checks done
+
+  # columns that are not being imputed
+  .cols_left_out <- setdiff(names(data_ref), .cols)
+
+  imputed_values <- purrr::map(
+    .x = .cols,
     .f = ~ impute_knn_col(
-      data_ref = data_ref,
-      data_new = data_new,
+      data_ref   = data_ref,
+      data_new   = data_new,
       impute_col = .x,
-      k = k_neighbors,
+      k          = k_neighbors,
       aggregate_neighbors = aggregate_neighbors,
       fun_aggr_ctns = fun_aggr_ctns,
       fun_aggr_intg = fun_aggr_intg,
@@ -309,7 +398,7 @@ impute_knn <- function(
     )
   )
 
-  output %>%
+  impute_dfs <- imputed_values %>%
     purrr::map_dfr(
       .f = tibble::enframe,
       name = NULL,
@@ -322,5 +411,22 @@ impute_knn <- function(
     ) %>%
     tidyr::unnest(cols = names(.)) %>%
     base::apply(1, dplyr::bind_cols)
+
+  if(!purrr::is_empty(.cols_left_out)){
+
+    cols_to_add <- if(is.null(data_new))
+      data_ref[, .cols_left_out, drop = FALSE]
+    else
+      data_new[, .cols_left_out, drop = FALSE]
+
+    impute_dfs <- purrr::map(
+      .x = impute_dfs,
+      .f = ~ dplyr::bind_cols(.x, cols_to_add) %>%
+        dplyr::select(tidyselect::all_of(names(data_ref)))
+    )
+
+  }
+
+  impute_dfs
 
 }

@@ -11,7 +11,6 @@ contains the same participants and the same variables:
 \item \code{chol}: Total cholesterol
 \item \code{stable_glucose}: Stabilized glucose
 \item \code{hdl}: High density lipoprotein
-\item \code{ratio}: ratio of total cholesterol to high density lipoprotein
 \item \code{age}: age, years
 \item \code{gender_male}: male gender
 \item \code{frame_medium}: medium frame (body type) indicator
@@ -38,8 +37,7 @@ University of Virginia School of Medicine. The data originally described
 of obesity, diabetes, and other cardiovascular risk factors in central
 Virginia for African Americans. A total of 403 participants were screened for
 diabetes, which was defined as glycosolated hemoglobin > 7.0. Among those
-403 participants, 366 provided complete data for the 15 predictor variables
-comprised by these data.
+403 participants, 366 provided complete data for the variables in these data.
 }
 \details{
 The data were originally shared in the \code{Publish} package, developed by

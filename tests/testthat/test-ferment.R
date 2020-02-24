@@ -12,7 +12,7 @@ test_that(
     )
 
     new_data <- data.frame(
-      x1 = 10:1,
+      x1 = 11:20,
       x2 = 1:10,
       outcome = 1:10 + runif(10)
     )
@@ -20,9 +20,9 @@ test_that(
     data[1, 1] = NA
     new_data[1:5, 1] = NA
 
-    knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-    sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-    rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
+    knn_brew <- brew_nbrs(data, outcome = outcome)
+    sft_brew <- brew_soft(data, outcome = outcome)
+    rgr_brew <- brew_rngr(data, outcome = outcome)
 
     knn_brew <- verbose_on(knn_brew, level = 2)
     sft_brew <- verbose_on(sft_brew, level = 2)
@@ -40,16 +40,18 @@ test_that(
     tmp_new_data$x3 = 10:1
 
     expect_error(
-      ferment(knn_brew, new = test_nbrs(new_data[, 1, drop = F])),
+      ferment_fit(knn_brew, new_data = new_data[, 1, drop = F]),
       regexp = 'not contained in new data: x2'
     )
 
     expect_error(
-      ferment(knn_brew, new = test_nbrs(tmp_new_data)),
+      ferment_fit(knn_brew, new_data = tmp_new_data),
       regexp = 'not contained in brew data: x3'
     )
 
-    knn_brew <- ferment(knn_brew)
+    knn_stacked <- ferment_stk(knn_brew, new_data = new_data)
+    knn_fitted  <- ferment_fit(knn_brew, new_data = new_data)
+
     sft_brew <- ferment(sft_brew)
     rgr_brew <- ferment(rgr_brew)
 

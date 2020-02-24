@@ -56,6 +56,19 @@ check_step_size <- function(step_size, n_impute,  max_rank){
 
 }
 
+# Check the flavor
+
+check_flavor <- function(flavor){
+
+  good_flavors <- c('kneighbors','softImpute','missRanger')
+  glue_flavors <- glue::glue_collapse(good_flavors, sep = ', ', last = ', or ')
+
+  if( !(flavor %in% good_flavors) ){
+    stop('flavor should be one of ', glue_flavors, call. = FALSE)
+  }
+
+}
+
 # check inputs
 check_dots <- function(.dots, valid_args){
 
@@ -75,38 +88,83 @@ check_dots <- function(.dots, valid_args){
 
 }
 
-# check data passted to ferment
-check_ferment_data <- function(brew, new_data){
+# check data passed to ferment
+check_data_new_names <- function(data_ref, data_new){
 
-  new_names <- names(new_data)
-  old_names <- names(brew$data)
+  new_names <- names(data_new)
+  ref_names <- names(data_ref)
 
-  same_size <- length(new_names) == length(old_names)
+  list_new <- !(new_names %in% ref_names)
+  list_ref <- !(ref_names %in% new_names)
 
-  if(!same_size){
+  error_new <- any(list_new)
+  error_ref <- any(list_ref)
 
-    too_many_new <- length(new_names) > length(old_names)
+  if(error_new){
+    out_msg_new <- paste(
+      "new data have columns not contained in reference data:",
+        list_things(new_names[list_new])
+    )
+  }
 
-    if(too_many_new){
+  if(error_ref){
+    out_msg_ref <- paste(
+      "reference data have columns not contained in new data:",
+      list_things(ref_names[list_ref])
+    )
+  }
 
-      out_msg <- glue::glue(
-        "new data have columns not contained in brew data: \\
-        {list_things(setdiff(new_names, old_names))}"
+  if(error_new && error_ref){
+    out_msg <- c(out_msg_new, '\n Also, ', out_msg_ref)
+  }
+
+  if (error_new && !error_ref) {
+    out_msg <- c(out_msg_new)
+  }
+
+  if (!error_new && error_ref){
+    out_msg <- c(out_msg_ref)
+  }
+
+  any_error <- error_new | error_ref
+
+  if(any_error){
+    stop(out_msg, call. = FALSE)
+  }
+
+}
+
+check_data_new_types <- function(data_ref, data_new){
+
+  # this assumes you have already run check_data_new_names
+
+  new_types <- purrr::map_chr(data_new, ~class(.x)[1]) %>%
+    tibble::enframe() %>%
+    dplyr::mutate(type = 'new')
+
+  ref_types <- purrr::map_chr(data_ref, ~class(.x)[1]) %>%
+    tibble::enframe() %>%
+    dplyr::mutate(type = 'ref')
+
+  types <- dplyr::bind_rows(ref_types, new_types) %>%
+    tidyr::pivot_wider(names_from = type, values_from = value)
+
+  if(any(types$ref != types$new)){
+
+    list_rows <- which(types$ref != types$new)
+
+    out_msg <- purrr::map(
+      .x = list_rows,
+      .f = ~ glue::glue(
+        "{types$name[.x]} has type <{types$ref[.x]}> in reference data \\
+        and type <{types$new[.x]}> in new data."
       )
-
-    } else {
-
-      out_msg <- glue::glue(
-        "brew data have columns not contained in new data: \\
-        {list_things(setdiff(old_names, new_names))}"
-      )
-
-    }
+    ) %>%
+      glue::glue_collapse(sep = '\nAlso, ')
 
     stop(out_msg, call. = FALSE)
 
   }
-
 
 }
 
@@ -146,6 +204,36 @@ check_brew <- function(brew, expected_stage){
         "Try using the {recommended_function}() function before ",
         "using the {expected_stage}() function")
     )
+  }
+
+}
+
+# make sure data ref can be imputed
+check_data_ref <- function(data, cols){
+
+  # Check for empty rows/cols
+  all_rows_na <- apply(
+    X = data[, cols, drop = FALSE],
+    MARGIN = 1L,
+    FUN = function(x) all(is.na(x))
+  )
+
+  all_cols_na <- apply(
+    X = data[, cols, drop = FALSE],
+    MARGIN = 2L,
+    FUN = function(x) all(is.na(x))
+  )
+
+  if (any(all_rows_na)) {
+    stop("some rows are missing data for all predictors: ",
+      glue::glue_collapse(which(all_rows_na), sep = ', ', last = ' and '),
+      call. = FALSE)
+  }
+
+  if (any(all_cols_na)) {
+    stop("some columns are missing data for all values: ",
+      glue::glue_collapse(names(data)[all_cols_na], sep=', ', last=' and '),
+      call. = FALSE)
   }
 
 }
@@ -203,3 +291,27 @@ check_masher <- function(masher, expected){
   )
 
 }
+
+
+check_var_types <- function(data, valid_types){
+
+  var_types <- purrr::map_chr(data, ~ class(.x)[1])
+
+  good_vars <- var_types %in% valid_types
+
+  if(!all(good_vars)){
+
+    bad_vars <- which(!good_vars)
+
+    msg <- paste("some variables have unsupported type: ",
+      list_things(names(var_types)[bad_vars]),
+      '\n supported types are',
+      list_things(valid_types)
+    )
+
+    stop(msg, call. = FALSE)
+
+  }
+
+}
+

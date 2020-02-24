@@ -1,11 +1,13 @@
-missRanger_work <- function(
-  data,
-  verbose,
+
+impute_ranger <- function(
+  data_ref,
+  data_new = NULL,
+  node_size,
   maxiter = NULL,
   num.trees = NULL,
   sample.fraction = NULL,
-  node_size,
-  donor_size = NULL
+  donor_size = NULL,
+  verbose = 0
 ){
 
   n_impute <- length(node_size)
@@ -19,6 +21,14 @@ missRanger_work <- function(
   # user-input does not make an explicit specification.
   # Sync with the ranger mash function
   dflt_pars <- masher_rngr()
+
+  new_data_supplied <- !is.null(data_new)
+
+  data <- if(new_data_supplied){
+    dplyr::bind_rows(data_ref, data_new)
+  } else {
+    data_ref
+  }
 
   .dots <- list(
     data = data,
@@ -38,16 +48,15 @@ missRanger_work <- function(
     }
   )
 
-  fit_args <- vector(mode = 'list', length = n_impute)
+  if(new_data_supplied){
 
-  for(i in seq_along(fit_args)) fit_args[[i]] <- list(
-    min_node_sizes = node_size[i],
-    pmm_donor_sizes = donor_size[i],
-    maxiter = .dots$maxiter,
-    num.trees = .dots$num.trees,
-    sample.fraction = .dots$sample.fraction
-  )
+    fits <- purrr::map(
+      .x = fits,
+      .f = ~ .x[-c(1:nrow(data_ref)), , drop = FALSE]
+    )
 
-  tibble::tibble(impute = seq(n_impute), fit = fits, args = fit_args)
+  }
+
+  fits
 
 }

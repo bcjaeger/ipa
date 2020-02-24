@@ -124,14 +124,9 @@ brew <- function(
     tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
     purrr::set_names(NULL)
 
-  # Check the flavor
+  # check flavor input
   flavor <- flavor[1]
-  good_flavors <- c('kneighbors','softImpute','missRanger')
-  glue_flavors <- glue::glue_collapse(good_flavors, sep = ', ', last = ', or ')
-
-  if( !(flavor %in% good_flavors) ){
-    stop('flavor should be one of ', glue_flavors, call. = FALSE)
-  }
+  check_flavor(flavor = flavor)
 
   # prepare data for brewing
   data %<>% brew_data(flavor = flavor, outcome = outcome, bind_miss)
@@ -272,12 +267,12 @@ verbose_off <- function(brew){
 
 #' @rdname verbose_on
 #' @export
+get_verbosity <- function(brew) attr(brew, 'verbose')
 
-get_verbosity <- function(brew){
-  attr(brew, 'verbose')
-}
-
-
+get_flavor      <- function(brew) attr(brew, 'flavor')
+get_bind_miss   <- function(brew) attr(brew, 'bind_miss')
+get_outcome     <- function(brew) attr(brew, 'outcome')
+get_impute_args <- function(brew) attr(brew, 'impute_args')
 
 brew_data <- function(data, outcome, flavor, bind_miss = FALSE){
 
@@ -287,15 +282,48 @@ brew_data <- function(data, outcome, flavor, bind_miss = FALSE){
     imp_data <- data
   }
 
+  check_brew_dat(imp_data, flavor = flavor)
+
   # outcomes should be removed prior to imputation
   # How are you going to impute missing values of X
   # if you need to know the outcome to impute X? If
   # you know the outcome, what are you predicting??
-  imp_data[, outcome] <- NULL
+
+  if(outcome %in% names(imp_data)){
+
+    imp_data[, outcome] <- NULL
+    outcome_data <- data[, outcome, drop = FALSE]
+
+  } else {
+
+    outcome_data <- NULL
+
+  }
+
+  if(bind_miss) imp_data %<>% bind_miss_dat()
+
+  list(
+    impute = imp_data,
+    outcome = outcome_data
+  )
+
+}
+
+bind_miss_dat <- function(data, sep = '_', miss_chr = 'missing'){
+
+  miss_cols <- data %>%
+    purrr::map_dfc(.f = ~as.integer(is.na(.x))) %>%
+    purrr::set_names(glue::glue("{names(.)}{sep}{miss_chr}"))
+
+  data %>% dplyr::bind_cols(miss_cols)
+
+}
+
+check_brew_dat <- function(data, flavor){
 
   # Check for empty rows/cols
-  all_rows_na <- apply(imp_data, MARGIN = 1, function(x) all(is.na(x)))
-  all_cols_na <- apply(imp_data, MARGIN = 2, function(x) all(is.na(x)))
+  all_rows_na <- apply(data, MARGIN = 1, function(x) all(is.na(x)))
+  all_cols_na <- apply(data, MARGIN = 2, function(x) all(is.na(x)))
 
   if(any(all_rows_na)){
     stop("the following rows are missing data for all predictors: ",
@@ -306,12 +334,12 @@ brew_data <- function(data, outcome, flavor, bind_miss = FALSE){
   if(any(all_cols_na)){
     stop("the following columns are missing data for all values: ",
       glue::glue_collapse(
-        names(imp_data)[all_cols_na], sep = ', ', last = ' and '
+        names(data)[all_cols_na], sep = ', ', last = ' and '
       ),
       call. = FALSE)
   }
 
-  var_types <- purrr::map_chr(imp_data, class)
+  var_types <- purrr::map_chr(data, class)
 
   if(!all(var_types %in% c('factor', 'integer', 'numeric'))){
     stop("Unsupported variable types in data. \n",
@@ -321,25 +349,12 @@ brew_data <- function(data, outcome, flavor, bind_miss = FALSE){
 
   all_numerics <- all(var_types %in% c('integer', 'numeric'))
 
-  if(!all_numerics && flavor[1] == 'softImpute'){
+  if(!all_numerics && flavor == 'softImpute'){
     stop("Unsupported variable types in data\n",
       "For softImpute brews, all variables should be integer/numeric.",
       call. = FALSE)
   }
 
-  if(bind_miss){
-
-    miss_cols <- imp_data %>%
-      purrr::map_dfc(.f = ~as.integer(is.na(.x))) %>%
-      purrr::set_names(glue::glue("{names(.)}_missing"))
-
-    imp_data %<>% dplyr::bind_cols(miss_cols)
-
-  }
-
-  list(
-    impute = imp_data,
-    outcome = data[, outcome, drop = FALSE]
-  )
-
 }
+
+

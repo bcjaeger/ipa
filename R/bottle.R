@@ -15,8 +15,7 @@
 #' @export
 bottle <- function(
   brew,
-  type = c('tibble', 'matrix'),
-  drop_fit = TRUE
+  type = c('tibble', 'matrix')
 ) {
 
   check_brew(brew, expected_stage = 'bottle')
@@ -28,8 +27,6 @@ bottle <- function(
   )
 
   bottles <- .bottler(brew)
-
-  if(drop_fit) bottles[, 'fit'] = NULL
 
   bottles
 
