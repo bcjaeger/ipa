@@ -18,10 +18,7 @@ knitr::opts_chunk$set(
 [![Lifecycle: maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://www.tidyverse.org/lifecycle/#maturing)
 <!-- badges: end -->
 
-
 # Imputation for predictive analytics (`ipa`)
-
-<!-- Think about statistics in medicine submission -->
 
 The goal of `ipa` is to make imputation in predictive modeling workflows more straightforward and efficient. The main functions in `ipa` are
 
@@ -52,7 +49,9 @@ You can install the development version of `ipa` from [GitHub](https://github.co
 devtools::install_github("bcjaeger/ipa")
 ```
 
-## Example
+# Example: diabetes data
+
+These data are courtesy of Dr John Schorling, Department of Medicine, University of Virginia School of Medicine. The data originally described 1046 participants who were interviewed in a study to understand the prevalence of obesity, diabetes, and other cardiovascular risk factors in central Virginia for African Americans. A total of 403 participants were screened for diabetes, which was defined as glycosolated hemoglobin > 7.0. Among those 403 participants, 366 provided complete data for the variables in these data.
 
 First, we'll load some packages and set a seed for reproducibility
 
@@ -60,41 +59,18 @@ First, we'll load some packages and set a seed for reproducibility
 
 library(tidymodels)
 library(tidyverse)
-library(data.table)
 library(ipa)
-library(magrittr)
-library(ranger)
-library(DescTools)
 
-set.seed(329)
+data("diabetes", package = 'ipa')
 
-```
+diab_complete <- diabetes$complete
+diab_missing <- diabetes$missing
 
-### Credit data
-
-We will be adding missing values to the `credit` data (see `?recipes::credit_data`)
-
-```{r}
-
-data("credit_data")
-
-orig_data <- drop_na(credit_data)
-
-miss_data <- orig_data %>% 
-  as_tibble() %>% 
-  drop_na() %>% 
-  add_missing(omit_cols = c('Status', 'Job', 'Price', 'Income'), 
-    miss_proportion = 3/5,
-    miss_pattern = 'mar')
-
-splits <- initial_split(miss_data)
-
-trn <- training(splits)
-tst <- testing(splits)
+glimpse(diab_missing)
 
 ```
 
-### K-nearest-neighbor imputation
+## K-nearest-neighbor imputation
 
 K-nearest-neighbors (KNN) is a flexible and useful method for imputation of missing data. Briefly, each missing value is imputed by aggregating or randomly sampling a value from the K observations with greatest similarity to the current obervation. Conventional methods for KNN provide imputations using a single value of K, which makes it hard to identify an optimal value of K. Ideally, one would generate imputed datasets using a number of different values of K, and then use whichever K provided the most accurate imputed values or the most accurate prediction model (usually, these K are the same or similar). This is one of the things `ipa` does. 
 
@@ -102,67 +78,15 @@ Generally, the `ipa` workflow follows the same patterned steps. Here is an examp
 
 ```{r}
 
-nbrs_brew <- brew(trn, outcome = Status, flavor = 'kneighbors') %>%
-  verbose_on(level = 1) %>% 
-  spice(with = spicer_nbrs(neighbors = 1:35)) %>% 
-  mash() %>% 
-  ferment(testing = test_nbrs(tst)) %>% 
-  bottle(type = 'tibble')
+nbrs_brew <- brew_nbrs(diab_missing, outcome = diabetes) %>%
+  verbose_on(level = 1) %>% # makes the brew noisy
+  spice(with = spicer_nbrs(k_neighbors = 1:35)) %>% # tuning parameters
+  mash() %>% # creates imputed values 
+  ferment() %>% # turns values into a data frame
+  bottle(type = 'tibble') # turns data into tibbles, adds outcome column
+
+nbrs_brew
+
 
 ```
-
-### Evaluate imputations
-
-There are two ways to evaluate strategies to handle missing data. 
-
-1. How accurately the missing data strategy imputes missing values. (This is hard to evaluate in real data scenarios)
-
-2. The accuracy of prediction functions that are trained on imputed data from the given strategy.
-
-According to the second evaluation strategy, the best value of K in this case is the one that maximizes the scaled Brier score of our model's prediction function.  Using the pairs of imputed training and testing data from bottled `ipa_brew` is a fairly straightforward approach to finding out which imputation strategy provides data that maximize model accuracy. 
-
-Here, we apply the `parsnip` interface to fit and validate one boosted decision tree ensemble to each imputed training and testing set. 
-
-```{r}
-
-anly <- nbrs_brew %>% 
-  mutate(
-    bscor = map2_dbl(training, testing, 
-      .f = ~ boost_tree(
-        mode = 'classification',
-        mtry = 4,
-        trees = 50,
-        tree_depth = 3
-      ) %>%
-        set_engine('xgboost') %>% 
-        fit(Status ~ ., data = .x) %>% 
-        predict(new_data = .y, type = 'prob') %>% 
-        BrierScore(
-          resp = as.numeric(tst$Status == 'good'),
-          pred = .[, 2, drop = TRUE],
-          scaled = TRUE
-        )
-    )
-  )
-
-anly
-
-```
-
-Results show that there is a fair bit of variability in our scaled Brier score depending on K. The optimum value of K seems to be somewhere around 20-25. Good thing we didn't use the default value of 5!
-
-```{r}
-      
-ggplot(anly, aes(x = impute, y = bscor)) +
-  theme_bw() + 
-  theme(panel.grid = element_blank()) +
-  geom_line(col = 'grey', linetype = 2) + 
-  geom_smooth(col = 'red', se = FALSE) + 
-  labs(x = 'Number of neighbors used for imputation', 
-    y = 'Scaled Brier score (higher is better)')
-  
-  
-```
-
-
 

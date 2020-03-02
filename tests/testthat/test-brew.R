@@ -19,22 +19,23 @@ test_that(
 
     expect_error(
       brew(bad_data, outcome = outcome),
-      regexp = 'columns are missing'
+      regexp = 'x1'
     )
 
     bad_data <- data
-    bad_data[1, ] = NA
+    bad_data[1, 1:3] = NA
 
     expect_error(
       brew(bad_data, outcome = outcome),
-      regexp = 'rows are missing'
+      regexp = 'rows in data_ref'
     )
 
     knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
     sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-    rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
 
-    expect_true(!attr(knn_brew, 'bind_miss'))
+    knn_brew_bm <- brew_nbrs(data, outcome = outcome, bind_miss = TRUE)
+    sft_brew_bm <- brew_soft(data, outcome = outcome, bind_miss = TRUE)
+
 
     expect_error(
       brew(data, outcome = outcome, flavor = 'kneighbor'),
@@ -46,46 +47,31 @@ test_that(
 
     expect_error(
       brew(bad_data, outcome = outcome, flavor = 'kneighbors'),
-      regexp = 'Unsupported variable types'
+      regexp = '<letter> has type <character>'
     )
 
     bad_data$letter = factor(bad_data$letter)
 
-    expect_error(
-      brew(bad_data, outcome = outcome, flavor = 'softImpute'),
-      regexp = 'Unsupported variable types'
-    )
-
     expect_true(length(knn_brew$pars)==0)
     expect_true(length(sft_brew$pars)==0)
-    expect_true(length(rgr_brew$pars)==0)
 
     expect_is(knn_brew, 'kneighbors_brew')
     expect_is(sft_brew, 'softImpute_brew')
-    expect_is(rgr_brew, 'missRanger_brew')
 
     max_obs <- nrow(data) - n_miss
     expect_equal(knn_brew$lims$neighbors$min, 1)
     expect_equal(knn_brew$lims$neighbors$max, max_obs)
 
-    expect_null(knn_brew$wort)
-    expect_null(sft_brew$wort)
-    expect_null(rgr_brew$wort)
-
-    prt = print(knn_brew)
-
-    expect_is(prt, 'tbl_df')
-
-    knn_brew <- data %>%
-      brew(outcome = outcome, flavor = 'kneighbors', bind_miss = T)
 
     expect_equal(
-      names(knn_brew$data),
-      c("x1", "x2", "x3", "x1_missing", "x2_missing", "x3_missing")
+      names(knn_brew_bm$data$training),
+      c("x1", "x2", "x3")
     )
 
-    expect_true(attr(knn_brew, 'bind_miss'))
-
+    expect_equal(
+      names(knn_brew_bm$miss$training),
+      c("x1_missing", "x2_missing")
+    )
 
   }
 )

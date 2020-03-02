@@ -15,6 +15,7 @@ Description: The goal of ipa is to make imputation in predictive modeling
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
+Depends: R (>= 3.5.0)
 Suggests: 
     testthat (>= 2.1.0),
     covr,
@@ -23,23 +24,17 @@ Suggests:
 Imports: 
     purrr,
     dplyr,
-    ggplot2,
     gower,
-    missRanger,
     tidyselect,
-    simsurv,
-    recipes,
     tidyr,
     softImpute,
-    mice,
     glue,
     tibble,
     stats,
-    magrittr,
-    mvtnorm,
-    ranger,
     rlang,
-    herdCats
+    yardstick,
+    data.table,
+    magrittr
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.2
 VignetteBuilder: knitr

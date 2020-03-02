@@ -4,24 +4,12 @@
 \name{ipa-package}
 \alias{ipa}
 \alias{ipa-package}
-\title{ipa: a framework for multiple imputation with decision trees
-in the tidyverse.}
+\title{imputation for predictive analytics - ipa.}
 \description{
-ipa provides a flexible set of tools to help develop
-ensembles of decision trees using training data that contain
-missing values.
+ipa provides functions to help you design and use effective
+strategies to handle missing data.
 }
 \details{
-It has two main goals:
-
-\itemize{
-\item Provide functions to conduct multiple imputation in roughly the
-same computational cost as single imputation with common algorithms
-(i.e., \code{\link[missForest]{missForest}} and \code{\link[VIM]{kNN}}).
-\item Provide convenient wrappers for xgboost that allow a simplified
-workflow to compare different strategies to handle missing values.
-}
-
 To learn more about ipa, start with the vignettes:
 \code{browseVignettes(package = "ipa")}
 }

@@ -4,8 +4,6 @@
 \alias{mash}
 \alias{mash.softImpute_brew}
 \alias{mash.kneighbors_brew}
-\alias{mash.missRanger_brew}
-\alias{is_mashed}
 \title{Mash a brew}
 \usage{
 mash(brew, with = NULL, ...)
@@ -13,18 +11,13 @@ mash(brew, with = NULL, ...)
 \method{mash}{softImpute_brew}(brew, with = NULL, ...)
 
 \method{mash}{kneighbors_brew}(brew, with = NULL, ...)
-
-\method{mash}{missRanger_brew}(brew, with = NULL, ...)
-
-is_mashed(brew)
 }
 \arguments{
 \item{brew}{an \code{ipa_brew} object that may or may not have
 been spiced (see \link{spice}).}
 
 \item{with}{the output of a helper function for mashing brews.
-The helper functions are \link{masher_nbrs}, \link{masher_soft}, and
-\link{masher_rngr}.}
+The helper functions are \link{masher_nbrs} and \link{masher_soft}}
 
 \item{...}{additional arguments for specific brew flavors.}
 }
@@ -37,29 +30,27 @@ used to fit imputation models based on the brew flavor.
 \item \code{softImpute_brew}: Mash a soft brew (use \link{masher_soft} for \code{with}).
 
 \item \code{kneighbors_brew}: Mash a neighbor's brew (use \link{masher_nbrs} for \code{with})
-
-\item \code{missRanger_brew}: Mash a ranger's brew (use \link{masher_rngr} for \code{with})
 }}
 
 \examples{
 
-set.seed(101)
-n=200
-p=100
-J=50
-np=n*p
-missfrac=0.3
-x=matrix(rnorm(n*J),n,J)\%*\%matrix(rnorm(J*p),J,p)+matrix(rnorm(np),n,p)/5
-ix=seq(np)
-imiss=sample(ix,np*missfrac,replace=FALSE)
-xna=x
-xna[imiss]=NA
+x1 = rnorm(100)
+x2 = rnorm(100) + x1
+x3 = rnorm(100) + x1 + x2
 
-data <- as.data.frame(xna)
+outcome = 0.5 * (x1 - x2 + x3)
 
-soft_brew <- brew(data, outcome = V1, flavor = 'softImpute')
-soft_brew <- spice(soft_brew, n_impute = 10, step_size = 2)
-soft_brew <- mash(soft_brew, scale_lambda = 0.12)
+data <- data.frame(x1=x1, x2=x2, x3=x3, outcome=outcome)
 
-soft_brew$wort
+n_miss = 10
+
+data[1:n_miss,'x1'] = NA
+sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE) \%>\%
+ verbose_on(level = 2)
+mash(sft_brew, with = masher_soft(bs = FALSE))
+
+knn_brew <- brew_nbrs(data, outcome=outcome, bind_miss = TRUE) \%>\%
+ verbose_on(level = 2)
+mash(knn_brew, with = masher_nbrs(fun_aggr_ctns = median))
+
 }

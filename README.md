@@ -11,8 +11,6 @@ maturing](https://img.shields.io/badge/lifecycle-maturing-blue.svg)](https://www
 
 # Imputation for predictive analytics (`ipa`)
 
-<!-- Think about statistics in medicine submission -->
-
 The goal of `ipa` is to make imputation in predictive modeling workflows
 more straightforward and efficient. The main functions in `ipa` are
 
@@ -26,8 +24,7 @@ more straightforward and efficient. The main functions in `ipa` are
 4.  `ferment` impute missing values in training and (optionally) testing
     data
 
-5.  `bottle` output the imputed datasets in a
-tibble.
+5.  `bottle` output the imputed datasets in a tibble.
 
 ## Installation
 
@@ -47,7 +44,16 @@ You can install the development version of `ipa` from
 devtools::install_github("bcjaeger/ipa")
 ```
 
-## Example
+# Example: diabetes data
+
+These data are courtesy of Dr John Schorling, Department of Medicine,
+University of Virginia School of Medicine. The data originally described
+1046 participants who were interviewed in a study to understand the
+prevalence of obesity, diabetes, and other cardiovascular risk factors
+in central Virginia for African Americans. A total of 403 participants
+were screened for diabetes, which was defined as glycosolated hemoglobin
+\> 7.0. Among those 403 participants, 366 provided complete data for the
+variables in these data.
 
 First, we’ll load some packages and set a seed for reproducibility
 
@@ -55,40 +61,33 @@ First, we’ll load some packages and set a seed for reproducibility
 
 library(tidymodels)
 library(tidyverse)
-library(data.table)
 library(ipa)
-library(magrittr)
-library(ranger)
-library(DescTools)
 
-set.seed(329)
+data("diabetes", package = 'ipa')
+
+diab_complete <- diabetes$complete
+diab_missing <- diabetes$missing
+
+glimpse(diab_missing)
+#> Observations: 366
+#> Variables: 14
+#> $ diabetes       <fct> No, No, No, No, Yes, No, No, No, No, No, No, No, No,...
+#> $ chol           <int> NA, 165, NA, NA, 249, 248, 195, 177, NA, NA, 215, NA...
+#> $ stable_glucose <int> 82, 97, NA, NA, 90, 94, NA, 87, NA, 82, 128, NA, 76,...
+#> $ hdl            <int> NA, 24, NA, NA, 28, 69, NA, 49, 40, NA, NA, NA, 30, ...
+#> $ age            <int> 46, 29, 58, 67, 64, 34, NA, 45, NA, NA, NA, NA, 36, ...
+#> $ gender         <fct> NA, female, NA, NA, male, male, NA, male, NA, NA, NA...
+#> $ frame          <fct> NA, large, NA, large, medium, large, NA, large, NA, ...
+#> $ sbp            <int> 118, 112, NA, NA, 138, 132, 161, 160, NA, 130, NA, N...
+#> $ dbp            <int> NA, 68, NA, NA, 80, 86, NA, 80, NA, NA, NA, 80, 66, ...
+#> $ waist          <int> NA, 46, 49, 33, 44, 36, NA, 34, 45, NA, 42, NA, 36, ...
+#> $ hip            <int> NA, 48, NA, NA, 41, 42, NA, 40, NA, NA, NA, NA, 40, ...
+#> $ time_ppn       <int> NA, 360, 180, 480, 300, 195, 720, 300, 240, NA, NA, ...
+#> $ height_cm      <dbl> NA, 1.6256, 1.5494, NA, 1.7272, 1.8034, 1.7526, 1.75...
+#> $ weight_kg      <dbl> 54.88474, 98.88325, NA, NA, 83.00750, 86.18265, NA, ...
 ```
 
-### Credit data
-
-We will be adding missing values to the `credit` data (see
-`?recipes::credit_data`)
-
-``` r
-
-data("credit_data")
-
-orig_data <- drop_na(credit_data)
-
-miss_data <- orig_data %>% 
-  as_tibble() %>% 
-  drop_na() %>% 
-  add_missing(omit_cols = c('Status', 'Job', 'Price', 'Income'), 
-    miss_proportion = 3/5,
-    miss_pattern = 'mar')
-
-splits <- initial_split(miss_data)
-
-trn <- training(splits)
-tst <- testing(splits)
-```
-
-### K-nearest-neighbor imputation
+## K-nearest-neighbor imputation
 
 K-nearest-neighbors (KNN) is a flexible and useful method for imputation
 of missing data. Briefly, each missing value is imputed by aggregating
@@ -108,109 +107,40 @@ vignette.
 
 ``` r
 
-nbrs_brew <- brew(trn, outcome = Status, flavor = 'kneighbors') %>%
-  verbose_on(level = 1) %>% 
-  spice(with = spicer_nbrs(neighbors = 1:35)) %>% 
-  mash() %>% 
-  ferment(testing = test_nbrs(tst)) %>% 
-  bottle(type = 'tibble')
-#> Imputing Seniority (N = 2133)
-#> Imputing Home (N = 2541)
-#> Imputing Time (N = 2570)
-#> Imputing Age (N = 1894)
-#> Imputing Marital (N = 2409)
-#> Imputing Records (N = 1925)
-#> Imputing Expenses (N = 1979)
-#> Imputing Assets (N = 2194)
-#> Imputing Debt (N = 2019)
-#> Imputing Amount (N = 2244)
-#> imputing training data
-#> Fitting models to impute missing values in testing using nearest neighbors
-#> Imputing Seniority (N = 703)
-#> Imputing Home (N = 842)
-#> Imputing Time (N = 858)
-#> Imputing Age (N = 593)
-#> Imputing Marital (N = 779)
-#> Imputing Records (N = 607)
-#> Imputing Expenses (N = 634)
-#> Imputing Assets (N = 743)
-#> Imputing Debt (N = 654)
-#> Imputing Amount (N = 744)
-```
+nbrs_brew <- brew_nbrs(diab_missing, outcome = diabetes) %>%
+  verbose_on(level = 1) %>% # makes the brew noisy
+  spice(with = spicer_nbrs(k_neighbors = 1:35)) %>% # tuning parameters
+  mash() %>% # creates imputed values 
+  ferment() %>% # turns values into a data frame
+  bottle(type = 'tibble') # turns data into tibbles, adds outcome column
+#> Imputing chol, N observed = 227
+#> Imputing stable_glucose, N observed = 226
+#> Imputing hdl, N observed = 223
+#> Imputing age, N observed = 231
+#> Imputing gender, N observed = 235
+#> Imputing frame, N observed = 227
+#> Imputing sbp, N observed = 228
+#> Imputing dbp, N observed = 227
+#> Imputing waist, N observed = 211
+#> Imputing hip, N observed = 223
+#> Imputing time_ppn, N observed = 236
+#> Imputing height_cm, N observed = 221
+#> Imputing weight_kg, N observed = 243
 
-### Evaluate imputations
-
-There are two ways to evaluate strategies to handle missing data.
-
-1.  How accurately the missing data strategy imputes missing values.
-    (This is hard to evaluate in real data scenarios)
-
-2.  The accuracy of prediction functions that are trained on imputed
-    data from the given strategy.
-
-According to the second evaluation strategy, the best value of K in this
-case is the one that maximizes the scaled Brier score of our model’s
-prediction function. Using the pairs of imputed training and testing
-data from bottled `ipa_brew` is a fairly straightforward approach to
-finding out which imputation strategy provides data that maximize model
-accuracy.
-
-Here, we apply the `parsnip` interface to fit and validate one boosted
-decision tree ensemble to each imputed training and testing set.
-
-``` r
-
-anly <- nbrs_brew %>% 
-  mutate(
-    bscor = map2_dbl(training, testing, 
-      .f = ~ boost_tree(
-        mode = 'classification',
-        mtry = 4,
-        trees = 50,
-        tree_depth = 3
-      ) %>%
-        set_engine('xgboost') %>% 
-        fit(Status ~ ., data = .x) %>% 
-        predict(new_data = .y, type = 'prob') %>% 
-        BrierScore(
-          resp = as.numeric(tst$Status == 'good'),
-          pred = .[, 2, drop = TRUE],
-          scaled = TRUE
-        )
-    )
-  )
-
-anly
-#> # A tibble: 35 x 5
-#>    impute args             training              testing              bscor
-#>     <int> <list>           <list>                <list>               <dbl>
-#>  1      1 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.214
-#>  2      2 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.217
-#>  3      3 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.234
-#>  4      4 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.239
-#>  5      5 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.251
-#>  6      6 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.248
-#>  7      7 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.265
-#>  8      8 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.245
-#>  9      9 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.268
-#> 10     10 <named list [2]> <tibble [3,030 x 14]> <tibble [1,009 x 14~ 0.247
+nbrs_brew
+#> A <U+0001F37A> to handle missing data using k-nearest-neighbors. 
+#> # A tibble: 35 x 3
+#>    impute pars             training           
+#>     <int> <list>           <list>             
+#>  1      1 <named list [1]> <tibble [366 x 14]>
+#>  2      2 <named list [1]> <tibble [366 x 14]>
+#>  3      3 <named list [1]> <tibble [366 x 14]>
+#>  4      4 <named list [1]> <tibble [366 x 14]>
+#>  5      5 <named list [1]> <tibble [366 x 14]>
+#>  6      6 <named list [1]> <tibble [366 x 14]>
+#>  7      7 <named list [1]> <tibble [366 x 14]>
+#>  8      8 <named list [1]> <tibble [366 x 14]>
+#>  9      9 <named list [1]> <tibble [366 x 14]>
+#> 10     10 <named list [1]> <tibble [366 x 14]>
 #> # ... with 25 more rows
 ```
-
-Results show that there is a fair bit of variability in our scaled Brier
-score depending on K. The optimum value of K seems to be somewhere
-around 20-25. Good thing we didn’t use the default value of 5\!
-
-``` r
-      
-ggplot(anly, aes(x = impute, y = bscor)) +
-  theme_bw() + 
-  theme(panel.grid = element_blank()) +
-  geom_line(col = 'grey', linetype = 2) + 
-  geom_smooth(col = 'red', se = FALSE) + 
-  labs(x = 'Number of neighbors used for imputation', 
-    y = 'Scaled Brier score (higher is better)')
-#> `geom_smooth()` using method = 'loess' and formula 'y ~ x'
-```
-
-<img src="man/figures/README-unnamed-chunk-6-1.png" width="100%" />

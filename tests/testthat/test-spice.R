@@ -1,6 +1,6 @@
 
 test_that(
-  "good inputs work, bad inputs get good message",
+  "soft spicing works",
   {
 
     data <- data.frame(
@@ -14,106 +14,122 @@ test_that(
 
     data[1:n_miss, 1:n_miss] = NA
 
-    knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-    sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-    rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
+    sft_brew <- brew_soft(data, outcome = outcome)
 
     expect_error(
-      knn_brew <- spice(knn_brew, neighbors = 1:10, aggr_neighbors = T),
-      'all neighbor sequence values'
+      spice(sft_brew, rank_max_init = 1),
+      'initial max rank'
     )
 
     expect_error(
-      knn_brew <- spice(knn_brew, neighbors = -1, aggr_neighbors = T),
-      'all neighbor sequence values'
+      spice(sft_brew, rank_max_init = 3),
+      'initial max rank'
     )
 
     expect_error(
-      spice(sft_brew, n_impute = 5),
-      'step_size or n_impute'
+      spice(sft_brew, rank_stp_size = -5),
+      'rank step size'
     )
 
     expect_error(
-      spice(sft_brew, step_size = 5),
-      'step_size or n_impute'
+      spice(sft_brew, rank_stp_size = 1.5),
+      'rank step size'
     )
 
     expect_error(
-      spice(sft_brew, step_size = 1.5),
-      'step size should be an integer'
+      spice(sft_brew, with = spicer_soft(rank_max_ovrl = 3)),
+      'overall max rank'
     )
 
     expect_error(
-      spice(sft_brew, n_impute = 1.5),
-      'number of imputations should be an integer'
+      spice(sft_brew, with = spicer_soft(rank_max_ovrl = -3)),
+      'overall max rank'
     )
 
-    knn_brew_a <- spice(knn_brew, with = spicer_nbrs(neighbors = 1:5))
-    knn_brew_b <- spice(knn_brew, neighbors = 1:5, aggr_neighbors = T)
+    expect_error(
+      spice(sft_brew, with = spicer_soft(lambda = -10)),
+      'lambda should be'
+    )
 
-    expect_equivalent(knn_brew_a, knn_brew_b)
+    sft_brew <- spice(sft_brew, with = spicer_soft())
 
-    knn_brew <- spice(knn_brew, neighbors = 1:5, aggr_neighbors = T)
-    expect_equal(knn_brew$pars$nbrs, 1:5)
-    expect_true(all(knn_brew$pars$aggr))
-
-    sft_brew_a <- spice(sft_brew, with = spicer_soft(n_impute = 2))
-    sft_brew_b <- spice(sft_brew, n_impute = 2)
-
-    expect_equivalent(sft_brew_a, sft_brew_b)
-
-    sft_brew <- spice(sft_brew, n_impute = 2)
+    expect_true(is_spicer(spicer_soft()))
 
     expect_equal(sft_brew$pars,
       list(
-        min_rank = 1,
-        max_rank = 2,
-        n_impute = 2,
-        step_size = 1L
+        rank_max_init = 2L,
+        rank_max_ovrl = 2,
+        rank_stp_size = 1L,
+        lambda = c(
+          1.2,
+          1.17777777777778,
+          1.15555555555556,
+          1.13333333333333,
+          1.11111111111111,
+          1.08888888888889,
+          1.06666666666667,
+          1.04444444444444,
+          1.02222222222222,
+          1
+        ),
+        grid = FALSE
       )
+
     )
+
+  }
+)
+
+test_that(
+  "nbrs spicing works",
+  {
+
+    data <- data.frame(
+      x1 = 1:10,
+      x2 = 10:1,
+      x3 = 1:10,
+      outcome = 11 + runif(10)
+    )
+
+    n_miss = 2
+
+    data[1:n_miss, 1:n_miss] = NA
+
+    knn_brew <- brew_nbrs(data, outcome = outcome)
+
+    a <- TRUE
+
+    expect_warning(
+      knn_brew <- spice(knn_brew, k_neighbors = 1:10, aggregate = a),
+      'neighbor values > 8'
+    )
+
+    expect_equal(knn_brew$pars$k_neighbors, 1:8)
+    expect_equal(knn_brew$pars$aggregate, a)
+
+    expect_equal(attr(knn_brew, 'n_impute'), 8)
+
+    expect_true(is_spicer(spicer_nbrs()))
+
+    knn_brew_with_spicer <- brew_nbrs(data, outcome = outcome) %>%
+      spice(with = spicer_nbrs(k_neighbors = 1:8))
+
+    expect_equal(knn_brew, knn_brew_with_spicer)
 
     expect_error(
-      spice(rgr_brew, min_node_sizes = c(1:10)),
-      regexp = 'all node size values'
+      suppressWarnings(spice(knn_brew, k_neighbors = -1, aggregate = T)),
+      'all k_neighbor'
     )
 
-    expect_error(
-      spice(rgr_brew, min_node_sizes = c(-1)),
-      regexp = 'all node size values'
+    expect_warning(
+      spice(knn_brew, k_neighbors = c(-1, 0, 2), aggregate = T),
+      'neighbor values < 1'
     )
 
-    expect_error(
-      spice(rgr_brew, min_node_sizes = c(1:4), pmm_donor_sizes = c(1,2)),
-      regexp = 'predictive mean matching donor sequence'
+    expect_warning(
+      spice(knn_brew, k_neighbors = c(2), aggregate = c(T,F)),
+      'should have length of 1'
     )
 
-
-    rgr_brew_a <- spice(rgr_brew, min_node_sizes=1:5, pmm_donor_sizes = 0)
-    rgr_brew_b <- spice(rgr_brew, with = spicer_rngr(min_node_sizes = 1:5))
-
-    expect_equivalent(rgr_brew_a, rgr_brew_b)
-
-    rgr_brew <- spice(rgr_brew, min_node_sizes=1:5, pmm_donor_sizes = 1)
-
-    expect_equal(
-      rgr_brew$pars,
-      list(
-        n_impute = 5,
-        node_size = 1:5,
-        donor_size = c(1, 1, 1, 1, 1)
-      )
-    )
-
-    rgr_brew <- spice(rgr_brew, min_node_sizes=1:5, pmm_donor_sizes = 1:5)
-
-    expect_equal(
-      rgr_brew$pars,
-      list(
-        n_impute = 5,
-        node_size = 1:5,
-        donor_size = 1:5
-      )
-    )
   }
 )

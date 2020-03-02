@@ -5,22 +5,42 @@
 \title{Soft masher}
 \usage{
 masher_soft(
-  type = "als",
-  maxit = 100L,
-  thresh = 1e-05,
-  final.svd = TRUE,
-  scale_data = TRUE,
-  row.center = TRUE,
-  row.scale = TRUE,
-  col.center = TRUE,
-  col.scale = TRUE,
-  scale_iter = 20,
-  scale_lambda = 0.95,
-  lambda_sequence = NULL
+  bs = TRUE,
+  bs_maxit = 20,
+  bs_thresh = 1e-09,
+  bs_row.center = FALSE,
+  bs_col.center = TRUE,
+  bs_row.scale = FALSE,
+  bs_col.scale = TRUE,
+  si_type = "als",
+  si_thresh = 1e-05,
+  si_maxit = 100,
+  si_final.svd = TRUE
 )
 }
 \arguments{
-\item{type}{two algorithms are implements, type="svd" or the default
+\item{bs}{a logical value. If \code{TRUE}, \code{\link[softImpute:biScale]{softImpute::biScale()}} is applied
+to \code{data_ref} or \code{rbind(data_ref, data_new)} prior to fitting \code{softImpute}
+models.}
+
+\item{bs_maxit}{an integer indicating the maximum number of iterations
+for the \code{biScale} algorithm.}
+
+\item{bs_thresh}{convergence threshold for the \code{biScale} algorithm.}
+
+\item{bs_row.center}{a logical value. If \code{TRUE}, row centering
+will be performed. If \code{FALSE} (default), then nothing is done.}
+
+\item{bs_col.center}{a logical value. If \code{TRUE} (default), column centering
+will be performed. If \code{FALSE}, then nothing is done.}
+
+\item{bs_row.scale}{a logical value. If \code{TRUE}, row scaling
+will be performed. If \code{FALSE} (default), then nothing is done.}
+
+\item{bs_col.scale}{a logical value. If \code{TRUE} (default), column scaling
+will be performed. If \code{FALSE}, then nothing is done.}
+
+\item{si_type}{two algorithms are implemented, type="svd" or the default
 type="als". The "svd" algorithm repeatedly computes the svd of the
 completed matrix, and soft thresholds its singular values. Each new
 soft-thresholded svd is used to re-impute the missing entries. For
@@ -32,39 +52,24 @@ speedups in some cases. The "als" approach does not currently
 have the same theoretical convergence guarantees as the
 "svd" approach.}
 
-\item{maxit}{maximum number of iterations for the \code{softImpute}
+\item{si_thresh}{convergence threshold for the \code{softImpute} algorithm,
+measured as the relative change in the Frobenius norm between two
+successive estimates.}
+
+\item{si_maxit}{maximum number of iterations for the \code{softImpute}
 algorithm.}
 
-\item{thresh}{convergence threshold, measured as the relative
-change in the Frobenius norm between two successive estimates.}
-
-\item{final.svd}{only applicable to type="als". The alternating
+\item{si_final.svd}{only applicable to \code{si_type = "als"}. The alternating
 ridge-regressions do not lead to exact zeros. With the default
-final.svd=TRUE, at the final iteration, a one step unregularized
+\code{final.svd = TRUE}, at the final iteration, a one step unregularized
 iteration is performed, followed by soft-thresholding of the
 singular values, leading to hard zeros.}
-
-\item{scale_data}{(\code{TRUE} / \code{FALSE}) if \code{TRUE}, the
-\link[softImpute:biScale]{biScale} function will be applied
-to \code{data} before soft imputation is applied.}
-
-\item{scale_iter}{the maximum number of iterations for the
-\code{biScale} algorithm.}
-
-\item{scale_lambda}{A number that will scale the maximum value of
-\code{lambda}, a regularization parameter for \code{softImpute}.}
-
-\item{lambda_sequence}{A numeric vector of \code{lambda} values.
-This input is optional. If it is not specified, a sequence
-of \code{lambda} values will be generated automatically.}
-}
-\value{
-a list with \link[softImpute:softImpute]{softImpute} and
-\link[softImpute:biScale]{biScale} inputs values that can be
-passed directly into \code{softImpute_brew} objects via \link{mash}.
 }
 \description{
 It can be a little overwhelming to remember which sets of
-parameters go with each \code{ipa_brew} flavor, so just pair your
-flavor with its \code{masher} function and get on with your \code{brew}.
+parameters go with each \code{ipa_brew} flavor. If you pair your
+flavor with its \code{masher} function, e.g.
+\verb{mash(brew, with = masher_<flavor>())}, you can use tab-completion
+inside of \verb{masher_<flavor>()} to see which arguments should be
+specified for your mash.
 }

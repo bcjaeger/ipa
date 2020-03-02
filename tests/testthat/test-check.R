@@ -1,4 +1,15 @@
 
+test_that('check_chr works',
+  {
+
+    input = 'a'
+    options = c('b','c')
+    expect_null(check_chr('b', label = 'b', options = options))
+    expect_error(check_chr(input, label = 'a', options = options))
+
+  }
+)
+
 test_that("check_data_new_names gets errors right",
   {
 

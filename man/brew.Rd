@@ -3,20 +3,12 @@
 \name{brew}
 \alias{brew}
 \alias{brew_nbrs}
-\alias{brew_rngr}
 \alias{brew_soft}
 \title{New brew}
 \usage{
-brew(
-  data,
-  outcome,
-  flavor = c("kneighbors", "missRanger", "softImpute"),
-  bind_miss = FALSE
-)
+brew(data, outcome, flavor = c("kneighbors", "softImpute"), bind_miss = FALSE)
 
 brew_nbrs(data, outcome, bind_miss = FALSE)
-
-brew_rngr(data, outcome, bind_miss = FALSE)
 
 brew_soft(data, outcome, bind_miss = FALSE)
 }
@@ -30,9 +22,8 @@ character values (e.g., outcome = c('a','b','c') for multiple outcomes
 or outcome = 'a' for a single outcome).}
 
 \item{flavor}{the computational approach that will be used to
-impute missing data. Valid options are 'kneighbors', 'softImpute',
-and 'missRanger.' These values should be input as characters
-(e.g., 'kneighbors').}
+impute missing data. Valid options are 'kneighbors' and 'softImpute'.
+These values should be input as characters (e.g., 'kneighbors').}
 
 \item{bind_miss}{(\code{TRUE} / \code{FALSE}). If \code{TRUE}, a set of additional
 indicator columns (one for each non-outcome column) are added
@@ -45,22 +36,19 @@ If \code{FALSE}, no additional columns are added to \code{data}.}
 an \code{ipa_brew} object with your specified \code{flavor}
 }
 \description{
-\code{brew()} is the first function in a workflow that the \code{ipa} package
-tries to simplify. You may be wondering whether \code{ipa} stands for
-'imputation for predictive analytics' or 'india pale ale', given
-this ambiguous function name. Perhaps it can be both?
+\code{brew()} is the first function in the \code{ipa} workflow .
 }
 \details{
-Brewing a delicious beer is not that different from imputing
+Brewing a great beer is not that different from imputing
 missing data. Once a brew is started, you can add spices
-(set tuning parameters; see \link{spice}) or just go right to mashing
+(set primary parameters; see \link{spice}) and then mash the mixture
 (fitting imputation models; see \link{mash}). To finish the brew, add
-yeast (new data; see \link{ferment}), and then bottle it up (see \link{bottle})
-as a \code{tibble} or \code{matrix}.
+yeast (new data; see \link{ferment}), and then bottle it up (see
+\link{bottle}) as a \code{tibble} or \code{matrix}.
 
 \code{brew()} includes an input variable called \code{flavor} that determines
-how data will be imputed.  \code{brew_nbrs()}, \code{brew_rngr()}, and
-\code{brew_soft()} are convenience functions, e.g. \code{brew_nbrs()} is a
+how data will be imputed.  \code{brew_nbrs()} and \code{brew_soft()} are
+convenience functions, e.g. \code{brew_nbrs()} is a
 shortcut for calling \code{brew(flavor = 'kneighbors')}.
 }
 \note{
@@ -94,14 +82,6 @@ to handle missing values, please see
 \link[softImpute:softImpute]{softImpute}.
 }
 
-\section{\strong{Ranger's brew}}{
- The \code{missRanger} algorithm is used to
-impute missing values with the \code{brew}. This strategy is very similar
-to the algorithm proposed by Stekhoven (2012). For more details
-on this strategy  to handle missing values, please see
-\link[missRanger:missRanger]{missRanger}.
-}
-
 \examples{
 
 data <- data.frame(
@@ -115,11 +95,9 @@ data[1:2, 1:2] = NA
 
 knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
 sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
 
 knn_brew <- brew_nbrs(data, outcome = outcome)
 sft_brew <- brew_soft(data, outcome = outcome)
-rgr_brew <- brew_rngr(data, outcome = outcome)
 
 print(knn_brew)
 
@@ -132,8 +110,4 @@ Rahul Mazumder, Trevor Hastie and Rob Tibshirani (2010)
 Spectral Regularization Algorithms for Learning Large Incomplete
 Matrices, http://www.stanford.edu/~hastie/Papers/mazumder10a.pdf
 \emph{Journal of Machine Learning Research} 11 (2010) 2287-2322
-
-Stekhoven, D.J. and Buehlmann, P. (2012), 'MissForest - nonparametric
-missing value imputation for mixed-type data', Bioinformatics, 28(1)
-2012, 112-118, doi: 10.1093/bioinformatics/btr597
 }

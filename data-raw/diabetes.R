@@ -4,6 +4,8 @@ set.seed(329)
 
 data("Diabetes", package = 'Publish')
 
+#library(tidyverse)
+
 diab_complete <- diab_missing <- as_tibble(Diabetes) %>%
   select(-id, -bp.2s, -bp.2d, -AgeGroups, -BMI) %>%
   rename(

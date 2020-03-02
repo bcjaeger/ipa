@@ -1,39 +1,67 @@
 
-# check to make sure data are uniform before stacking
-check_data_list <- function(data_list){
+check_type <- function(x, label, type){
 
-  if(!is.list(data_list)){
-    stop("data_list should be a list")
-  }
+  .fun <- switch (type,
+    'logical' = is.logical,
+    'double' = is.double,
+    'integer' = is.integer,
+    'factor' = is.factor,
+  )
 
-  ncols <- purrr::map_int(data_list, ncol)
-  nrows <- purrr::map_int(data_list, nrow)
+  .type <- class(x)[1]
 
-  if(!all(ncols[-1] == ncols[1])){
-    stop(
-      "All data frames in `data_list` should have same number of columns"
+  if(!.fun(x)) stop(
+    glue::glue(
+      "{label} must have type <{type}>.\n Instead, it has type <{.type}>"
     )
-  }
-
-  if(!all(nrows[-1] == nrows[1])){
-    stop(
-      "All data frames in `data_list` should have same number of rows"
-    )
-  }
-
+  )
 
 }
 
-# check positive integer input
-check_pos_int <- function(x, label){
-
-  if(any(x <= 0))
-    stop(glue::glue("{label} should be > 0"), call. = FALSE)
+# check integer input
+check_int <- function(x, label){
 
   .int <- as.integer(x)
 
   if(any(x != .int))
     stop(glue::glue('{label} should be an integer'), call. = FALSE)
+
+}
+
+check_chr <- function(x, label, options){
+
+  opts <- glue::glue_collapse(options, sep = ', ', last = ', or ')
+
+  if( !(x %in% options) ){
+    stop(glue::glue('{label} should be one of {opts}'), call. = FALSE)
+  }
+
+}
+
+# check minimums input
+check_min_strict <- function(x, label, value){
+  if(any(x <= value)) stop(glue::glue("{label} should be > {value}"),
+      call. = FALSE)
+}
+check_min_lax <- function(x, label, value){
+  if(any(x < value)) stop(glue::glue("{label} should be >= {value}"),
+      call. = FALSE)
+}
+
+# check maximum input
+check_max_strict <- function(x, label, value){
+  if(any(x >= value)) stop(glue::glue("{label} should be < {value}"),
+    call. = FALSE)
+}
+check_max_lax <- function(x, label, value){
+  if(any(x > value)) stop(glue::glue("{label} should be <= {value}"),
+    call. = FALSE)
+}
+
+check_bool <- function(x, label){
+
+  if(!is.logical(x)) stop(glue::glue("{label} should have type <logical>.",
+    "\nInstead, it has type {class(x)[1]}"), call. = FALSE)
 
 }
 
@@ -46,6 +74,7 @@ check_fraction <- function(x, label){
 }
 
 # check step size for soft imputes
+# TODO: remove this from softimpute brew
 check_step_size <- function(step_size, n_impute,  max_rank){
 
   if(step_size * n_impute > max_rank) {
@@ -57,10 +86,9 @@ check_step_size <- function(step_size, n_impute,  max_rank){
 }
 
 # Check the flavor
-
 check_flavor <- function(flavor){
 
-  good_flavors <- c('kneighbors','softImpute','missRanger')
+  good_flavors <- c('kneighbors','softImpute')
   glue_flavors <- glue::glue_collapse(good_flavors, sep = ', ', last = ', or ')
 
   if( !(flavor %in% good_flavors) ){
@@ -168,6 +196,36 @@ check_data_new_types <- function(data_ref, data_new){
 
 }
 
+
+
+check_l1_stop <- function(x, label){
+
+  if(length(x) > 1) stop(glue::glue("{label} should have",
+  " length of 1 but has length of {length(x)}."), call. = FALSE)
+
+}
+
+check_l1_warn <- function(x, label){
+
+  if(length(x) > 1){
+
+    warning(glue::glue("{label} should have",
+      " length of 1 but has length of {length(x)}.",
+      "\nOnly the first value will be used."), call. = FALSE)
+
+    return(TRUE)
+
+  } else {
+
+    return(FALSE)
+
+  }
+
+}
+
+
+
+
 # check that a brew is in the right stage
 check_brew <- function(brew, expected_stage){
 
@@ -175,27 +233,30 @@ check_brew <- function(brew, expected_stage){
     stop("brew should be an ipa_brew object - see brew() function")
   }
 
-  #don't to include mash need b/c spicing is automated
+  # don't need to include mash need b/c spicing is automated
 
   previous_stage <- switch(
     expected_stage,
     'spice' = 'initiated',
     'ferment' = 'mashed',
-    'bottle' = 'fermented'
+    'bottle' = 'fermented',
+    'sip' = 'bottled'
   )
 
   recommended_function <- switch(
     expected_stage,
     'spice' = 'brew',
     'ferment' = 'mash',
-    'bottle' = 'ferment'
+    'bottle' = 'ferment',
+    'sip' = 'bottle'
   )
 
   brew_checker <- switch(
     expected_stage,
     'spice' = is_brew,
     'ferment' = is_mashed,
-    'bottle' = is_fermented
+    'bottle' = is_fermented,
+    'sip' = is_bottled
   )
 
   if(!brew_checker(brew)){
@@ -209,31 +270,25 @@ check_brew <- function(brew, expected_stage){
 }
 
 # make sure data ref can be imputed
-check_data_ref <- function(data, cols){
+check_data_ref <- function(data_ref){
 
-  # Check for empty rows/cols
-  all_rows_na <- apply(
-    X = data[, cols, drop = FALSE],
-    MARGIN = 1L,
-    FUN = function(x) all(is.na(x))
-  )
+  # the row numbers that contain missing data for each keep_col
+  miss_indx <- lapply(data_ref, function(x) which(is.na(x)))
+  # the number of missing values in each row
+  miss_nobs <- lapply(miss_indx, length)
+  # the rows that contain only missing values
+  miss_rows <- Reduce(x = miss_indx, f = intersect)
+  # the columns that contain only missing values
+  miss_cols <- names(which(sapply(miss_nobs, function(x) x==nrow(data_ref))))
 
-  all_cols_na <- apply(
-    X = data[, cols, drop = FALSE],
-    MARGIN = 2L,
-    FUN = function(x) all(is.na(x))
-  )
-
-  if (any(all_rows_na)) {
-    stop("some rows are missing data for all predictors: ",
-      glue::glue_collapse(which(all_rows_na), sep = ', ', last = ' and '),
-      call. = FALSE)
+  if(!purrr::is_empty(miss_rows)){
+    stop("rows in data_ref are missing data for all values: ",
+      list_things(miss_rows), call. = FALSE)
   }
 
-  if (any(all_cols_na)) {
-    stop("some columns are missing data for all values: ",
-      glue::glue_collapse(names(data)[all_cols_na], sep=', ', last=' and '),
-      call. = FALSE)
+  if(!purrr::is_empty(miss_cols)){
+    stop("columns in data_ref missing data for all values: ",
+      list_things(miss_cols), call. = FALSE)
   }
 
 }
@@ -258,19 +313,6 @@ check_spicer <- function(spicer, expected){
 
 }
 
-# check mash - spice if needed
-check_mash <- function(brew, verbose){
-
-  if(!is_spiced(brew)){
-    brew <- simple_spice(brew)
-    if(verbose > 0) message(
-      "Looks like this brew hasn't been spiced yet.\n",
-      "I will spice it for you using default values.\n",
-      "Take a look at <your brew>$pars to see these values.\n"
-    )
-  }
-
-}
 
 # check masher input
 check_masher <- function(masher, expected){
@@ -303,10 +345,14 @@ check_var_types <- function(data, valid_types){
 
     bad_vars <- which(!good_vars)
 
-    msg <- paste("some variables have unsupported type: ",
-      list_things(names(var_types)[bad_vars]),
-      '\n supported types are',
-      list_things(valid_types)
+    vars_to_list <- names(var_types)[bad_vars]
+    types_to_list <- var_types[vars_to_list]
+
+    meat <- paste0('<', vars_to_list, '> has type <',
+      types_to_list, '>', collapse = '\n')
+
+    msg <- paste("some variables have unsupported type:\n",
+      meat, '\n supported types are', list_things(valid_types)
     )
 
     stop(msg, call. = FALSE)

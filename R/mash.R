@@ -11,32 +11,31 @@
 #' @param ... additional arguments for specific brew flavors.
 #'
 #' @param with the output of a helper function for mashing brews.
-#'   The helper functions are [masher_nbrs], [masher_soft], and
-#'   [masher_rngr].
+#'   The helper functions are [masher_nbrs] and [masher_soft]
 #'
 #' @export
 #'
 #' @examples
 #'
-#' set.seed(101)
-#' n=200
-#' p=100
-#' J=50
-#' np=n*p
-#' missfrac=0.3
-#' x=matrix(rnorm(n*J),n,J)%*%matrix(rnorm(J*p),J,p)+matrix(rnorm(np),n,p)/5
-#' ix=seq(np)
-#' imiss=sample(ix,np*missfrac,replace=FALSE)
-#' xna=x
-#' xna[imiss]=NA
+#' x1 = rnorm(100)
+#' x2 = rnorm(100) + x1
+#' x3 = rnorm(100) + x1 + x2
 #'
-#' data <- as.data.frame(xna)
+#' outcome = 0.5 * (x1 - x2 + x3)
 #'
-#' soft_brew <- brew(data, outcome = V1, flavor = 'softImpute')
-#' soft_brew <- spice(soft_brew, n_impute = 10, step_size = 2)
-#' soft_brew <- mash(soft_brew, scale_lambda = 0.12)
+#' data <- data.frame(x1=x1, x2=x2, x3=x3, outcome=outcome)
 #'
-#' soft_brew$wort
+#' n_miss = 10
+#'
+#' data[1:n_miss,'x1'] = NA
+#' sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE) %>%
+#'  verbose_on(level = 2)
+#' mash(sft_brew, with = masher_soft(bs = FALSE))
+#'
+#' knn_brew <- brew_nbrs(data, outcome=outcome, bind_miss = TRUE) %>%
+#'  verbose_on(level = 2)
+#' mash(knn_brew, with = masher_nbrs(fun_aggr_ctns = median))
+#'
 
 mash <- function(brew, with = NULL, ...){
 
@@ -49,87 +48,86 @@ mash <- function(brew, with = NULL, ...){
 #'
 mash.softImpute_brew <- function(brew, with = NULL, ...){
 
-  verbose <- get_verbosity(brew)
-  verbose_1 <- verbose >= 1
-  verbose_2 <- verbose >= 2
+  # if someone wants to go straight from brew to mash
+  # then the brew will use the default spices.
 
-  check_mash(brew, verbose >= 1)
+  if(!is_spiced(brew)){
+
+    check_brew(brew, expected_stage = 'spice')
+    brew <- spice(brew, with = spicer_soft())
+
+    if(get_verbosity(brew) > 0) message("Default spices are being used:\n",
+      text_pillar(lhs = names(brew$pars), rhs = brew$pars,
+        middle = 'has value(s)'))
+
+  }
 
   check_masher(with, expected = 'masher_soft')
 
   .dots <- with %||% check_dots(
       list(...),
       valid_args = c(
-        'type',
-        'maxit',
-        'thresh',
-        'final.svd',
-        'scale_data',
-        'row.center',
-        'row.scale',
-        'col.center',
-        'col.scale',
-        'scale_iter',
-        'scale_lambda',
-        'lambda_sequence'
+        'bs',
+        'bs_maxit',
+        'bs_thresh',
+        'bs_row.center',
+        'bs_col.center',
+        'bs_row.scale',
+        'bs_col.scale',
+        'si_type',
+        'si_thresh',
+        'si_maxit',
+        'si_final.svd'
       )
     )
 
-  # scale_lambda needs to be taken out of .dots
-  # (it isn't an input for the soft worker function)
-  scale_lambda <- .dots$scale_lambda %||% 0.95
+  # set default values if nothing was specified
+  .dots$bs            <- .dots$bs            %||% TRUE
+  .dots$bs_maxit      <- .dots$bs_maxit      %||% 20
+  .dots$bs_thresh     <- .dots$bs_thresh     %||% 1e-09
+  .dots$bs_row.center <- .dots$bs_row.center %||% FALSE
+  .dots$bs_col.center <- .dots$bs_col.center %||% TRUE
+  .dots$bs_row.scale  <- .dots$bs_row.scale  %||% FALSE
+  .dots$bs_col.scale  <- .dots$bs_col.scale  %||% TRUE
+  .dots$si_type       <- .dots$si_type       %||% 'als'
+  .dots$si_thresh     <- .dots$si_thresh     %||% 1e-05
+  .dots$si_maxit      <- .dots$si_maxit      %||% 100
+  .dots$si_final.svd  <- .dots$si_final.svd  %||% TRUE
 
-  check_fraction(scale_lambda, 'scale_lambda')
+  # softImpute and biScale have trace parameters that show
+  # printed output for each iteration of the corresponding function.
+  # if verbose level is 2, we'll show that output. If verbose level
+  # is 1, we'll just show messages from ipa functions.
+  .dots$si_trace <- .dots$bs_trace <- get_verbosity(brew) > 1
 
-  .dots$scale_lambda <- NULL
-
-  # .dots need to be modified, passed to soft worker function
-  .dots$data       <- as.matrix(brew$data)
-  .dots$type       <- .dots$type %||% "als"
-  .dots$maxit      <- .dots$maxit %||% 100L
-  .dots$thresh     <- .dots$thresh %||% 1e-05
-  .dots$trace.it   <- verbose >= 2
-  .dots$rank_max   <- brew$pars$max_rank
-  .dots$step_size  <- brew$pars$step_size
-  .dots$final.svd  <- .dots$final.svd  %||% TRUE
-  .dots$scale_data <- .dots$scale_data %||% TRUE
-  .dots$row.center <- .dots$row.center %||% TRUE
-  .dots$row.scale  <- .dots$row.center %||% TRUE
-  .dots$col.center <- .dots$row.center %||% TRUE
-  .dots$col.scale  <- .dots$row.center %||% TRUE
-  .dots$scale_iter <- .dots$scale_iter %||% 20
-  .dots$verbose_1  <- verbose >= 1
-  .dots$verbose_2  <- verbose >= 2
-
-  # Fill in lambda sequence if the user did not provide one
-  if(is.null(.dots$lambda_sequence)){
-
-    if(.dots$verbose_1) message(glue::glue(
-      "Identifying max lambda and scaling by {.dots$scale_lambda}"))
-
-    lam0 <- softImpute::lambda0(x = .dots$data, trace.it = verbose_2) %>%
-      magrittr::multiply_by(scale_lambda)
-
-    .dots$lambda_sequence <- seq(lam0, 1, length.out = brew$pars$n_impute)
-
-  }
-
-  # Checking the dots
-  check_pos_int(.dots$scale_iter, 'number of iterations for bi-scale')
-  check_pos_int(.dots$maxit, 'number of iterations for softImpute')
-
-  if(!is.logical(.dots$scale_data))
-    stop('scale_data should be a single logical value ',
-      'e.g. TRUE or FALSE', call. = FALSE)
-
-  # calling the soft worker function
-  brew$wort <- do.call(softImpute_work, args = .dots)
-
-  .dots$data <- NULL
+  brew$wort <- impute_soft(
+    data_ref = if(get_bind_miss(brew)){
+      dplyr::bind_cols(brew$data$training, brew$miss$training)
+    } else {
+      brew$data$training
+    },
+    rank_max_init = brew$pars$rank_max_init,
+    rank_max_ovrl = brew$pars$rank_max_ovrl,
+    rank_stp_size = brew$pars$rank_stp_size,
+    lambda        = brew$pars$lambda,
+    grid          = brew$pars$grid,
+    bs            = .dots$bs,
+    bs_maxit      = .dots$bs_maxit,
+    bs_thresh     = .dots$bs_thresh,
+    bs_row.center = .dots$bs_row.center,
+    bs_col.center = .dots$bs_col.center,
+    bs_row.scale  = .dots$bs_row.scale,
+    bs_col.scale  = .dots$bs_col.scale,
+    bs_trace      = .dots$bs_trace,
+    si_type       = .dots$si_type,
+    si_thresh     = .dots$si_thresh,
+    si_maxit      = .dots$si_maxit,
+    si_trace      = .dots$si_trace,
+    si_final.svd  = .dots$si_final.svd
+  )
 
   attr(brew, 'mashed')  <- TRUE
-  attr(brew, 'impute_args') <- .dots
-
+  brew$pars <- c(brew$pars, .dots)
   brew
 
 }
@@ -139,17 +137,23 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
 #'
 mash.kneighbors_brew <- function(brew, with = NULL, ...){
 
-  verbose <- get_verbosity(brew)
-  verbose_1 <- verbose >= 1
-  verbose_2 <- verbose >= 2
+  if(!is_spiced(brew)){
 
-  check_mash(brew, verbose_1)
+    check_brew(brew, expected_stage = 'spice')
+    brew <- spice(brew, with = spicer_nbrs())
+
+    if(get_verbosity(brew) > 0) message("Default spices are being used:\n",
+      text_pillar(lhs = names(brew$pars), rhs = brew$pars,
+        middle = 'has value(s)'))
+
+  }
 
   check_masher(with, expected = 'masher_nbrs')
 
   .dots <- with %||% check_dots(
     list(...),
-    valid_args = c('eps',
+    valid_args = c(
+      'epsilon',
       'nthread',
       'fun_aggr_ctns',
       'fun_aggr_intg',
@@ -157,84 +161,37 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
     )
   )
 
-  .dots$data_ref            <- brew$data
-  .dots$data_new            <- NULL # b/c mash imputes training data
-  .dots$cols                <- names(brew$data)
-  .dots$k_neighbors         <- brew$pars$nbrs
-  .dots$aggregate_neighbors <- brew$pars$aggr
-  .dots$fun_aggr_ctns       <- .dots$pars$fun_aggr_ctns
-  .dots$fun_aggr_intg       <- .dots$pars$fun_aggr_intg
-  .dots$fun_aggr_catg       <- .dots$pars$fun_aggr_catg
-  .dots$nthread             <- .dots$nthread
-  .dots$epsilon             <- .dots$eps
-  .dots$verbose             <- verbose
+  # set default values if nothing was specified
+  .dots$epsilon       <- .dots$epsilon       %||% 1e-08
+  .dots$nthread       <- .dots$nthread       %||% getOption("gd_num_thread")
+  .dots$fun_aggr_ctns <- .dots$fun_aggr_ctns %||% NULL
+  .dots$fun_aggr_intg <- .dots$fun_aggr_intg %||% NULL
+  .dots$fun_aggr_catg <- .dots$fun_aggr_catg %||% NULL
 
-  imputes <- do.call(impute_knn, args = .dots)
+  # softImpute and biScale have trace parameters that show
+  # printed output for each iteration of the corresponding function.
+  # if verbose level is 2, we'll show that output. If verbose level
+  # is 1, we'll just show messages from ipa functions.
+  .dots$verbose <- get_verbosity(brew) > 0
 
-  fit_args <- tibble::tibble(
-    k_neighbors         = .dots$k_neighbors,
-    aggregate_neighbors = .dots$aggregate_neighbors
-  ) %>%
-    apply(1, as.list)
-
-  brew$wort <- tibble::tibble(
-    impute = seq(length(fit_args)),
-    args = fit_args,
-    fit = imputes
+  brew$wort <- impute_nbrs(
+    data_ref = if(get_bind_miss(brew)){
+      dplyr::bind_cols(brew$data$training, brew$miss$training)
+    } else {
+      brew$data$training
+    },
+    k_neighbors   = brew$pars$k_neighbors,
+    aggregate     = brew$pars$aggregate,
+    epsilon       = .dots$epsilon,
+    nthread       = .dots$nthread,
+    verbose       = .dots$verbose,
+    fun_aggr_ctns = .dots$fun_aggr_ctns,
+    fun_aggr_intg = .dots$fun_aggr_intg,
+    fun_aggr_catg = .dots$fun_aggr_catg
   )
 
-  .dots$data_ref <- NULL
-  attr(brew, 'impute_args') <- .dots
-  attr(brew, 'mashed') = TRUE
-
-  brew
-
-}
-
-
-#' @describeIn mash Mash a ranger's brew (use [masher_rngr] for `with`)
-#' @export
-#'
-mash.missRanger_brew <- function(brew, with = NULL, ...){
-
-  verbose <- get_verbosity(brew)
-
-  check_mash(brew, verbose>0)
-
-  check_masher(with, expected = 'masher_rngr')
-
-  .dots <- with %||% check_dots(
-    list(...),
-    valid_args = c(
-      'maxiter',
-      'num.trees',
-      'sample.fraction'
-    )
-  )
-
-  .dots$data <- brew$data
-  .dots$verbose <- verbose
-  .dots$node_size <- brew$pars$node_size
-  .dots$donor_size <- brew$pars$donor_size
-
-  imputes <- do.call(impute_ranger, args = .dots)
-
-  fit_args <- tibble::tibble(
-    min_node_size = brew$pars$node_size,
-    pmm_donor_size = brew$pars$donor_size
-  ) %>%
-    apply(1, as.list)
-
-  brew$wort <- tibble::tibble(
-    impute = seq_along(fit_args),
-    args = fit_args,
-    fit = imputes
-  )
-
-  .dots$data <- NULL
-  attr(brew, 'impute_args') <- .dots
-  attr(brew, 'mashed') = TRUE
-
+  attr(brew, 'mashed')  <- TRUE
+  brew$pars <- c(brew$pars, .dots)
   brew
 
 }
@@ -243,118 +200,43 @@ mash.missRanger_brew <- function(brew, with = NULL, ...){
 #' Soft masher
 #'
 #' It can be a little overwhelming to remember which sets of
-#' parameters go with each `ipa_brew` flavor, so just pair your
-#' flavor with its `masher` function and get on with your `brew`.
+#'   parameters go with each `ipa_brew` flavor. If you pair your
+#'   flavor with its `masher` function, e.g.
+#'   `mash(brew, with = masher_<flavor>())`, you can use tab-completion
+#'   inside of `masher_<flavor>()` to see which arguments should be
+#'   specified for your mash.
 #'
-#' @param type two algorithms are implements, type="svd" or the default
-#'  type="als". The "svd" algorithm repeatedly computes the svd of the
-#'  completed matrix, and soft thresholds its singular values. Each new
-#'  soft-thresholded svd is used to re-impute the missing entries. For
-#'  large matrices of class "Incomplete", the svd is achieved by an
-#'  efficient form of alternating orthogonal ridge regression. The
-#'  "als" algorithm uses this same alternating ridge regression, but
-#'  updates the imputation at each step, leading to quite substantial
-#'  speedups in some cases. The "als" approach does not currently
-#'  have the same theoretical convergence guarantees as the
-#'  "svd" approach.
-#'
-#' @param maxit maximum number of iterations for the `softImpute`
-#'   algorithm.
-#'
-#' @param thresh convergence threshold, measured as the relative
-#'  change in the Frobenius norm between two successive estimates.
-#'
-#' @param final.svd only applicable to type="als". The alternating
-#'  ridge-regressions do not lead to exact zeros. With the default
-#'  final.svd=TRUE, at the final iteration, a one step unregularized
-#'  iteration is performed, followed by soft-thresholding of the
-#'  singular values, leading to hard zeros.
-#'
-#' @param scale_data (`TRUE` / `FALSE`) if `TRUE`, the
-#'   [biScale][softImpute::biScale()] function will be applied
-#'   to `data` before soft imputation is applied.
-#'
-#' @param scale_iter the maximum number of iterations for the
-#'   `biScale` algorithm.
-#'
-#' @param scale_lambda A number that will scale the maximum value of
-#'   `lambda`, a regularization parameter for `softImpute`.
-#'
-#' @param lambda_sequence A numeric vector of `lambda` values.
-#'   This input is optional. If it is not specified, a sequence
-#'   of `lambda` values will be generated automatically.
-#'
-#' @return a list with [softImpute][softImpute::softImpute()] and
-#'   [biScale][softImpute::biScale()] inputs values that can be
-#'   passed directly into `softImpute_brew` objects via [mash].
+#' @inheritParams impute_soft
 #'
 #' @export
 #'
 
 masher_soft <- function(
-  type = 'als',
-  maxit = 100L,
-  thresh = 1e-05,
-  final.svd = TRUE,
-  scale_data = TRUE,
-  row.center = TRUE,
-  row.scale = TRUE,
-  col.center = TRUE,
-  col.scale = TRUE,
-  scale_iter = 20,
-  scale_lambda = 0.95,
-  lambda_sequence = NULL
+  bs = TRUE,
+  bs_maxit = 20,
+  bs_thresh = 1e-09,
+  bs_row.center = FALSE,
+  bs_col.center = TRUE,
+  bs_row.scale = FALSE,
+  bs_col.scale = TRUE,
+  si_type = "als",
+  si_thresh = 1e-05,
+  si_maxit = 100,
+  si_final.svd = TRUE
 ){
   structure(
-    .Data = list(
-      type = type,
-      maxit = maxit,
-      thresh = thresh,
-      final.svd = final.svd,
-      scale_data = scale_data,
-      scale_iter = scale_iter,
-      scale_lambda = scale_lambda,
-      lambda_sequence = lambda_sequence
-      ),
+    .Data = list(bs = bs,
+      bs_maxit = bs_maxit,
+      bs_thresh = bs_thresh,
+      bs_row.center = bs_row.center,
+      bs_col.center = bs_col.center,
+      bs_row.scale = bs_row.scale,
+      bs_col.scale = bs_col.scale,
+      si_type = si_type,
+      si_thresh = si_thresh,
+      si_maxit = si_maxit,
+      si_final.svd = si_final.svd),
     class = 'masher_soft'
-  )
-}
-
-#' Ranger's masher
-#'
-#' It can be a little overwhelming to remember which sets of
-#' parameters go with each `ipa_brew` flavor, so just pair your
-#' flavor with its `masher` function and get on with your `brew`.
-#'
-#'
-#' @param maxiter An integer specifying the maximum number of
-#'  iterations in the [missRanger][missRanger::missRanger()] algorithm.
-#' @param num.trees An integer specifying the number of decision
-#'  trees fitted for each random forest. Lower values of `num.trees`
-#'  will increase computation speed but may decrease accuracy.
-#' @param sample.fraction A fraction indicating the proportion of
-#'  data randomly sampled for each decision tree. Lower values of
-#'  `sample.fraction` will increase computation speed but may
-#'  decrease accuracy.
-#'
-#' @return a list with [missRanger][missRanger::missRanger()] and
-#'   [ranger][ranger::ranger()] input values that can be passed
-#'   directly into `missRanger_brew` objects via [mash].
-#'
-#' @export
-#'
-
-
-masher_rngr <- function(
-  maxiter = 10L,
-  num.trees = 100,
-  sample.fraction = 0.632
-){
-  structure(
-    .Data = list(maxiter = maxiter,
-      num.trees = num.trees,
-      sample.fraction = sample.fraction),
-    class = 'masher_rngr'
   )
 }
 
@@ -364,17 +246,11 @@ masher_rngr <- function(
 #' parameters go with each `ipa_brew` flavor, so just pair your
 #' flavor with its `masher` function and get on with your `brew`.
 #'
-#' @param eps A numeric value > 0. Computed numbers (variable ranges)
-#'   smaller than `eps` are treated as zero
+#' @inheritParams impute_nbrs
 #'
-#' @param nthread Number of threads to use for parallelization.
-#'  By default, for a dual-core machine, 2 threads are used.
-#'  For any other machine n-1 cores are used so your machine doesn't
-#'  freeze during a big computation. The maximum number of threads
-#'  are determined using `omp_get_max_threads` at C level.
-#'
-#' @return a list with [gower_topn][gower::gower_topn()] input values
-#'  that can be passed directly into `kneighbors_brew` objects via [mash].
+#' @return a list with input values that can be passed directly into
+#'   a neighborhood brew objects via [mash],
+#'   e.g `mash(brew, with = masher_nbrs())`.
 #'
 #' @export
 #'
@@ -399,13 +275,6 @@ masher_nbrs <- function(
 
 }
 
-
-#' @rdname mash
-#' @export
-
-is_mashed <- function(brew){
-  attr(brew, 'mashed')
-}
 
 is_masher <- function(x){
   inherits(x, paste("masher", c('nbrs','rngr','soft'), sep = '_'))

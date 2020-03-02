@@ -2,19 +2,15 @@
 % Please edit documentation in R/spice.R
 \name{spice}
 \alias{spice}
-\alias{is_spiced}
 \title{Spice a brew}
 \usage{
 spice(brew, with = NULL, ...)
-
-is_spiced(brew)
 }
 \arguments{
 \item{brew}{an \code{ipa_brew} object.}
 
 \item{with}{the output of a helper function for spicing brews.
-The helper functions are \link{spicer_nbrs}, \link{spicer_soft}, and
-\link{spicer_rngr}.}
+The helper functions are \link{spicer_nbrs} and \link{spicer_soft}}
 
 \item{...}{additional arguments for specific brew flavors.}
 }
@@ -38,9 +34,9 @@ data <- data.frame(
 data[1:2, 1:2] = NA
 
 knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-spicy_knn <- spice(knn_brew, neighbors = c(3, 5), aggr_neighbors = TRUE)
+spicy_knn <- spice(knn_brew, k_neighbors = c(3, 5), aggregate = TRUE)
 
 sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-spicy_sft <- spice(sft_brew, n_impute = 2)
+spicy_sft <- spice(sft_brew, with = spicer_soft(grid = TRUE))
 
 }

@@ -13,18 +13,34 @@ masher_nbrs(
 )
 }
 \arguments{
-\item{nthread}{Number of threads to use for parallelization.
-By default, for a dual-core machine, 2 threads are used.
-For any other machine n-1 cores are used so your machine doesn't
-freeze during a big computation. The maximum number of threads
-are determined using \code{omp_get_max_threads} at C level.}
+\item{epsilon}{Computed numbers (variable ranges) smaller than eps are
+treated as zero}
 
-\item{eps}{A numeric value > 0. Computed numbers (variable ranges)
-smaller than \code{eps} are treated as zero}
+\item{nthread}{Number of threads to use for parallelization. By default,
+for a dual-core machine, 2 threads are used. For any other machine n-1
+cores are used so your machine doesn't freeze during a big computation.
+The maximum nr of threads are determined using omp_get_max_threads
+at C level.}
+
+\item{fun_aggr_ctns}{a function used to aggregate neighbors for continuous
+variables. If unspecified, the \code{mean()} function is used.}
+
+\item{fun_aggr_intg}{a function used to aggregate neighbors for integer
+values variables. If unspecified, the \code{medn_est()} function is used.
+This function returns the median of neighbor values, rounded to the
+nearest integer. \code{medn_est_conserve()} goes one step further and
+identifies which neighbor value is closest to the median, and returns
+that value. Both of these options can be helpful for integer valued
+columns if you want to make sure the imputed values do not contain
+impossible quantities, e.g. no. of children = 3/4.}
+
+\item{fun_aggr_catg}{a function used to aggregate neighbors for categorical
+variables. If unspecified, the \code{mode_est()} function is used.}
 }
 \value{
-a list with \link[gower:gower_topn]{gower_topn} input values
-that can be passed directly into \code{kneighbors_brew} objects via \link{mash}.
+a list with input values that can be passed directly into
+a neighborhood brew objects via \link{mash},
+e.g \code{mash(brew, with = masher_nbrs())}.
 }
 \description{
 It can be a little overwhelming to remember which sets of

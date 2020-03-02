@@ -4,8 +4,7 @@ get_par_bounds <- function(data, flavor){
 
   switch (flavor,
     'kneighbors' = get_par_bounds_knn(data),
-    'softImpute' = get_par_bounds_sft(data),
-    'missRanger' = get_par_bounds_rgr(data)
+    'softImpute' = get_par_bounds_sft(data)
   )
 
 }
@@ -16,9 +15,7 @@ get_par_bounds_knn <- function(data){
     purrr::map_int(data, ~sum(stats::complete.cases(.x)))
   )
 
-  list(
-    neighbors = list(min=1, max=max_neighbors)
-  )
+  list(neighbors = list(min=1, max=max_neighbors))
 
 }
 
@@ -27,17 +24,10 @@ get_par_bounds_sft <- function(data){
   max_rank = min( dim(data) - 1 )
 
   list(
-    rank = list(min=1, max=max_rank)
-  )
-
-}
-
-get_par_bounds_rgr <- function(data){
-
-  max_node_size = floor(nrow(data) / 2)
-
-  list(
-    node_size = list(min=1, max=max_node_size)
+    rank_max_init = list(min = 2, max = max_rank),
+    rank_max_ovrl = list(min = 2, max = max_rank),
+    rank_stp_size = list(min = 1),
+    lambda = list(min = 0)
   )
 
 }

@@ -4,22 +4,42 @@
 \alias{spicer_soft}
 \title{Soft spices}
 \usage{
-spicer_soft(n_impute = NULL, step_size = 1L)
+spicer_soft(
+  rank_max_init = 2L,
+  rank_max_ovrl = NULL,
+  rank_stp_size = 1L,
+  lambda = NULL,
+  grid = FALSE
+)
 }
 \arguments{
-\item{n_impute}{An integer indicating the number of imputed
-datasets to create.}
+\item{rank_max_init}{an integer value that restricts the rank of the
+solution for the first \code{softImpute} fit. Sequential fits may have
+higher rank depending upon \code{rank_max_ovrl}, \code{rank_stp_size}, and \code{grid}.}
 
-\item{step_size}{An integer indicating the number by which to increase
-the maximum rank of the softImpute solution after each iteration.}
+\item{rank_max_ovrl}{an integer value that restricts the rank of the
+solution for all \code{softImpute} fits.}
+
+\item{rank_stp_size}{an integer value that indicates how much the maximum
+rank of \code{softImpute} fits should increase between iterations.}
+
+\item{lambda}{nuclear-norm regularization parameter. If \code{lambda = 0},
+the algorithm reverts to "hardImpute", for which convergence is typically
+slower, and to local minimum. Ideally lambda should be chosen so that
+the solution reached has rank slightly less than rank.max. See also
+\code{lambda0()} for computing the smallest \code{lambda} with a zero solution.}
+
+\item{grid}{a logical value. If \code{TRUE}, all combinations of rank and
+lambda are used to fit \code{softImpute} models. If \code{FALSE}, then one
+fit is supplied for each value of \code{lambda}, and increasing maximum
+ranks are paired with decreasing values of \code{lambda}.}
 }
 \value{
 a list with parameter values that can be passed
-directly into \code{missRanger_brew} objects via \link{spice}.
+directly into \code{softImpute_brew} objects via \link{spice}.
 }
 \description{
 It can be a little overwhelming to remember which sets of
 parameters go with each \code{ipa_brew} flavor, so just add a dash
 from a handy \code{spicer} function and get on with your \code{brew}.
 }
-\concept{spices}

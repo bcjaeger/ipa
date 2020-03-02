@@ -1,115 +1,636 @@
 
-softImpute_work <- function(
-  data,
-  type,
-  maxit,
-  thresh,
-  trace.it,
-  rank_max,
-  step_size,
-  verbose_1,
-  verbose_2,
-  final.svd,
-  scale_data,
-  row.center,
-  row.scale,
-  col.center,
-  col.scale,
-  scale_iter,
-  lambda_sequence
+#' Soft imputation
+#'
+#'
+#'
+#' @inheritParams impute_nbrs
+#'
+#' @param rank_max_init an integer value that restricts the rank of the
+#'   solution for the first `softImpute` fit. Sequential fits may have
+#'   higher rank depending upon `rank_max_ovrl`, `rank_stp_size`, and `grid`.
+#'
+#' @param rank_max_ovrl an integer value that restricts the rank of the
+#'   solution for all `softImpute` fits.
+#'
+#' @param rank_stp_size an integer value that indicates how much the maximum
+#'   rank of `softImpute` fits should increase between iterations.
+#'
+#' @param lambda nuclear-norm regularization parameter. If `lambda = 0`,
+#'   the algorithm reverts to "hardImpute", for which convergence is typically
+#'   slower, and to local minimum. Ideally lambda should be chosen so that
+#'   the solution reached has rank slightly less than rank.max. See also
+#'   `lambda0()` for computing the smallest `lambda` with a zero solution.
+#'
+#' @param grid a logical value. If `TRUE`, all combinations of rank and
+#'   lambda are used to fit `softImpute` models. If `FALSE`, then one
+#'   fit is supplied for each value of `lambda`, and increasing maximum
+#'   ranks are paired with decreasing values of `lambda`.
+#'
+#' @param bs a logical value. If `TRUE`, [softImpute::biScale()] is applied
+#'   to `data_ref` or `rbind(data_ref, data_new)` prior to fitting `softImpute`
+#'   models.
+#'
+#' @param bs_maxit an integer indicating the maximum number of iterations
+#'   for the `biScale` algorithm.
+#'
+#' @param bs_thresh convergence threshold for the `biScale` algorithm.
+#'
+#' @param bs_row.center a logical value. If `TRUE`, row centering
+#'   will be performed. If `FALSE` (default), then nothing is done.
+#'
+#' @param bs_col.center a logical value. If `TRUE` (default), column centering
+#'   will be performed. If `FALSE`, then nothing is done.
+#'
+#' @param bs_row.scale a logical value. If `TRUE`, row scaling
+#'   will be performed. If `FALSE` (default), then nothing is done.
+#'
+#' @param bs_col.scale a logical value. If `TRUE` (default), column scaling
+#'   will be performed. If `FALSE`, then nothing is done.
+#'
+#' @param bs_trace with `bs_trace = TRUE`, convergence progress is reported
+#'  for the `biScale` algorithm.
+#'
+#' @param si_type two algorithms are implemented, type="svd" or the default
+#'  type="als". The "svd" algorithm repeatedly computes the svd of the
+#'  completed matrix, and soft thresholds its singular values. Each new
+#'  soft-thresholded svd is used to re-impute the missing entries. For
+#'  large matrices of class "Incomplete", the svd is achieved by an
+#'  efficient form of alternating orthogonal ridge regression. The
+#'  "als" algorithm uses this same alternating ridge regression, but
+#'  updates the imputation at each step, leading to quite substantial
+#'  speedups in some cases. The "als" approach does not currently
+#'  have the same theoretical convergence guarantees as the
+#'  "svd" approach.
+#'
+#' @param si_final.svd only applicable to type="als". The alternating
+#'  ridge-regressions do not lead to exact zeros. With the default
+#'  final.svd=TRUE, at the final iteration, a one step unregularized
+#'  iteration is performed, followed by soft-thresholding of the
+#'  singular values, leading to hard zeros.
+
+#' @param si_thresh convergence threshold for the `softImpute` algorithm,
+#'  measured as the relative change in the Frobenius norm between two
+#'  successive estimates.
+#'
+#' @param si_maxit maximum number of iterations for the `softImpute`
+#'   algorithm.
+#'
+#' @param si_trace with `si_trace = TRUE`, convergence progress is reported
+#'  for the `softImpute` algorithm.
+#'
+#' @param si_final.svd only applicable to `si_type = "als"`. The alternating
+#'   ridge-regressions do not lead to exact zeros. With the default
+#'   `final.svd = TRUE`, at the final iteration, a one step unregularized
+#'   iteration is performed, followed by soft-thresholding of the
+#'   singular values, leading to hard zeros.
+#'
+#' @return a data frame with fitting parameters and imputed values.
+#'
+#' @details
+#'
+#' **Multiple imputation**: The number of imputations returned depends on
+#'   `rank_max_init`, `rank_max_ovrl`, `rank_stp_size`, `lambda`, and `grid`.
+#'    If `grid` is `FALSE`, then there will be `length(lambda)` imputed value
+#'    sets in the returned output, and they will be based on fitted
+#'    `softImpute` models with increasing maximum ranks. Generally, these ranks
+#'    are `seq(rank_max_init, rank_max_ovrl, by = rank_stp_size)`, but will
+#'   be automatically adjusted to have consistency with (1) `lambda` and
+#'   (2) the maximum allowed rank for `data_ref` as needed. If `grid` is
+#'   `TRUE`, then every combination of `lambda` and the rank sequence
+#'   will be fitted and the output will contain one set of imputed values
+#'   for each combination.
+#'
+#' **Rank inputs**: If rank is sufficiently large, and with `si_type="svd"`,
+#'   the `softImpute` algorithm solves the nuclear-norm convex
+#'   matrix-completion problem (see Reference 1). In this case the number
+#'   of nonzero singular values returned will be less than or equal to
+#'   the maximum rank. If smaller ranks are used, the solution is not
+#'   guaranteed to solve the problem, although still results in good local
+#'   minima. The rank of a `softImpute` fit should not exceed
+#'   `min(dim(data_ref) - 1`.
+#'
+#' **biScale** The [softImpute::biScale()] function is more flexible than
+#'   the current function indicates. Specifically, `biScale` allows users
+#'   to supply vectors to its row/column centering/scaling inputs that will
+#'   in turn be used to center/scale the corresponding rows/columns.
+#'   `impute_soft()` is more strict and does not offer this option.
+#'   Also, `impute_soft()` uses different default values to increase the
+#'   likelihood of the `biScale` algorithm converging quickly.
+#'
+#' @references
+#'
+#' 1. Rahul Mazumder, Trevor Hastie and Rob Tibshirani (2010) Spectral
+#' Regularization Algorithms for Learning Large Incomplete Matrices,
+#' http://www.stanford.edu/~hastie/Papers/mazumder10a.pdf,
+#' Journal of Machine Learning Research 11 (2010) 2287-2322
+#'
+#' @export
+#'
+impute_soft <- function(
+  data_ref,
+  data_new = NULL,
+  rank_max_init = 2,
+  rank_max_ovrl = min(dim(data_ref)-1),
+  rank_stp_size = 1,
+  lambda = seq(rank_max_ovrl * 0.60, 1, length.out = 10),
+  grid = FALSE,
+  bs = TRUE,
+  bs_maxit = 20,
+  bs_thresh = 1e-09,
+  bs_row.center = FALSE,
+  bs_col.center = TRUE,
+  bs_row.scale = FALSE,
+  bs_col.scale = TRUE,
+  bs_trace = TRUE,
+  si_type = "als",
+  si_thresh = 1e-05,
+  si_maxit = 100,
+  si_trace = TRUE,
+  si_final.svd = TRUE
 ){
 
-  if(!is.matrix(data)) data <- as.matrix(data)
+  # Safety checks start:
 
-  # Containers for results
-  n_fits <- length(lambda_sequence)
-  fit_args <- fits <- vector(mode = 'list', length = n_fits)
-  max_ranks <- vector(mode = 'integer', length = n_fits)
+  check_int(rank_max_init, label = 'initial max rank (rank_max_init)')
+  check_int(rank_stp_size, label = 'rank step size (rank_stp_size)')
+  check_int(rank_max_ovrl, label = 'overall max rank')
 
-  if(scale_data){
+  check_l1_warn(grid, label = 'grid')
+  check_bool(grid, label = 'grid')
 
-    if(verbose_1) message("Applying biScale() to data")
+  check_min_lax(rank_max_init, value = 2,
+    label = 'initial max rank (rank_max_init)')
 
-    data <- try(
-      softImpute::biScale(
-        x = data,
-        maxit = scale_iter,
-        row.center = row.center,
-        row.scale  = row.scale,
-        col.center = col.center,
-        col.scale  = col.scale,
-        trace = verbose_1
-      ),
-      silent = TRUE
-    )
+  check_max_lax(rank_max_init, value = min(dim(data_ref) - 1),
+    label = 'initial max rank (rank_max_init)')
 
-    if(class(data)[1] == 'try-error') stop(
-      "unable to run biScale on brew data",
-      call. = FALSE
-    )
+  check_min_lax(rank_max_ovrl, value = 2,
+    label = 'overall max rank (rank_max_ovrl)')
+
+  check_max_lax(rank_max_ovrl, value = min(dim(data_ref) - 1),
+    label = 'overall max rank (rank_max_ovrl)')
+
+  check_min_lax(rank_stp_size, value = 1,
+    label = 'rank step size (rank_stp_size)')
+
+  check_min_lax(lambda, label = 'lambda', value = 0)
+
+
+  check_bool(bs, label = 'biScale indicator (bs)')
+  check_l1_stop(bs, label = 'biScale indicator (bs)')
+
+  check_int(bs_maxit, label = 'maximum biScale iterations (bs_maxit)')
+  check_min_lax(bs_maxit, value = 0,
+    label = 'maximum biScale iterations (bs_maxit)')
+
+  check_min_lax(bs_thresh, value = 0,
+    label = 'biScale convergence threshold (bs_thresh)')
+
+  check_min_lax(bs_thresh,
+    label = 'biScale convergence threshold (bs_thresh)',
+    value = 0)
+
+  check_bool(bs_row.scale,
+    label = 'biScale row scaling indicator (bs_row.scale)')
+  check_bool(bs_col.scale,
+    label = 'biScale column scaling indicator (bs_col.scale)')
+  check_bool(bs_row.center,
+    label = 'biScale row centering indicator (bs_row.center)')
+  check_bool(bs_col.center,
+    label = 'biScale column centering indicator (bs_col.center)')
+
+  check_l1_stop(bs_row.scale,
+    label = 'biScale row scaling indicator (bs_row.scale)')
+  check_l1_stop(bs_col.scale,
+    label = 'biScale column scaling indicator (bs_col.scale)')
+  check_l1_stop(bs_row.center,
+    label = 'biScale row centering indicator (bs_row.center)')
+  check_l1_stop(bs_col.center,
+    label = 'biScale column centering indicator (bs_col.center)')
+
+  check_chr(si_type, options = c('als', 'svd'),
+    label = 'softImpute type (si_type)')
+
+  check_min_lax(si_thresh, value = 0,
+    label = 'softImpute convergence threshold (si_thresh)')
+
+  # if data_ref is given and nothing else
+  # --> create fits for data_ref, return fits + imputed data refs
+  # if data_ref/data_new are given, but no fits
+  # --> create fits for rbind(data_ref, data_new), return imputed data_news
+  # if data_ref/data_new + fits are given,
+  # --> same as above but use warm starts
+
+  # convert data frames into data.table objects if needed
+  if(!is.data.table(data_ref)) setDT(data_ref)
+
+  # convert characters to factors
+  # modifying in place rather than copying data
+  # the code is less readable but more performant
+  if(any(sapply(data_ref, is.character))){
+
+    chr_cols <- names(data_ref)[sapply(data_ref, is.character)]
+
+    for(col in chr_cols)
+      set(data_ref, j = col, value = as.factor(data_ref[[col]]))
 
   }
 
-  # Initial args
-  args <- list(
-    x = data,
-    type = type,
-    thresh = thresh,
-    maxit = maxit,
-    trace.it = trace.it,
-    final.svd = final.svd
-  )
+  # repeat the code above for the testing data if it exists.
+  if(!is.null(data_new)){
 
-  # These get updated in the for-loop below
-  # They are left out of args for now on purpose
-  # (makes it easier to add them in the for-loop)
-  rank.max <- rank_max
-  warm = NULL
+    if(!is.data.table(data_new)) setDT(data_new)
 
-  if(verbose_1) message("Fitting soft-impute models")
+    if(any(sapply(data_new, is.character))){
 
-  for( i in seq(n_fits) ){
+      chr_cols <- names(data_new)[sapply(data_new, is.character)]
 
-    # Update args
-    args$lambda <- lambda_sequence[i]
-    # rank.max and warm are updated at the end of the for-loop
-    # then the values are carried over and plugged into args
-    # at the beginning of the for-loop.
-    args$rank.max <- rank.max
-    args$warm.start <- warm
-
-    fit <- do.call(softImpute::softImpute, args = args)
-
-    # Determine the rank of the fit, which may or may not
-    # be as high as the maximum rank.
-    attr(fit, 'rank') <- sum(round(fit$d, 4) > 0)
-
-    # update rank.max and warm
-    rank.max <- min(attr(fit, 'rank') + step_size, rank_max)
-    warm <- fit
-
-    # Update containers
-    max_ranks[i] = rank.max
-    fits[[i]] = fit
-    # args has two heavy objects we don't need
-    keep_out <- which(names(args) %in% c('x','warm.start'))
-    fit_args[[i]] <- args[-keep_out]
-
-    if(verbose_1){
-
-      print(
-        glue::glue(
-          "fit {i} of {n_fits}: \\
-            lambda = {format(round(lambda_sequence[i], 3),nsmall=3)}, \\
-            rank.max = {rank.max} \\
-            rank.fit = {attr(fit, 'rank')}"
-        )
-      )
+      for(col in chr_cols)
+        set(data_new, j = col, value = as.factor(data_new[[col]]))
 
     }
 
   }
 
-  tibble::tibble(impute = seq(n_fits), fit = fits, args = fit_args)
+  # data_ref should have >0 observed values in each row/column
+  check_data_ref(data_ref)
+
+
+  # variable types should be...
+  vt <- c('numeric', 'integer', 'factor')
+  check_var_types(data_ref, valid_types = vt)
+
+  # if new data are supplied,
+  # it should have exactly the same names and types as reference data
+  if(!is.null(data_new)){
+    check_data_new_names(data_ref, data_new)
+    check_data_new_types(data_ref, data_new)
+  }
+
+  # bind data into one bundle
+  # (this is the only way for si to impute new data)
+  data_all <- rbindlist(list(data_ref, data_new))
+
+  impute_indx <- lapply(data_all, function(x) which(is.na(x))) %>%
+    purrr::discard(purrr::is_empty)
+
+  if(purrr::is_empty(impute_indx)){
+    warning("There are no missing values in the data",
+      call. = FALSE)
+    # TODO: make this output consistent with the normal output
+    # (for grid = TRUE)
+    output <- data.table(
+      impute   = seq(length(lambda)),
+      lambda   = lambda,
+      rank_max = NA,
+      rank_fit = NA,
+      fit      = NA,
+      impute_vals = NA
+    )
+
+    return(data_new %||% data_ref)
+  }
+
+  # names with . in front indicate one-hot encoded data
+  # data_all and .data_all are both needed - don't try to optimize
+  .data_all <- one_hot(data_all)
+
+  .impute_indx <- lapply(.data_all, function(x) which(is.na(x))) %>%
+    purrr::discard(purrr::is_empty)
+
+  if(bs){
+
+    if(bs_trace) message("Applying biScale() to data")
+
+    # safety checks for biscale
+    # if you scale columns, each column needs >= 2 unique values.
+    if(bs_col.scale){
+
+      cnst_cols <- .data_all %>%
+        apply(2, function(x) length(unique(na.omit(x)))==1)
+
+      if(any(cnst_cols)){
+
+        cnst_cols <- names(which(cnst_cols))
+
+        stop('cannot compute standard deviation (i.e., column scale)',
+          ' because some columns are constant: ', list_things(cnst_cols),
+          call. = FALSE)
+
+      }
+
+    }
+
+    if(bs_row.scale){
+
+      cnst_rows <- .data_all %>%
+        apply(1, function(x) length(unique(na.omit(x))) == 1)
+
+      if(any(cnst_rows)){
+
+        cnst_rows <- names(which(cnst_rows))
+
+        stop('cannot compute standard deviation (i.e., row scale)',
+          ' because some rows are constant: ', list_things(cnst_rows),
+          call. = FALSE)
+
+      }
+
+    }
+
+    # this converts .data_all into a matrix
+    # and adds scaling attributes to it
+    .data_all <- .data_all %>%
+      softImpute::biScale(
+        maxit      = bs_maxit,
+        thresh     = bs_thresh,
+        row.center = bs_row.center,
+        row.scale  = bs_row.scale,
+        col.center = bs_col.center,
+        col.scale  = bs_col.scale,
+        trace      = bs_trace
+      )
+
+  } else {
+
+    .data_all <- as.matrix(.data_all)
+
+  }
+
+  .args_softimp = list(
+    type       = si_type,
+    thresh     = si_thresh,
+    maxit      = si_maxit,
+    trace.it   = si_trace,
+    final.svd  = si_final.svd
+  )
+
+  .soft_fun <- if(grid) .soft_fit_grid else .soft_fit
+
+  imputes <- .soft_fun(
+    data            = .data_all,
+    rank_max_init   = rank_max_init,
+    rank_max_ovrl   = rank_max_ovrl,
+    rank_stp_size   = rank_stp_size,
+    lambda_sequence = lambda,
+    args_softimp    = .args_softimp
+  )
+
+  impute_vals <- imputes$fit %>%
+    # converting the soft impute fits into a list of numeric values
+    # corresponding to the indices that need to be imputed for each
+    # one-hot encoded column.
+    purrr::map(.soft_impute, miss_row = .impute_indx, data = .data_all) %>%
+    # converting the imputed columns back into the format given in data.
+    # this should leave us with a list that can be directly plugged in.
+    purrr::map(restore_vectypes, data = data_all, impute_indx = impute_indx,
+      fctr_info = get_factor_info(data_all))
+
+  # if data_new are supplied, only data_new should be imputed.
+  if(!is.null(data_new)){
+
+    # the indices in impute_indx should be kept only if they
+    # index something in data_new, i.e., only if they are
+    # greater than the number of rows in data_ref
+    impute_indx <- purrr::map(impute_indx, ~.x > nrow(data_ref))
+    # re-order names of impute_indx to match impute vals
+    impute_indx <- impute_indx[names(impute_vals[[1]])]
+
+    impute_vals <- purrr::map(
+      .x = impute_vals,
+      .f = function(ivals){
+        purrr::map2(ivals, impute_indx, ~.x[.y])
+      }
+    )
+
+  }
+
+  set(imputes, j = 'imputed_values', value = impute_vals)
+
+  imputes
+
+}
+
+
+restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
+
+  fctr_imputes <- fctr_info$keys %>%
+    purrr::map(~do.call(cbind, impute_vals[.x])) %>%
+    purrr::discard(is.null) %>%
+    purrr::map(apply, 1, which.max)
+
+  if(!purrr::is_empty(fctr_imputes)){
+
+    for(f in names(fctr_imputes)){
+
+      fctr_imputes[[f]] <- factor(
+        fctr_imputes[[f]],
+        levels = 1:length(fctr_info$lvls[[f]]),
+        labels = fctr_info$lvls[[f]]
+      )
+
+    }
+
+    impute_vals[unlist(fctr_info$keys)] <- NULL
+
+  }
+
+  # these are all either double or integer values
+  # imputed values for integers values are coerced
+  # and truncated to the observed min/max
+  for(col in names(impute_vals)){
+
+    if (is.integer(data[[col]])) {
+      impute_vals[[col]] <- as.integer(round(impute_vals[[col]]))
+        # this would truncate to observed range,
+        # but I am not sure that is a great idea.
+        # pmin(max(data[[col]], na.rm = TRUE)) %>%
+        # pmax(min(data[[col]], na.rm = TRUE))
+    }
+
+
+  }
+
+  for(col in names(fctr_imputes)){
+
+    impute_vals[[col]] <- fctr_imputes[[col]]
+
+  }
+
+  impute_vals
+
+}
+
+.soft_fit_grid <- function(
+  data,
+  rank_max_init,
+  rank_max_ovrl,
+  rank_stp_size,
+  lambda_sequence,
+  args_softimp
+){
+
+  rank_sequence <- seq(rank_max_init, rank_max_ovrl, by = rank_stp_size)
+
+  n_fits <- length(lambda_sequence) * length(rank_sequence)
+
+  # Containers for results
+  # These get updated in the for-loop below
+  fits <- vector(mode = 'list', length = n_fits)
+  warm <- NULL
+  indx <- 1
+
+  if(args_softimp$trace.it) message("Fitting soft-impute models")
+
+  for(i in seq_along(rank_sequence)){
+
+    for(j in seq_along(lambda_sequence)){
+
+      fits[[indx]] <- softImpute::softImpute(
+        x          = data,
+        rank.max   = rank_sequence[i],
+        lambda     = lambda_sequence[j],
+        type       = args_softimp$type,
+        thresh     = args_softimp$thresh,
+        maxit      = args_softimp$maxit,
+        trace.it   = args_softimp$trace.it,
+        final.svd  = args_softimp$final.svd,
+        warm.start = warm
+      )
+
+      # Determine the rank of the fit, which may or may not
+      # be as high as the maximum rank.
+      rank_fit <- sum(round(fits[[indx]]$d, 4) > 0)
+
+      attr(fits[[indx]], 'rank')     <- as.integer(rank_fit)
+      attr(fits[[indx]], 'rank_max') <- as.integer(rank_sequence[i])
+
+      if(args_softimp$trace.it){
+
+        print(
+          glue::glue(
+            "fit {indx} of {n_fits}: \\
+            lambda = {format(round(lambda_sequence[j], 3),nsmall=3)}, \\
+            rank.max = {rank_sequence[i]} \\
+            rank.fit = {rank_fit}"
+          )
+        )
+
+      }
+
+      # update fitting parameters
+      rank_max <- min(rank_fit + rank_stp_size, rank_max_ovrl)
+
+      warm <- fits[[indx]]
+
+      indx <- indx + 1
+
+    }
+
+    warm <- fits[[indx - length(lambda_sequence)]]
+
+  }
+
+  expand.grid(
+    lambda = lambda_sequence,
+    rank_max = rank_sequence
+  ) %>%
+    setDT() %>%
+    set(j = 'impute', value = seq(n_fits)) %>%
+    set(j = 'rank_fit', value = purrr::map_int(fits,~attr(.x,'rank'))) %>%
+    set(j = 'fit', value = fits) %>%
+    setcolorder(
+      neworder = c('impute', 'lambda', 'rank_max', 'rank_fit', 'fit')
+    )
+
+}
+
+.soft_fit <- function(
+  data,
+  rank_max_init,
+  rank_max_ovrl,
+  rank_stp_size,
+  lambda_sequence,
+  args_softimp
+){
+
+  n_fits <- length(lambda_sequence)
+
+  # Containers for results
+  # These get updated in the for-loop below
+  fits <- vector(mode = 'list', length = n_fits)
+  rank_max <- rank_max_init
+  warm <- NULL
+
+  if(args_softimp$trace.it) message("Fitting soft-impute models")
+
+  for( i in seq(n_fits) ){
+
+    # create softimpute fit
+    fits[[i]] <- softImpute::softImpute(
+      x          = data,
+      rank.max   = rank_max,
+      lambda     = lambda_sequence[i],
+      type       = args_softimp$type,
+      thresh     = args_softimp$thresh,
+      maxit      = args_softimp$maxit,
+      trace.it   = args_softimp$trace.it,
+      final.svd  = args_softimp$final.svd,
+      warm.start = warm
+    )
+
+    # Determine the rank of the fit, which may or may not
+    # be as high as the maximum rank.
+    rank_fit <- sum(round(fits[[i]]$d, 4) > 0)
+
+    attr(fits[[i]], 'rank')     <- as.integer(rank_fit)
+    attr(fits[[i]], 'rank_max') <- as.integer(rank_max)
+
+    if(args_softimp$trace.it){
+
+      print(
+        glue::glue(
+          "fit {i} of {n_fits}: \\
+            lambda = {format(round(lambda_sequence[i], 3),nsmall=3)}, \\
+            rank.max = {rank_max} \\
+            rank.fit = {rank_fit}"
+        )
+      )
+
+    }
+
+    # update fitting parameters
+    rank_max <- min(rank_fit + rank_stp_size, rank_max_ovrl)
+    warm <- fits[[i]]
+
+
+  }
+
+  data.table(
+    impute   = seq(n_fits),
+    lambda   = lambda_sequence,
+    rank_max = purrr::map_int(fits, ~attr(.x, 'rank_max')),
+    rank_fit = purrr::map_int(fits, ~attr(.x, 'rank')),
+    fit      = fits
+  )
+
+}
+
+
+.soft_impute <- function(fit, miss_row, data){
+
+  miss_col <- purrr::map(names(miss_row),
+    .f = match, table = colnames(data))
+
+  for(i in seq_along(miss_col)){
+    miss_col[[i]] <- rep(miss_col[[i]], length(miss_row[[i]]))
+  }
+
+  purrr::map2(
+    .x = miss_row,
+    .y = miss_col,
+    .f = ~ softImpute::impute(object = fit, i = .x, j = .y) %>%
+      purrr::set_names(NULL)
+  )
 
 }

@@ -1,29 +1,18 @@
 
-#' ipa: a framework for multiple imputation with decision trees
-#'   in the tidyverse.
+#' imputation for predictive analytics - ipa.
 #'
-#' ipa provides a flexible set of tools to help develop
-#'   ensembles of decision trees using training data that contain
-#'   missing values.
-#'
-#' It has two main goals:
-#'
-#' \itemize{
-#' \item Provide functions to conduct multiple imputation in roughly the
-#'   same computational cost as single imputation with common algorithms
-#'   (i.e., \code{\link[missForest]{missForest}} and \code{\link[VIM]{kNN}}).
-#' \item Provide convenient wrappers for xgboost that allow a simplified
-#'   workflow to compare different strategies to handle missing values.
-#' }
+#' ipa provides functions to help you design and use effective
+#'   strategies to handle missing data.
 #'
 #' To learn more about ipa, start with the vignettes:
 #' `browseVignettes(package = "ipa")`
 #'
 #' @importFrom rlang %||%
+#' @importFrom stats median na.omit
+#' @import data.table
 #'
-#' @importFrom gower gower_topn
 #'
-#' @importFrom magrittr %>% %<>%
+#'
 
 "_PACKAGE"
 
@@ -32,15 +21,26 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(
   c(".",
     'fit',
     'name',
+    'type',
     'value',
-    '._ID_.',
+    'score',
+    '..cols',
+    '..outcome',
+    '..keep_cols',
+    '..impute_prds',
     'impute',
     'lambda',
     'aggr_fun',
     'variable',
     'node_size',
     'donor_size',
-    'k_neighbors'
+    'k_neighbors',
+    'rank_max',
+    'rank_fit',
+    'pars',
+    'rank_max_init',
+    'rank_max_ovrl',
+    'rank_stp_size'
   )
 )
 

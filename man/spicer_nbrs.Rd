@@ -4,18 +4,17 @@
 \alias{spicer_nbrs}
 \title{Neighbor's spices}
 \usage{
-spicer_nbrs(neighbors = seq(5, 25, by = 5), aggr_neighbors = TRUE)
+spicer_nbrs(k_neighbors = seq(10), aggregate = TRUE)
 }
 \arguments{
-\item{neighbors}{the number of neighbors used for imputation.
-One imputed dataset is created for each value given. For
-example, to make two imputed datasets using 1 and 2
-nearest neighbors, one would write \code{neighbors = c(1,2)}}
+\item{k_neighbors}{a numeric vector indicating how many neighbors should
+be used to impute missing values.}
 
-\item{aggr_neighbors}{(\code{TRUE} / \code{FALSE}) whether neighbor's
-values should be aggregated or sampled. If \code{TRUE}, then
-the mean/mode of neighboring values will be used. Otherwise,
-one neighbor's value will be sampled at random.}
+\item{aggregate}{a logical value. If \code{TRUE}, then neighbors
+will be aggregated to generate imputations. If \code{FALSE}, then one
+neighbor will be sampled at random to generate a missing value. Using
+\code{aggregate = FALSE} can be helpful if you are conducting
+multiple imputation.}
 }
 \value{
 a list with parameter values that can be passed

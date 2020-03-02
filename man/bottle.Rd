@@ -4,14 +4,15 @@
 \alias{bottle}
 \title{Bottle a brew}
 \usage{
-bottle(brew, type = c("tibble", "matrix"), drop_fit = TRUE)
+bottle(brew, type = "tibble", drop_fit = TRUE)
 }
 \arguments{
 \item{brew}{a \code{brew} object that has been passed through all
 the brewing steps: \link{brew}, \link{spice}, \link{mash}, and \link{ferment}.}
 
 \item{type}{a character value indicating what composition
-the training and testing data will be returned as.}
+the training and testing data should have. Valid options
+are 'tibble' and 'matrix'}
 
 \item{drop_fit}{(\code{TRUE} / \code{FALSE}). If \code{TRUE}, the column in
 the \code{wort} comprising imputation models will be dropped.

@@ -8,8 +8,7 @@
 #' @param ... additional arguments for specific brew flavors.
 #'
 #' @param with the output of a helper function for spicing brews.
-#'   The helper functions are [spicer_nbrs], [spicer_soft], and
-#'   [spicer_rngr].
+#'   The helper functions are [spicer_nbrs] and [spicer_soft]
 #'
 #' @return a spiced `ipa_brew`, with imputation
 #'    parameters just how you like them.
@@ -28,130 +27,71 @@
 #' data[1:2, 1:2] = NA
 #'
 #' knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-#' spicy_knn <- spice(knn_brew, neighbors = c(3, 5), aggr_neighbors = TRUE)
+#' spicy_knn <- spice(knn_brew, k_neighbors = c(3, 5), aggregate = TRUE)
 #'
 #' sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-#' spicy_sft <- spice(sft_brew, n_impute = 2)
+#' spicy_sft <- spice(sft_brew, with = spicer_soft(grid = TRUE))
 #'
-
-
 spice <- function(brew, with = NULL, ...){
 
   UseMethod("spice")
 
 }
 
-simple_spice <- function(brew){
-
-  check_brew(brew, expected_stage = 'spice')
-
-  spice(brew)
-
-}
-
 #' @export
-
 spice.kneighbors_brew <- function(brew, with = NULL, ...){
 
   check_brew(brew, expected_stage = 'spice')
   check_spicer(with, expected = 'spicer_nbrs')
 
-  args <- with %||% check_dots(
-    list(...),
-    valid_args = c(
-      'neighbors',
-      'aggr_neighbors'
-    )
-  )
+  args <- with %||% check_dots(list(...),
+    valid_args = c('k_neighbors', 'aggregate')) %>%
+    # drop the spicer class
+    unclass()
 
-  if(length(args$aggr_neighbors) > 1){
-    warning("aggr_neighbors should have only one value, but it has ",
-      length(args$aggr_neighbors), ". Only the first value will be used.")
+  args$k_neighbors <- args$k_neighbors %||% seq(5, 50, by = 5)
 
-    args$aggr_neighbors <- args$aggr_neighbors[1]
+  args$aggregate <- args$aggregate %||% TRUE
+
+  if (check_l1_warn(args$aggregate, label = 'aggregate'))
+    args$aggregate <- args$aggregate[1]
+
+  if (any(args$k_neighbors < brew$lims$neighbors$min)) {
+
+    warning(glue::glue(
+      "neighbor values < {brew$lims$neighbors$min} have been removed"),
+      call. = FALSE)
+
+    args$k_neighbors <-
+      args$k_neighbors[args$k_neighbors >= brew$lims$neighbors$min]
 
   }
 
-  if( any(args$neighbors < brew$lims$neighbors$min) ) {
-    stop(glue::glue("all neighbor sequence values ",
-      "must be >= {brew$lims$neighbors$min}"),
-      call. = FALSE
-    )
+  if (any(args$k_neighbors > brew$lims$neighbors$max)) {
+
+    warning(glue::glue("neighbor values > {brew$lims$neighbors$max}",
+    " (max no. of neighbors for the given data) have been removed"),
+      call. = FALSE)
+
+    args$k_neighbors <-
+      args$k_neighbors[args$k_neighbors <= brew$lims$neighbors$max]
+
   }
 
-  if( any(args$neighbors > brew$lims$neighbors$max) ) {
-    stop(glue::glue("all neighbor sequence values ",
-      "must be <= {brew$lims$neighbors$max}"),
-      call. = FALSE
-    )
+  if(purrr::is_empty(args$k_neighbors)){
+
+    stop("all k_neighbor values were outside of the expected range",
+      call. = FALSE)
+
   }
 
-  brew$pars <- list(
-    n_impute = length(args$neighbors),
-    nbrs = args$neighbors,
-    aggr = args$aggr_neighbors %||% TRUE
-  )
 
-  attr(brew, 'spiced') <- TRUE
+  brew$pars <- args
+
+  attr(brew, 'n_impute') <- length(args$k_neighbors)
+  attr(brew, 'spiced')   <- TRUE
 
   brew
-
-
-}
-
-#' @export
-
-spice.missRanger_brew <- function(brew, with = NULL, ...){
-
-  check_brew(brew, expected_stage = 'spice')
-  check_spicer(with, expected = 'spicer_rngr')
-
-  args <- with %||% check_dots(
-    list(...),
-    valid_args = c(
-      'min_node_sizes',
-      'pmm_donor_sizes'
-    )
-  )
-
-  ns_seq <- args$min_node_sizes
-
-  if( any(ns_seq < brew$lims$node_size$min) ) {
-    stop(glue::glue("all node size values ",
-      "must be >= {brew$lims$node_size$min}"),
-      call. = FALSE
-    )
-  }
-
-  if( any(ns_seq > brew$lims$node_size$max) ) {
-    stop(glue::glue("all node size values ",
-      "must be <= {brew$lims$node_size$max}"),
-      call. = FALSE
-    )
-  }
-
-  pm_seq <- args$pmm_donor_sizes %||% rep(0, length(ns_seq))
-
-  if(length(pm_seq) == 1)
-    pm_seq <- rep(pm_seq, length(ns_seq))
-
-  if(length(pm_seq) != length(ns_seq))
-    stop(
-      'predictive mean matching donor sequence should be ',
-      'length 1 or the same length as node size sequence.',
-      call. = FALSE
-    )
-
-  brew$pars <- list(
-    n_impute = length(ns_seq),
-    node_size = ns_seq,
-    donor_size = pm_seq
-  )
-
-  attr(brew, 'spiced') <- TRUE
-
-  brew
-
 
 }
 
@@ -164,33 +104,56 @@ spice.softImpute_brew <- function(brew, with = NULL, ...){
   check_spicer(with, expected = 'spicer_soft')
 
   args <- with %||% check_dots(
-    list(...),
-    valid_args = c(
-      'n_impute',
-      'step_size'
-    )
+    list(...), valid_args = c('rank_max_init','rank_max_ovrl',
+      'rank_stp_size','lambda','grid')) %>%
+    # drop the spicer class
+    unclass()
+
+  # add defaults if needed
+  args$rank_max_init <- args$rank_max_init %||% 2
+  args$rank_stp_size <- args$rank_stp_size %||% 1
+  args$rank_max_ovrl <- args$rank_max_ovrl %||% min(dim(brew$data$training)-1)
+  args$lambda <- args$lambda %||% seq(args$rank_max_ovrl*.6, 1, length.out=10)
+  args$grid <- args$grid %||% FALSE
+
+  check_int(args$rank_max_init, label = 'initial max rank (rank_max_init)')
+  check_int(args$rank_stp_size, label = 'rank step size (rank_stp_size)')
+
+  if(!is.null(args$rank_max_ovrl))
+    check_int(args$rank_max_ovrl, label = 'overall max rank')
+
+  check_bool(args$grid, label = 'grid')
+  check_l1_warn(args$grid, label = 'grid')
+
+  check_min_lax(args$rank_max_init,
+    label = 'initial max rank (rank_max_init)',
+    value = brew$lims$rank_max_init$min)
+
+  check_max_lax(args$rank_max_init,
+    label = 'initial max rank (rank_max_init)',
+    value = brew$lims$rank_max_init$max)
+
+  check_min_lax(args$rank_max_ovrl,
+    label = 'overall max rank (rank_max_ovrl)',
+    value = brew$lims$rank_max_ovrl$min)
+
+  check_max_lax(args$rank_max_ovrl,
+    label = 'overall max rank (rank_max_ovrl)',
+    value = brew$lims$rank_max_ovrl$max)
+
+  check_min_lax(args$rank_stp_size,
+    label = 'rank step size (rank_stp_size)',
+    value = brew$lims$rank_stp_size$min
   )
 
-  n_impute <- args$n_impute %||% min(10, brew$lims$rank$max)
-  step_size <- args$step_size %||% 1L
+  check_min_lax(args$lambda, label = 'lambda', value = 0)
 
-  check_pos_int(n_impute, label = 'number of imputations')
-  check_pos_int(step_size, label = 'step size')
+  n_rank <- with(args, seq(rank_max_init, rank_max_ovrl, by = rank_stp_size))
+  n_lambda <- length(args$lambda)
 
-  check_step_size(
-    step_size = step_size,
-    n_impute =  n_impute,
-    max_rank =  brew$lims$rank$max
-  )
-
-  brew$pars <- list(
-    min_rank = brew$lims$rank$min,
-    max_rank = brew$lims$rank$max,
-    n_impute = n_impute,
-    step_size = step_size
-  )
-
-  attr(brew, 'spiced') <- TRUE
+  brew$pars <- args
+  attr(brew, 'n_impute') <- if (args$grid) n_rank * n_lambda else n_lambda
+  attr(brew, 'spiced')   <- TRUE
 
   brew
 
@@ -203,57 +166,26 @@ spice.softImpute_brew <- function(brew, with = NULL, ...){
 #' parameters go with each `ipa_brew` flavor, so just add a dash
 #' from a handy `spicer` function and get on with your `brew`.
 #'
-#' @param n_impute An integer indicating the number of imputed
-#'    datasets to create.
-#'
-#' @param step_size An integer indicating the number by which to increase
-#'    the maximum rank of the softImpute solution after each iteration.
+#' @inheritParams impute_soft
 #'
 #' @return a list with parameter values that can be passed
-#'   directly into `missRanger_brew` objects via [spice].
-#'
-#' @concept spices
+#'   directly into `softImpute_brew` objects via [spice].
 #'
 #' @export
 #'
-spicer_soft <- function(n_impute=NULL, step_size = 1L){
-  check_pos_int(step_size, label = 'step size')
+spicer_soft <- function(rank_max_init = 2L, rank_max_ovrl = NULL,
+  rank_stp_size = 1L, lambda = NULL, grid = FALSE
+){
+
   structure(
-    .Data = list(n_impute = n_impute, step_size = step_size),
+    .Data = list(
+      rank_max_init = rank_max_init,
+      rank_max_ovrl = rank_max_ovrl,
+      rank_stp_size = rank_stp_size,
+      lambda = lambda,
+      grid = grid[1]
+    ),
     class = 'spicer_soft'
-  )
-}
-
-#' Ranger's spices
-#'
-#' It can be a little overwhelming to remember which sets of
-#' parameters go with each `ipa_brew` flavor, so just add a dash
-#' from a handy `spicer` function and get on with your `brew`.
-#'
-#' @param min_node_sizes Minimal node size of a leaf in a decision tree.
-#'   Increasing the minimal node size reduces the chance of overfitting.
-#'
-#' @param pmm_donor_sizes Number of candidate non-missing values to
-#'   sample from in the predictive mean matching step.
-#'   Set `pmm_donor_sizes = 0` to skip this step.
-#'
-#' @return a list with parameter values that can be passed
-#'   directly into `missRanger_brew` objects via [spice].
-#'
-#' @concept spices
-#'
-#' @export
-#'
-
-spicer_rngr <- function(
-  min_node_sizes = seq(5, 25, by = 5),
-  pmm_donor_sizes = 0L
-) {
-
-  structure(
-    .Data = list(min_node_sizes = min_node_sizes,
-      pmm_donor_sizes = pmm_donor_sizes),
-    class = 'spicer_rngr'
   )
 }
 
@@ -263,15 +195,7 @@ spicer_rngr <- function(
 #' parameters go with each `ipa_brew` flavor, so just add a dash
 #' from a handy `spicer` function and get on with your `brew`.
 #'
-#' @param neighbors the number of neighbors used for imputation.
-#'    One imputed dataset is created for each value given. For
-#'    example, to make two imputed datasets using 1 and 2
-#'    nearest neighbors, one would write `neighbors = c(1,2)`
-#'
-#' @param aggr_neighbors (`TRUE` / `FALSE`) whether neighbor's
-#'   values should be aggregated or sampled. If `TRUE`, then
-#'   the mean/mode of neighboring values will be used. Otherwise,
-#'   one neighbor's value will be sampled at random.
+#' @inheritParams impute_nbrs
 #'
 #' @return a list with parameter values that can be passed
 #'   directly into `kneighbors_brew` objects via [spice].
@@ -283,33 +207,21 @@ spicer_rngr <- function(
 #'
 
 spicer_nbrs <- function(
-  neighbors = seq(5, 25, by = 5),
-  aggr_neighbors = TRUE
+  k_neighbors = seq(10),
+  aggregate = TRUE
 ){
 
-  stopifnot(is.logical(aggr_neighbors))
-
-  if(length(aggr_neighbors) != 1)
-    stop("neighborhood_aggregate should be length 1",
-      " but is length ", length(neighbor_aggregate)
-    )
-
   structure(
-    .Data = list(neighbors = neighbors,
-      aggr_neighbors = aggr_neighbors),
+    .Data = list(k_neighbors = k_neighbors,
+      aggregate = aggregate),
     class = 'spicer_nbrs'
   )
 
 }
 
-#' @rdname spice
-#' @export
 
-is_spiced <- function(brew){
-  attr(brew, 'spiced')
-}
 
 
 is_spicer <- function(x){
-  inherits(x, paste("spicer", c('nbrs','rngr','soft'), sep = '_'))
+  inherits(x, paste("spicer", c('nbrs','soft'), sep = '_'))
 }

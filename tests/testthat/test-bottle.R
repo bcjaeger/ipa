@@ -3,80 +3,77 @@ test_that(
   "good inputs work, bad inputs get good messages",
   {
 
-    set.seed(329)
+    x1 = rnorm(100)
+    x2 = rnorm(100) + x1
+    x3 = rnorm(100) + x1 + x2
+    x4 = rnorm(100) + x1 + x2 + x3
 
-    data <- data.frame(
-      x1 = 1:10,
-      x2 = 1:10,
-      outcome = 1:10 + runif(10)
+    outcome = 0.5 * (x1 - x2 + x3 + x4)
+
+    data <- data.frame(x1=x1, x2=x2, x3=x3, x4=x4, outcome=outcome)
+
+    n_miss = 10
+
+    trn = data[1:40, ]
+    tst = data[41:100, ]
+
+    trn[1:n_miss,'x1'] = NA
+    tst[1:n_miss,'x1'] = NA
+
+    # ---- tibble soft brew
+
+    sft_brew <- brew_soft(trn, outcome = outcome, bind_miss = TRUE) %>%
+      mash() %>%
+      ferment(data_new = tst) %>%
+      bottle(type = 'tibble')
+
+    expect_true(is_bottled(sft_brew))
+    expect_is(sft_brew$wort, 'tbl_df')
+
+    expect_true(all(sapply(sft_brew$wort$training, nrow) == nrow(trn)))
+    expect_true(all(sapply(sft_brew$wort$testing, nrow) == nrow(tst)))
+    expect_true(all(names(trn) %in% names(sft_brew$wort$training[[1]])))
+    expect_true(all(names(tst) %in% names(sft_brew$wort$testing[[1]])))
+
+    # ---- matrix soft brew
+
+    sft_mats <- brew_soft(trn, outcome = outcome, bind_miss = TRUE) %>%
+      mash() %>%
+      ferment(data_new = tst) %>%
+      bottle(type = 'matrix') %>%
+      purrr::pluck('wort') %>%
+      tidyr::unnest_wider(training, names_sep = '_') %>%
+      tidyr::unnest_wider(testing, names_sep = '_')
+
+    expect_equal(
+      names(sft_mats),
+      c(
+        "impute",
+        "pars",
+        "training_X",
+        "training_Y",
+        "testing_X",
+        "testing_Y"
+      )
     )
 
-    new_data <- data.frame(
-      x1 = 10:1,
-      x2 = 1:10,
-      outcome = 1:10 + runif(10)
-    )
+    expect_is(sft_mats$training_X[[1]], 'matrix')
+    expect_is(sft_mats$training_Y[[1]], 'matrix')
 
-    data[1, 1] = NA
-    new_data[1, 1] = NA
+    # ---- tibble nbrs brew
 
-
-    knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-    sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-    rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
-
-    knn_brew <- spice(knn_brew, neighbors = 1:5, aggr_neighbors = T)
-    sft_brew <- spice(sft_brew, n_impute = 1)
-    rgr_brew <- spice(rgr_brew, min_node_sizes=1, pmm_donor_sizes = 1)
-
-    knn_brew <- mash(knn_brew)
-    sft_brew <- mash(sft_brew, masher_soft(scale_data = F))
-    rgr_brew <- mash(rgr_brew, masher_rngr(num.trees = 1))
-
-    knn_brew <- ferment(knn_brew)
-    sft_brew <- ferment(sft_brew)
-    rgr_brew <- ferment(rgr_brew)
-
-    knn_brew <- bottle(knn_brew)
-    sft_brew <- bottle(sft_brew)
-    rgr_brew <- bottle(rgr_brew)
-
-    expect_is(knn_brew, 'tbl_df')
-    expect_is(sft_brew, 'tbl_df')
-    expect_is(rgr_brew, 'tbl_df')
-
-    expect_is(knn_brew$training[[1]], 'tbl_df')
-    expect_is(sft_brew$training[[1]], 'tbl_df')
-    expect_is(rgr_brew$training[[1]], 'tbl_df')
-
-    knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-    sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
-    rgr_brew <- brew(data, outcome = outcome, flavor = 'missRanger')
-
-    knn_brew <- spice(knn_brew, neighbors = 1:5, aggr_neighbors = T)
-    sft_brew <- spice(sft_brew, n_impute = 1)
-    rgr_brew <- spice(rgr_brew, min_node_sizes=1, pmm_donor_sizes = 1)
-
-    knn_brew <- mash(knn_brew)
-    sft_brew <- mash(sft_brew, masher_soft(scale_data = F))
-    rgr_brew <- mash(rgr_brew, masher_rngr(num.trees = 1))
-
-    knn_brew <- ferment(knn_brew, new = test_nbrs(new_data))
-    sft_brew <- ferment(sft_brew, new = test_nbrs(new_data))
-    rgr_brew <- ferment(rgr_brew, new = test_nbrs(new_data))
-
-    knn_brew <- bottle(knn_brew, type = 'matrix')
-    sft_brew <- bottle(sft_brew, type = 'matrix')
-    rgr_brew <- bottle(rgr_brew, type = 'matrix')
-
-    expect_is(sft_brew$new[[1]]$X, 'matrix')
-    expect_is(sft_brew$new[[1]]$Y, 'matrix')
-
-    expect_is(rgr_brew$new[[1]]$X, 'matrix')
-    expect_is(rgr_brew$new[[1]]$Y, 'matrix')
-
-    expect_is(knn_brew$new[[1]]$X, 'matrix')
-    expect_is(knn_brew$new[[1]]$Y, 'matrix')
+    # knn_brew <- brew_nbrs(trn, outcome = outcome, bind_miss = FALSE) %>%
+    #   mash() %>%
+    #   ferment(data_new = tst) %>%
+    #   bottle(type = 'tibble')
+    #
+    # expect_true(is_bottled(knn_brew))
+    # expect_is(knn_brew$wort, 'tbl_df')
+    #
+    # expect_true(all(sapply(knn_brew$wort$training, nrow) == nrow(trn)))
+    # expect_true(all(sapply(knn_brew$wort$testing, nrow) == nrow(tst)))
+    # expect_true(all(sapply(knn_brew$wort$training, ncol) == ncol(trn)))
+    # expect_true(all(sapply(knn_brew$wort$testing, ncol) == ncol(tst)))
 
   }
 )

@@ -16,27 +16,31 @@ knitr::opts_chunk$set(
 
 # Overview
 
-The `ipa` package helps create multiply imputed datasets using a specific method. The datasets are differentiated by specific tuning parameters that correspond to the method. Analysts can identify a single missing data strategy that works best or develop an ensembling method to combine different data strategies. 
+The `ipa` package helps create multiply imputed datasets for prediction models. The datasets are differentiated by specific tuning parameters that correspond to the imputation technique. Analysts can identify a single missing data strategy that works best for develop an ensembling method to combine different data strategies. 
 
 True to its name, `ipa` has a workflow based around the process of brewing. The main steps involved are
 
-1. `brew` Create a container to hold your imputations
+1. `brew` create a container to hold your imputations
 
-2. `spice` set parameters that govern the number of imputations for the given brew
+2. `spice` set parameters that govern the number of imputations
 
-3. `mash` set secondary parameters for imputation and fit models to the training data.
+3. `mash` set parameters that govern imputation models
 
-4. `ferment` impute missing values in training and (optionally) testing data 
+4. `ferment` impute missing values in training and (optional) testing data 
 
-5. `bottle` output the imputed datasets in a tibble or matrix format.
+5. `bottle` output the imputed datasets as tibbles or matrices.
+
+6. `sip` Evaluate the accuracy of imputed values (requires observed data)
 
 # Diabetes data
 
 These data are courtesy of Dr John Schorling, Department of Medicine, University of Virginia School of Medicine. The data originally described 1046 participants who were interviewed in a study to understand the prevalence of obesity, diabetes, and other cardiovascular risk factors in central Virginia for African Americans. A total of 403 participants were screened for diabetes, which was defined as glycosolated hemoglobin > 7.0. Among those 403 participants, 366 provided complete data for the variables in these data.
 
-We'll work with the complete (`diab_complete`) and incomplete (`diab_incomplete`; , missingness added artificially and completely at random) versions of the `diabetes` data here, and we'll focus on developing a prediction model to classify whether someone has prevalent type II diabetes based on clinical risk factors. 
+# Problem description
 
-```{r}
+We'll work with the complete (`diab_complete`) and incomplete (`diab_incomplete`) versions of the `diabetes` data described above. `diab_incomplete` has about 40% missing values in each column except for diabetes status, which is complete. Missing values occur completely at random. We'll develop a prediction model to classify whether someone has prevalent type II diabetes based on clinical predictors. 
+
+```{r, message = FALSE}
 
 library(ipa)
 library(dplyr)
@@ -88,17 +92,24 @@ split
 
 # Brew
 
-To start your workflow with `ipa`, initiate a brew using `brew_<flavor>`. The object created is essentially a list containing meta data about your missing data strategy. However, printing your `brew` object will always show the original data, because that's usually more helpful than overwhelming the console with all of the list elements. 
+`ipa_brew` objects are created using `brew_<flavor>` functions. These object are lists containing 
+
+1. `data`: training data with missing values 
+1. `pars`: tuning parameters for imputation.
+1. `lims`: upper and lower bounds for `pars`
+1. `wort`: a container for imputed data (initially empty)
+
+Printing your `brew` object will show the original data with missing values, along with some additional information about the `brew`'s flavor.
 
 ```{r}
 
-diab_brew <- brew_nbrs(data = training(split), outcome = diabetes)
+brew_nbrs <- brew_nbrs(data = training(split), outcome = diabetes)
 
-diab_brew
+brew_nbrs
 
 ```
 
-Here we use `brew_nbrs` to create `diab_brew`. This function initiates an object that will use k-nearest neighbors to impute missing values. Other brewing functions include `brew_soft` for soft imputation and `brew_rngr` for imputation using `missRanger`.
+Here we use `brew_nbrs` to create `brew_nbrs`. This function initiates an object that will use k-nearest neighbors to impute missing values. Other brewing functions include `brew_soft` for soft imputation and `brew_rngr` for imputation using `missRanger`.
 
 # Spice
 
@@ -108,7 +119,7 @@ The `spice` function has an argument called `with` that depends on your brew's f
 
 ```{r}
 
-spcd_brew <- spice(diab_brew, with = spicer_nbrs(neighbors = c(1:50)))
+spcd_brew <- spice(brew_nbrs, with = spicer_nbrs(k_neighbors = c(1:50)))
 
 # take a look at the brew's parameters (what we added using spice)
 spcd_brew$pars
@@ -160,7 +171,7 @@ stop <- Sys.time()
 
 print(stop - start)
 
-
+# slower b/c models are re-fit
 start <- Sys.time()
 ferm_brew_stk <- ferment_stk(mshd_brew, new_data = testing(split))
 stop <- Sys.time()
@@ -181,11 +192,13 @@ imputes
 
 ```
 
+The printed output of the `brew` has changed now that it is bottled, but the underlying `brew` object still has the same structure. `ipa_brew` objects keep this behavior because after bottling the brew, focus normally shifts to the imputed data. 
+
 # Pipes and brews
 
 The workflow functions in `ipa` are designed to be used with the `%>%` operator. 
 
-```{r, eval = FALSE}
+```{r}
 
 brew_nbrs <- training(split) %>% 
   brew_nbrs(outcome = diabetes) %>% 
@@ -196,11 +209,127 @@ brew_nbrs <- training(split) %>%
 
 ```
 
-# Modeling
+One question immediately comes to mind now that we have a total of 100 imputed data sets (50 training sets and 50 testing sets). Which neighbor specification imputed missing values most accurately?
 
-We will fit a `parsnip` logistic regression model to imputed training sets and then compute predictions on the testing sets.
+# Sip
+
+`sip` helps you check the accuracy of imputed values. Before we go any further, let's address the obvious limitation: imputation accuracy can only be checked when you know what the imputed value should have been. Put another way, you can only check imputation accuracy if the data you imputed weren't really missing in the first place. 
+
+Nevertheless, you may still be able to draw generalizable insights about the problem by subsetting your incomplete data to contain only complete observations and then artificially adding missing values (as we have done with the `diabetes` data). Once you've found a strategy that seems to work best for your simulated missing data, you can apply it to the entire incomplete dataset.
+
+Notably, `sip` needs you to tell it how to score accuracy. This instruction is passed using the arguments 
+
+1. `fun_ctns_error` function to score continuous variables (doubles and integers)
+1. `fun_bnry_error` function to score binary variables (2 categories)
+1. `fun_catg_error` function to score categorical variables (>2 categories)
+
+You can supply your own function for different variable types or rely on the default approach, which evaluates continuous variables using an R-squared statistic and binary + categorical variables using a Kappa statistic. A benefit of the default approach is that both statistics are on the same scale and have similar interpretations.  
 
 ```{r}
+
+trn_cplt <- diab_complete[split$in_id, ]
+tst_cplt <- diab_complete[-split$in_id, ]
+
+# sip from the bottled brew.
+# (two sips total to score both training and testing)
+brew_nbrs <- brew_nbrs %>% 
+  sip(training, data_complete = trn_cplt) %>% 
+  sip(testing, data_complete = tst_cplt)
+
+
+```
+
+Save the scores as a tibble outside of the brew so that they are easier to analyze.
+
+```{r}
+
+
+impute_acc <- brew_nbrs$wort %>% 
+  select(k_neighbors = impute, training_score) %>% 
+  unnest(training_score)
+
+# here are accuracy scores when using 10 neighbors.
+filter(impute_acc, k_neighbors == 10)
+
+```
+
+Is there an ideal number of neighbors to use for the imputation of missing values in these data? A quick but limited way to investigate this is to compute an overall accuracy score for each imputed set by averaging the scores of individual variables together.
+
+```{r}
+
+impute_acc_ovrl <- impute_acc %>% 
+  group_by(k_neighbors) %>% 
+  summarize(score_overall = mean(score, na.rm = TRUE)) %>% 
+  arrange(desc(score_overall))
+
+impute_acc_ovrl
+
+```
+
+It doesn't look like there is a clear 'best' value of `k_neighbors` for the aggregated score, but what about a 'best' number of neighbors for individual variables? Let's visalize the imputation accuracy of four variables as a function of the number of neighbors used for imputation.
+
+```{r}
+
+impute_acc %>% 
+  filter(variable %in% c('gender', 'frame', 'waist', 'hdl')) %>% 
+  ggplot(aes(x=k_neighbors, y=score)) + 
+  geom_point() + 
+  geom_smooth() + 
+  facet_wrap(~variable)
+
+```
+
+
+```{r, echo = FALSE}
+
+best_frame <- impute_acc %>% 
+  filter(variable == 'frame') %>% 
+  arrange(desc(score)) %>% 
+  slice(1) %>% 
+  pull('k_neighbors')
+
+best_gender <- impute_acc %>% 
+  filter(variable == 'gender') %>% 
+  arrange(desc(score)) %>% 
+  slice(1) %>% 
+  pull('k_neighbors')
+
+```
+
+It looks like the relationship between `k_neighbors` and accuracy of imputed values is variable-dependent. For example, the Kappa statistic for `frame` is maximized when we impute missing values with `r best_frame` neighbors, whereas the Kappa statistic for gender is maximized using `r best_gender`. Additionally, imputation of `waist` is fairly accurate, but imputation of `hdl` is generally inaccurate. 
+
+# Blend
+
+We may need to use different values of `k_neighbor` for each variable to maximize the accuracy of our imputed dataset. The easiest way to do this is with the `blend` function. There are three variants of blend:
+
+- `blend_recipe` creates a dataframe that describes how to blend imputed data.
+- `blend_training` creates a single dataframe from the training imputes.
+- `blend_testing` creates a single dataframe from the testing imputes.
+
+```{r}
+
+recipe_nbrs <- blend_recipe(brew_nbrs)
+
+# impute shows which value of k_neighbors maximized score for each variable
+recipe_nbrs
+
+# an imputed training set is created by plugging a recipe into blend_training.
+bb_trn <- blend_training(brew_nbrs, recipe = recipe_nbrs)
+# an imputed test set can be created using blend_testing
+bb_tst <- blend_testing(brew_nbrs, recipe = recipe_nbrs)
+
+# note: bb stands for best brew
+
+```
+
+# Modeling
+
+Another interesting question is whether any of the 50 pairs of imputed datasets will provide a better set of data for developing and evaluating prediction models. Let's fit a `parsnip` logistic regression model to the imputed training sets and then compute predictions on the corresponding imputed testing sets.
+
+```{r}
+
+# save the imputed data to an object with a better name
+imputes <- brew_nbrs$wort
 
 # a function to fit logit model, and predict on new data
 fit_logit <- function(df_train, df_test){
@@ -210,99 +339,40 @@ fit_logit <- function(df_train, df_test){
     predict(new_data = df_test, type = 'prob')
 }
 
-brew_nbrs <- brew_nbrs %>% 
-  mutate(logit_probs = map2(training, testing, fit_logit))
+imputes <- imputes %>% 
+  mutate(logit_probs = map2(training, testing, fit_logit),
+    truth = map(testing, 'diabetes')) %>% 
+  select(impute, truth, logit_probs)
 
-brew_nbrs
+imputes
 
 ```
 
-Three questions come to mind: 
-
-1. Which neighbor specification imputes missing values most accurately?
-
-2. Which neighbor specification provides the most accurate set of predictied diabetes probabilities in the testing set?
-
-
+Let's go through these predictions.
 
 
 ```{r}
 
-trn_missing <- diab_missing[split$in_id, ]
-trn_complete <- diab_complete[split$in_id, ]
+bb_probs <- fit_logit(bb_trn, bb_tst)$.pred_Yes
 
-tst_missing  <- diab_missing[-split$in_id, ]
-tst_complete <- diab_complete[-split$in_id, ]
-
-
-impute_acc <- map_dfr(
-  .x = brew_nbrs$training,
-  .f = sip,
-  data_missing = trn_missing,
-  data_complete = trn_complete,
-  .id = 'impute'
-)
-
-impute_acc %>% 
-  mutate(impute = as.numeric(impute)) %>% 
-  filter(variable %in% c('gender', 'frame', 'waist', 'hdl')) %>% 
-  ggplot(aes(x=impute, y=score)) + 
-  geom_point() + 
-  geom_smooth() + 
-  facet_wrap(~variable)
-
-best_nbrs <- impute_acc %>% 
-  group_by(variable) %>% 
-  filter(score >= max(score))
-
-
-best_trn <- map2_dfc(
-  best_nbrs$impute,
-  best_nbrs$variable,
-  .f = ~ {
-    brew_nbrs %>% 
-      dplyr::filter(impute == .x) %>% 
-      tidyr::unnest(cols = training) %>% 
-      dplyr::select_at(tidyselect::all_of(.y))
-  }
-) %>% 
-  bind_cols(select(trn_missing, diabetes), .)
-
-best_tst <- map2_dfc(
-  best_nbrs$impute,
-  best_nbrs$variable,
-  .f = ~ {
-    brew_nbrs %>% 
-      dplyr::filter(impute == .x) %>% 
-      tidyr::unnest(cols = testing) %>% 
-      dplyr::select_at(tidyselect::all_of(.y))
-  }
-) %>% 
-  bind_cols(select(tst_missing, diabetes), .)
-
-
-
-best_probs <- fit_logit(best_trn, best_tst)$.pred_Yes
-best_score <- roc_auc_vec(tst_missing$diabetes, best_probs)
-
+# compute the AUC for these predictions
+bb_auc <- roc_auc_vec(bb_tst$diabetes, bb_probs)
 
 ```
 
-
-
+Now we can look at the area underneath the ROC curve for each of the 50 neighbor values we used to impute our data as well as the 'best brew' we created with `sip` and `blend`.
 
 ```{r}
 
-results <- brew_nbrs %>% 
+results <- imputes %>% 
   transmute(
-    args,
+    impute,
     auc = map2_dbl(
       .x = logit_probs,
-      .y = testing,
-      .f = ~ roc_auc_vec(estimate = .x$.pred_Yes, truth = .y$diabetes)
+      .y = truth,
+      .f = ~ roc_auc_vec(estimate = .x$.pred_Yes, truth = .y)
     )
-  ) %>% 
-  unnest_wider(col = args)
+  ) 
 
 results
 
@@ -313,10 +383,10 @@ results
 ```{r}
 
 ggplot(results) + 
-  aes(x = k_neighbors, y = auc) + 
+  aes(x = impute, y = auc) + 
   geom_line(col = 'grey') + 
   geom_point(shape = 21, size = 2.4, col = 'black', fill = 'red') + 
-  geom_hline(yintercept = best_score, col = 'black', linetype = 2) +
+  geom_hline(yintercept = bb_auc, col = 'black', linetype = 2) +
   theme_classic() +
   theme(text = element_text(size = 12)) +
   labs(y = 'Area underneath ROC curve',

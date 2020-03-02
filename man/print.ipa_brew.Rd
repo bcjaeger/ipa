@@ -2,12 +2,9 @@
 % Please edit documentation in R/brew.R
 \name{print.ipa_brew}
 \alias{print.ipa_brew}
-\alias{is_brew}
 \title{Print a brew}
 \usage{
 \method{print}{ipa_brew}(x, ...)
-
-is_brew(x)
 }
 \arguments{
 \item{x}{an \code{ipa_brew} object.}
@@ -15,5 +12,5 @@ is_brew(x)
 \item{...}{additional arguments (currently not used)}
 }
 \description{
-Sometimes you need to see the brew.
+Sometimes you need to check the brew.
 }
