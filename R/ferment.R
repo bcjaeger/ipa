@@ -86,30 +86,30 @@ ferment <- function(brew, data_new = NULL){
 
   }
 
-  setDT(data_new)
+  DT_new <- as.data.table(data_new)
 
   # outcome column name
   outcome <- get_outcome(brew)$name
 
   # pull the outcome out of testing data and attach
   # it to the brew as an attribute if necessary.
-  if(outcome %in% names(data_new)){
+  if(outcome %in% names(DT_new)){
 
-    if (any(is.na(data_new[, ..outcome]))) stop(
+    if (any(is.na(DT_new[, ..outcome]))) stop(
       glue::glue("missing values in outcome columns ",
         "({list_things(outcome)}) are not allowed."),
       call. = FALSE
     )
 
-    attr(brew, 'outcome')$data$testing <- data_new[, ..outcome]
-    data_new[[outcome]] <- NULL
+    attr(brew, 'outcome')$data$testing <- DT_new[, ..outcome]
+    DT_new[[outcome]] <- NULL
 
   }
 
-  # bind missing cols to data_new if needed
+  # bind missing cols to DT_new if needed
   if(get_bind_miss(brew)){
     # using drop_const = FALSE to make sure all columns are included
-    miss_new <- mindx(data_new, drop_const = FALSE)
+    miss_new <- mindx(DT_new, drop_const = FALSE)
     # then filtering down to only the columns that are in training data
     miss_new <- miss_new[, names(brew$miss$training)]
     # this forces the training/testing sets to be stackable.
@@ -118,23 +118,23 @@ ferment <- function(brew, data_new = NULL){
 
   # update the brew's data to include both the
   # training set and testing set.
-  brew$data$testing <- data_new
+  brew$data$testing <- DT_new
 
   # check testing data names and types
   # (they need to be equal to those of brew$data)
   check_data_new_names(
     data_ref = brew$data$training,
-    data_new = data_new
+    data_new = DT_new
   )
 
   check_data_new_types(
     data_ref = brew$data$training,
-    data_new = data_new
+    data_new = DT_new
   )
 
   impute_args <- brew$pars
   impute_args$data_ref <- brew$data$training
-  impute_args$data_new <- data_new
+  impute_args$data_new <- DT_new
 
   if(get_bind_miss(brew)){
 

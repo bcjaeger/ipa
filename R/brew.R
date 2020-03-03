@@ -112,14 +112,14 @@ brew <- function(
   check_flavor(flavor = flavor)
 
   # convert to data.table
-  setDT(data)
+  DT <- as.data.table(data)
 
-  check_var_types(data, c('numeric', 'integer', 'factor'))
+  check_var_types(DT, c('numeric', 'integer', 'factor'))
 
-  cols <- setdiff(names(data), outcome)
-  check_data_ref(data[, ..cols])
+  cols <- setdiff(names(DT), outcome)
+  check_data_ref(DT[, ..cols])
 
-  if (any(is.na(data[, ..outcome]))) stop(
+  if (any(is.na(DT[, ..outcome]))) stop(
     glue::glue("missing values in outcome columns ",
       "({list_things(outcome)}) are not allowed."),
     call. = FALSE
@@ -130,10 +130,10 @@ brew <- function(
   # if you need to know the outcome to impute X? If
   # you know the outcome, what are you predicting??
 
-  if(outcome %in% names(data)){
+  if(outcome %in% names(DT)){
 
-    outcome_data <- data[, ..outcome]
-    data[[outcome]] <- NULL
+    outcome_data <- DT[, ..outcome]
+    DT[[outcome]] <- NULL
 
   } else {
 
@@ -144,9 +144,9 @@ brew <- function(
   # Initiate the brew
   structure(
     .Data = list(
-      data = list(training = data),
-      miss = list(training = mindx(data, drop_const = TRUE)),
-      lims = get_par_bounds(data, flavor),
+      data = list(training = DT),
+      miss = list(training = mindx(DT, drop_const = TRUE)),
+      lims = get_par_bounds(DT, flavor),
       pars = list(),
       wort = NULL
     ),

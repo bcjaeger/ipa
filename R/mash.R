@@ -100,12 +100,14 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
   # is 1, we'll just show messages from ipa functions.
   .dots$si_trace <- .dots$bs_trace <- get_verbosity(brew) > 1
 
+  data_ref = if(get_bind_miss(brew)){
+    dplyr::bind_cols(brew$data$training, brew$miss$training)
+  } else {
+    brew$data$training
+  }
+
   brew$wort <- impute_soft(
-    data_ref = if(get_bind_miss(brew)){
-      dplyr::bind_cols(brew$data$training, brew$miss$training)
-    } else {
-      brew$data$training
-    },
+    data_ref = data_ref,
     rank_max_init = brew$pars$rank_max_init,
     rank_max_ovrl = brew$pars$rank_max_ovrl,
     rank_stp_size = brew$pars$rank_stp_size,
@@ -163,7 +165,7 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
 
   # set default values if nothing was specified
   .dots$epsilon       <- .dots$epsilon       %||% 1e-08
-  .dots$nthread       <- .dots$nthread       %||% getOption("gd_num_thread")
+  .dots$nthread       <- .dots$nthread       %||% getDTthreads()
   .dots$fun_aggr_ctns <- .dots$fun_aggr_ctns %||% NULL
   .dots$fun_aggr_intg <- .dots$fun_aggr_intg %||% NULL
   .dots$fun_aggr_catg <- .dots$fun_aggr_catg %||% NULL
@@ -174,12 +176,14 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
   # is 1, we'll just show messages from ipa functions.
   .dots$verbose <- get_verbosity(brew) > 0
 
+  data_ref <- if(get_bind_miss(brew)){
+    dplyr::bind_cols(brew$data$training, brew$miss$training)
+  } else {
+    brew$data$training
+  }
+
   brew$wort <- impute_nbrs(
-    data_ref = if(get_bind_miss(brew)){
-      dplyr::bind_cols(brew$data$training, brew$miss$training)
-    } else {
-      brew$data$training
-    },
+    data_ref = data_ref,
     k_neighbors   = brew$pars$k_neighbors,
     aggregate     = brew$pars$aggregate,
     epsilon       = .dots$epsilon,
