@@ -1,73 +1,4 @@
 
-#' Neighbor aggregates
-#'
-#' @param x a vector of character or integer values for `mode_est`. For
-#'   `medn_est`, only integer values are allowed.
-#' @param random_ties a logical value indicating whether ties should be
-#'   broken at random when two values occur at the same frequency in `x`.
-#'
-#' @return an aggregate scalar with the same type as `x`.
-#'
-#' @export
-#'
-#' @examples
-#'
-#' x <- c('a', 'a', 'b')
-#' mode_est(x)
-#'
-#' x <- c(1L, 1L, 2L)
-#' medn_est(x)
-#'
-#'
-#'
-mode_est <- function(x, random_ties = FALSE){
-
-  stopifnot(is.character(x) | is.integer(x))
-
-  if(any(is.na(x)))
-    stop("missing values should not be passed to mode_est",
-      call. = FALSE)
-
-  tab <- table(x)
-  modes <- names(tab)[tab == max(tab)]
-
-  if(random_ties){
-    sample(modes, size = 1)
-  } else {
-    modes[1L]
-  }
-
-}
-
-#' @rdname mode_est
-#' @export
-medn_est <- function(x){
-
-  stopifnot(is.integer(x))
-
-  if(any(is.na(x)))
-    stop("missing values should not be passed to medn_est",
-      call. = FALSE)
-
-  as.integer(round(median(x), digits = 0))
-
-}
-
-#' @rdname mode_est
-#' @export
-medn_est_conserve <- function(x){
-
-  output <- medn_est(x)
-
-  if(output %in% x){
-    return(output)
-  }
-
-  x[which.min(abs(x-output))]
-
-}
-
-
 #' Nearest neighbor imputation
 #'
 #' This function conducts nearest neighbor imputation with the added option
@@ -82,8 +13,8 @@ medn_est_conserve <- function(x){
 #'   will contain imputed values for `data_new`. If not supplied,
 #'   the output will contain imputed values for `data_ref`.
 #'
-#' @param cols a character vector containing column names that should be
-#'   imputed.
+#' @param cols columns that should be imputed and/or used to impute other
+#'   columns. Supports tidy select functions (see examples).
 #'
 #' @param k_neighbors a numeric vector indicating how many neighbors should
 #'   be used to impute missing values.
@@ -170,23 +101,27 @@ impute_nbrs <- function(
     stop("1 column was selected (", keep_cols,
       ") but 2+ are needed", call. = FALSE)
 
-  setDT(data_ref)
 
+  # convert data frames into data.table objects if needed
   # subset to the columns we are imputing
-  data_ref <- data_ref[, ..keep_cols]
+  if(!is.data.table(data_ref)){
+    DT_ref <- as.data.table(data_ref[, keep_cols])
+  } else {
+    DT_ref <- data_ref[, ..keep_cols]
+  }
 
   # the row numbers that contain missing data for each keep_col
-  miss_indx <- lapply(data_ref, function(x) which(is.na(x)))
+  miss_indx <- lapply(DT_ref, function(x) which(is.na(x)))
   # the number of missing values in each row
   miss_nobs <- lapply(miss_indx, length)
   # the rows that contain only missing values
   miss_rows <- Reduce(x = miss_indx, f = intersect)
   # the columns that contain only missing values
-  miss_cols <- names(which(sapply(miss_nobs, function(x) x==nrow(data_ref))))
+  miss_cols <- names(which(sapply(miss_nobs, function(x) x==nrow(DT_ref))))
   # variable types should be...
   vt <- c('numeric', 'integer', 'logical', 'character', 'factor')
-  # check that the columns in data_ref fit this constraint
-  check_var_types(data_ref, valid_types = vt)
+  # check that the columns in DT_ref fit this constraint
+  check_var_types(DT_ref, valid_types = vt)
 
   if(!purrr::is_empty(miss_rows)){
     stop("rows in data_ref are missing data for all values: ",
@@ -198,39 +133,45 @@ impute_nbrs <- function(
       list_things(miss_cols), call. = FALSE)
   }
 
+  # initialize a null DT_new object in case there isn't any new data
+  DT_new <- NULL
+
+
   # If new data are not supplied, impute data_ref using miss_indx.
   # If new data are supplied, impute data_new and re-create miss_indx
   # --- Also, run the same tests on data_new
-
   if(!is.null(data_new)){
 
-    setDT(data_new)
-
+    # convert data frames into data.table objects if needed
     # subset to the columns we are imputing
-    data_new <- data_new[, ..keep_cols]
+    if(!is.data.table(data_new)){
+      DT_new <- as.data.table(data_new[, keep_cols])
+    } else {
+      DT_new <- data_new[, ..keep_cols]
+    }
 
     # protect against errors due to factors with different levels
-    # in data_new versus data_ref. Since data_ref is used to impute,
+    # in DT_new versus data_ref. Since data_ref is used to impute,
     # any levels of factors not in data_ref should be considered
     # missing (and then imputed).
 
     for(col in keep_cols){
-      if(is.factor(data_new[[col]])){
+      if(is.factor(DT_new[[col]])){
 
-        set(data_new, j = col,
-          value = factor(data_new[[col]],
-            levels = levels(data_ref[[col]]))
+        set(DT_new, j = col,
+          value = factor(DT_new[[col]],
+            levels = levels(DT_ref[[col]]))
         )
 
       }
     }
 
     # should have exactly the Same names and types as reference data
-    check_data_new_names(data_ref, data_new)
-    check_data_new_types(data_ref, data_new)
+    check_data_new_names(DT_ref, DT_new)
+    check_data_new_types(DT_ref, DT_new)
 
     # the row numbers that contain missing data for each keep_col
-    miss_indx <- lapply(data_new, function(x) which(is.na(x)))
+    miss_indx <- lapply(DT_new, function(x) which(is.na(x)))
 
   }
 
@@ -251,7 +192,7 @@ impute_nbrs <- function(
 
   for(impute_col in names(miss_indx)){
 
-    var_type <- class(data_ref[[impute_col]])[1]
+    var_type <- class(DT_ref[[impute_col]])[1]
 
     aggregate_function <- if(aggregate){
 
@@ -281,7 +222,7 @@ impute_nbrs <- function(
 
     # rows for imputation - reference data
     # keep rows that have data for the column we want to impute.
-    irows_ref <- which(!is.na(data_ref[[impute_col]]))
+    irows_ref <- which(!is.na(DT_ref[[impute_col]]))
     # rows for imputation - new data
     # keep rows that are missing (i.e., the ones we need to impute)
     irows_new <- miss_indx[[impute_col]]
@@ -299,9 +240,9 @@ impute_nbrs <- function(
       # the error, then the output will be very hard to manage and possibly
       # incorrect (i.e., it may say we used 20 neighbors when we only use 8).
       stop("some values of k_neighbors (",
-        list_things(k_neighbors[k_neighbors>=nrow(data_ref)]),
+        list_things(k_neighbors[k_neighbors>=nrow(DT_ref)]),
         ") exceed or match the number", " of observed values (",
-        nrow(data_ref), ") for ", impute_col, ".", call. = FALSE)
+        nrow(DT_ref), ") for ", impute_col, ".", call. = FALSE)
 
     }
 
@@ -311,18 +252,18 @@ impute_nbrs <- function(
 
 
     # identify nearest neighbors via gower's distance
-    if(!is.null(data_new)){
+    if(!is.null(DT_new)){
       gwr_topn <- gower::gower_topn(
-          x = data_new[irows_new, ..impute_prds],
-          y = data_ref[irows_ref, ..impute_prds],
+          x = DT_new[irows_new, ..impute_prds],
+          y = DT_ref[irows_ref, ..impute_prds],
           n = gwr_n,
           eps = epsilon,
           nthread = nthread
         )$index
     } else {
       gwr_topn <- gower::gower_topn(
-        x = data_ref[irows_new, ..impute_prds],
-        y = data_ref[irows_ref, ..impute_prds],
+        x = DT_ref[irows_new, ..impute_prds],
+        y = DT_ref[irows_ref, ..impute_prds],
         n = gwr_n,
         eps = epsilon,
         nthread = nthread
@@ -330,18 +271,18 @@ impute_nbrs <- function(
     }
 
 
-    # above, we filtered data_ref instead of creating a copy and subsetting.
+    # above, we filtered DT_ref instead of creating a copy and subsetting.
     # This saves memory, but causes the index from gower_topn to correspond
-    # with the indices of the filtered data_ref instead of data_ref. The code
+    # with the indices of the filtered DT_ref instead of DT_ref. The code
     # here back-transforms those indices and overwrites gower_topn with a
-    # version that corresponds to data_ref.
+    # version that corresponds to DT_ref.
     gwr_topn <- matrix(irows_ref[gwr_topn], ncol = ncol(gwr_topn))
 
     # modify gower_topn in place for efficiency.
     # loop through the columns, replacing each set of indices with
-    # the corresponding imputed values from data_ref
+    # the corresponding imputed values from DT_ref
     for(i in seq(nrow(gwr_topn))){
-      gwr_topn[i, ] <- data_ref[[impute_col]][ gwr_topn[i, ] ]
+      gwr_topn[i, ] <- DT_ref[[impute_col]][ gwr_topn[i, ] ]
     }
 
     impute_vals <- lapply(k_neighbors, function(x){
@@ -352,7 +293,7 @@ impute_nbrs <- function(
     # gwr_vals - convert them back to the given levels of impute_vals.
     if(var_type == 'factor'){
 
-      labels <- levels(data_ref[[impute_col]])
+      labels <- levels(DT_ref[[impute_col]])
       names(labels) <- seq(length(labels))
 
       impute_vals <- purrr::map(
@@ -377,4 +318,73 @@ impute_nbrs <- function(
   )
 
 }
+
+#' Neighbor aggregates
+#'
+#' @param x a vector of character or integer values for `mode_est`. For
+#'   `medn_est`, only integer values are allowed.
+#' @param random_ties a logical value indicating whether ties should be
+#'   broken at random when two values occur at the same frequency in `x`.
+#'
+#' @return an aggregate scalar with the same type as `x`.
+#'
+#' @export
+#'
+#' @examples
+#'
+#' x <- c('a', 'a', 'b')
+#' mode_est(x)
+#'
+#' x <- c(1L, 1L, 2L)
+#' medn_est(x)
+#'
+#'
+#'
+mode_est <- function(x, random_ties = FALSE){
+
+  stopifnot(is.character(x) | is.integer(x))
+
+  if(any(is.na(x)))
+    stop("missing values should not be passed to mode_est",
+      call. = FALSE)
+
+  tab <- table(x)
+  modes <- names(tab)[tab == max(tab)]
+
+  if(random_ties){
+    sample(modes, size = 1)
+  } else {
+    modes[1L]
+  }
+
+}
+
+#' @rdname mode_est
+#' @export
+medn_est <- function(x){
+
+  stopifnot(is.integer(x))
+
+  if(any(is.na(x)))
+    stop("missing values should not be passed to medn_est",
+      call. = FALSE)
+
+  as.integer(round(median(x), digits = 0))
+
+}
+
+#' @rdname mode_est
+#' @export
+medn_est_conserve <- function(x){
+
+  output <- medn_est(x)
+
+  if(output %in% x){
+    return(output)
+  }
+
+  x[which.min(abs(x-output))]
+
+}
+
 

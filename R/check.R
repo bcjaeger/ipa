@@ -117,7 +117,8 @@ check_dots <- function(.dots, valid_args){
 }
 
 # check data passed to ferment
-check_data_new_names <- function(data_ref, data_new){
+check_data_new_names <- function(data_ref, data_new,
+  label_ref = 'reference data', label_new = 'new data'){
 
   new_names <- names(data_new)
   ref_names <- names(data_ref)
@@ -129,15 +130,15 @@ check_data_new_names <- function(data_ref, data_new){
   error_ref <- any(list_ref)
 
   if(error_new){
-    out_msg_new <- paste(
-      "new data have columns not contained in reference data:",
+    out_msg_new <- glue::glue(
+      "{label_new} have columns not contained in {label_ref}: ",
         list_things(new_names[list_new])
     )
   }
 
   if(error_ref){
-    out_msg_ref <- paste(
-      "reference data have columns not contained in new data:",
+    out_msg_ref <- glue::glue(
+      "{label_ref} have columns not contained in {label_new}: ",
       list_things(ref_names[list_ref])
     )
   }
@@ -162,7 +163,8 @@ check_data_new_names <- function(data_ref, data_new){
 
 }
 
-check_data_new_types <- function(data_ref, data_new){
+check_data_new_types <- function(data_ref, data_new,
+  label_ref = 'reference data', label_new = 'new data'){
 
   # this assumes you have already run check_data_new_names
 
@@ -184,8 +186,8 @@ check_data_new_types <- function(data_ref, data_new){
     out_msg <- purrr::map(
       .x = list_rows,
       .f = ~ glue::glue(
-        "{types$name[.x]} has type <{types$ref[.x]}> in reference data \\
-        and type <{types$new[.x]}> in new data."
+        "{types$name[.x]} has type <{types$ref[.x]}> in {label_ref} ",
+        "and type <{types$new[.x]}> in {label_new}."
       )
     ) %>%
       glue::glue_collapse(sep = '\nAlso, ')

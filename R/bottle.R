@@ -107,8 +107,10 @@ bottle <- function(
   .list_mats <- function(...){
     list(...) %>%
       purrr::set_names(c('X','Y')) %>%
+      purrr::map(one_hot) %>%
       purrr::map(as.matrix)
   }
+
 
   brew$wort <- tibble::as_tibble(brew$wort)
 

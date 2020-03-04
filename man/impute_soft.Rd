@@ -20,11 +20,11 @@ impute_soft(
   bs_col.center = TRUE,
   bs_row.scale = FALSE,
   bs_col.scale = TRUE,
-  bs_trace = TRUE,
+  bs_trace = FALSE,
   si_type = "als",
   si_thresh = 1e-05,
   si_maxit = 100,
-  si_trace = TRUE,
+  si_trace = FALSE,
   si_final.svd = TRUE
 )
 }

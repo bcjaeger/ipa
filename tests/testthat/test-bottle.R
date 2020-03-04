@@ -12,6 +12,8 @@ test_that(
 
     data <- data.frame(x1=x1, x2=x2, x3=x3, x4=x4, outcome=outcome)
 
+    data$fctr <- factor(dplyr::if_else(x3 < 0 | x4 > 6, 'Yes', 'No'))
+
     n_miss = 10
 
     trn = data[1:40, ]
@@ -60,20 +62,23 @@ test_that(
     expect_is(sft_mats$training_X[[1]], 'matrix')
     expect_is(sft_mats$training_Y[[1]], 'matrix')
 
+    expect_is(sft_mats$training_X[[1]][,1], 'numeric')
+    expect_is(sft_mats$training_Y[[1]][,1], 'numeric')
+
     # ---- tibble nbrs brew
 
-    # knn_brew <- brew_nbrs(trn, outcome = outcome, bind_miss = FALSE) %>%
-    #   mash() %>%
-    #   ferment(data_new = tst) %>%
-    #   bottle(type = 'tibble')
-    #
-    # expect_true(is_bottled(knn_brew))
-    # expect_is(knn_brew$wort, 'tbl_df')
-    #
-    # expect_true(all(sapply(knn_brew$wort$training, nrow) == nrow(trn)))
-    # expect_true(all(sapply(knn_brew$wort$testing, nrow) == nrow(tst)))
-    # expect_true(all(sapply(knn_brew$wort$training, ncol) == ncol(trn)))
-    # expect_true(all(sapply(knn_brew$wort$testing, ncol) == ncol(tst)))
+    knn_brew <- brew_nbrs(trn, outcome = outcome, bind_miss = FALSE) %>%
+      mash() %>%
+      ferment(data_new = tst) %>%
+      bottle(type = 'tibble')
+
+    expect_true(is_bottled(knn_brew))
+    expect_is(knn_brew$wort, 'tbl_df')
+
+    expect_true(all(sapply(knn_brew$wort$training, nrow) == nrow(trn)))
+    expect_true(all(sapply(knn_brew$wort$testing, nrow) == nrow(tst)))
+    expect_true(all(sapply(knn_brew$wort$training, ncol) == ncol(trn)))
+    expect_true(all(sapply(knn_brew$wort$testing, ncol) == ncol(tst)))
 
   }
 )

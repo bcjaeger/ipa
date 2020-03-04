@@ -26,8 +26,8 @@ will be used as a reference dataset for \code{data_new} and the output
 will contain imputed values for \code{data_new}. If not supplied,
 the output will contain imputed values for \code{data_ref}.}
 
-\item{cols}{a character vector containing column names that should be
-imputed.}
+\item{cols}{columns that should be imputed and/or used to impute other
+columns. Supports tidy select functions (see examples).}
 
 \item{k_neighbors}{a numeric vector indicating how many neighbors should
 be used to impute missing values.}
