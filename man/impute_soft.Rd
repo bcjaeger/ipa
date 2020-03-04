@@ -12,6 +12,7 @@ impute_soft(
   rank_stp_size = 1,
   lambda = seq(rank_max_ovrl * 0.6, 1, length.out = 10),
   grid = FALSE,
+  restore_data = TRUE,
   bs = TRUE,
   bs_maxit = 20,
   bs_thresh = 1e-09,
@@ -55,6 +56,10 @@ the solution reached has rank slightly less than rank.max. See also
 lambda are used to fit \code{softImpute} models. If \code{FALSE}, then one
 fit is supplied for each value of \code{lambda}, and increasing maximum
 ranks are paired with decreasing values of \code{lambda}.}
+
+\item{restore_data}{a logical value. If \code{TRUE}, the variable types
+of the imputed values will match those of the original data. If \code{FALSE},
+the imputed values are returned in a one-hot encoded format.}
 
 \item{bs}{a logical value. If \code{TRUE}, \code{\link[softImpute:biScale]{softImpute::biScale()}} is applied
 to \code{data_ref} or \code{rbind(data_ref, data_new)} prior to fitting \code{softImpute}
@@ -112,7 +117,9 @@ singular values, leading to hard zeros.}
 a data frame with fitting parameters and imputed values.
 }
 \description{
-Soft imputation
+The \code{softImpute} algorithm is used to impute missing values with this
+For more details on this strategy to handle missing values, see
+\link[softImpute:softImpute]{softImpute}
 }
 \details{
 \strong{Multiple imputation}: The number of imputations returned depends on

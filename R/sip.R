@@ -102,6 +102,7 @@ sip_col <- function(col,
   data_complete,
   data_imputed,
   fun_ctns_error,
+  fun_intg_error,
   fun_bnry_error,
   fun_catg_error){
 
@@ -114,6 +115,7 @@ sip_col <- function(col,
 
   switch(get_var_type(data_complete[[col]]),
     'ctns' = fun_ctns_error(estimate = estimate, truth = truth),
+    'intg' = fun_intg_error(estimate = estimate, truth = truth),
     'bnry' = fun_bnry_error(estimate = estimate, truth = truth),
     'catg' = fun_catg_error(estimate = estimate, truth = truth))
 

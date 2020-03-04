@@ -30,12 +30,42 @@ test_that(
       regexp = 'rows in data_ref'
     )
 
-    knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-    sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
+    bad_data <- data
+    bad_data$outcome[1] = NA
+
+    expect_error(
+      brew(bad_data, outcome = outcome),
+      regexp = 'missing values'
+    )
+
+    knn_brew <- brew_nbrs(as.data.table(data), outcome = outcome)
+    sft_brew <- brew_soft(data, outcome = outcome, bind_miss = TRUE)
+
+    expect_false(get_bind_miss(knn_brew))
+    expect_equal(get_flavor(knn_brew), 'kneighbors')
+    expect_equal(get_outcome(knn_brew)$name, 'outcome')
+    expect_equal(get_outcome(knn_brew)$data$training[['outcome']],
+      data$outcome)
+
+    prnt <- print(knn_brew)
+    expect_equal(prnt, dplyr::select(data,-outcome))
+
+    prnt <- print(sft_brew)
+    expect_equal(prnt,
+      dplyr::bind_cols(
+        dplyr::select(data,-outcome),
+        mindx(data, drop_const = T)
+      )
+    )
+
+    mashed_brew <- mash(sft_brew)
+
+    prnt <- print(mashed_brew)
+    expect_equal(prnt$fit, mashed_brew$wort$fit)
+
 
     knn_brew_bm <- brew_nbrs(data, outcome = outcome, bind_miss = TRUE)
     sft_brew_bm <- brew_soft(data, outcome = outcome, bind_miss = TRUE)
-
 
     expect_error(
       brew(data, outcome = outcome, flavor = 'kneighbor'),

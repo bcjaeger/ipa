@@ -1,10 +1,44 @@
 
 
 
-one_hot <- function (DT){
+#' One hot encoding
+#'
+#' A faster implementation of [mltools::one_hot] with less options.
+#'
+#' @param data a data frame
+#'
+#' @return a `data.table` with one-hot encoded factors.
+#'
+#' @note One-hot-encoding converts an unordered categorical vector
+#'   (i.e. a factor) to multiple binarized vectors where each binary
+#'   vector of 1s and 0s indicates the presence of a class (i.e. level)
+#'   of the of the original vector.
+#'
+#' @export
+#'
+#' @examples
+#' n <- 10
+#'
+#' data <- data.frame(
+#'   V1 = seq(n),
+#'   V2 = factor(sample(letters[1:3], n, replace = TRUE)),
+#'   V3 = seq(n) / 10,
+#'   V4 = factor(sample(letters[5:6], n, replace = TRUE))
+#' )
+#'
+#' data$V1[1] <- NA
+#' data$V3[c(6,7)] <- NA
+#' data$V2[1:2] <- NA
+#' data$V4[2] <- NA
+#'
+#' one_hot(data)
 
-  if(!data.table::is.data.table(DT)){
-    data.table::setDT(DT)
+one_hot <- function (data){
+
+  if(!is.data.table(data)){
+    DT <- as.data.table(data)
+  } else {
+    DT <- copy(data)
   }
 
   if(any(sapply(DT, is.character))){
@@ -96,7 +130,6 @@ one_hot_vec <- function(x, ncats){
   mat
 
 }
-
 
 insert_vals <- function(vec, where, what){
 

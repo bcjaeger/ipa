@@ -1,7 +1,9 @@
 
 #' Soft imputation
 #'
-#'
+#' The `softImpute` algorithm is used to impute missing values with this
+#'  For more details on this strategy to handle missing values, see
+#'  [softImpute][softImpute::softImpute()]
 #'
 #' @inheritParams impute_nbrs
 #'
@@ -25,6 +27,10 @@
 #'   lambda are used to fit `softImpute` models. If `FALSE`, then one
 #'   fit is supplied for each value of `lambda`, and increasing maximum
 #'   ranks are paired with decreasing values of `lambda`.
+#'
+#' @param restore_data a logical value. If `TRUE`, the variable types
+#'   of the imputed values will match those of the original data. If `FALSE`,
+#'   the imputed values are returned in a one-hot encoded format.
 #'
 #' @param bs a logical value. If `TRUE`, [softImpute::biScale()] is applied
 #'   to `data_ref` or `rbind(data_ref, data_new)` prior to fitting `softImpute`
@@ -134,6 +140,7 @@ impute_soft <- function(
   rank_stp_size = 1,
   lambda = seq(rank_max_ovrl * 0.60, 1, length.out = 10),
   grid = FALSE,
+  restore_data = TRUE,
   bs = TRUE,
   bs_maxit = 20,
   bs_thresh = 1e-09,
@@ -141,11 +148,11 @@ impute_soft <- function(
   bs_col.center = TRUE,
   bs_row.scale = FALSE,
   bs_col.scale = TRUE,
-  bs_trace = TRUE,
+  bs_trace = FALSE,
   si_type = "als",
   si_thresh = 1e-05,
   si_maxit = 100,
-  si_trace = TRUE,
+  si_trace = FALSE,
   si_final.svd = TRUE
 ){
 
@@ -222,54 +229,67 @@ impute_soft <- function(
   # --> same as above but use warm starts
 
   # convert data frames into data.table objects if needed
-  if(!is.data.table(data_ref)) setDT(data_ref)
+  if(!is.data.table(data_ref)){
+    DT_ref <- as.data.table(data_ref)
+  } else {
+    DT_ref <- copy(data_ref)
+  }
 
   # convert characters to factors
   # modifying in place rather than copying data
   # the code is less readable but more performant
-  if(any(sapply(data_ref, is.character))){
+  if(any(sapply(DT_ref, is.character))){
 
-    chr_cols <- names(data_ref)[sapply(data_ref, is.character)]
+    chr_cols <- names(DT_ref)[sapply(DT_ref, is.character)]
 
     for(col in chr_cols)
-      set(data_ref, j = col, value = as.factor(data_ref[[col]]))
+      set(DT_ref, j = col, value = as.factor(DT_ref[[col]]))
 
   }
 
   # repeat the code above for the testing data if it exists.
   if(!is.null(data_new)){
 
-    if(!is.data.table(data_new)) setDT(data_new)
+    # convert data frames into data.table objects if needed
+    if(!is.data.table(data_new)){
+      DT_new <- as.data.table(data_new)
+    } else {
+      DT_new <- copy(data_new)
+    }
 
-    if(any(sapply(data_new, is.character))){
+    if(any(sapply(DT_new, is.character))){
 
-      chr_cols <- names(data_new)[sapply(data_new, is.character)]
+      chr_cols <- names(DT_new)[sapply(DT_new, is.character)]
 
       for(col in chr_cols)
-        set(data_new, j = col, value = as.factor(data_new[[col]]))
+        set(DT_new, j = col, value = as.factor(DT_new[[col]]))
 
     }
 
+  } else {
+
+    DT_new <- NULL
+
   }
 
-  # data_ref should have >0 observed values in each row/column
-  check_data_ref(data_ref)
+  # DT_ref should have >0 observed values in each row/column
+  check_data_ref(DT_ref)
 
 
   # variable types should be...
   vt <- c('numeric', 'integer', 'factor')
-  check_var_types(data_ref, valid_types = vt)
+  check_var_types(DT_ref, valid_types = vt)
 
   # if new data are supplied,
   # it should have exactly the same names and types as reference data
   if(!is.null(data_new)){
-    check_data_new_names(data_ref, data_new)
-    check_data_new_types(data_ref, data_new)
+    check_data_new_names(DT_ref, DT_new)
+    check_data_new_types(DT_ref, DT_new)
   }
 
   # bind data into one bundle
   # (this is the only way for si to impute new data)
-  data_all <- rbindlist(list(data_ref, data_new))
+  data_all <- rbindlist(list(DT_ref, DT_new))
 
   impute_indx <- lapply(data_all, function(x) which(is.na(x))) %>%
     purrr::discard(purrr::is_empty)
@@ -288,7 +308,7 @@ impute_soft <- function(
       impute_vals = NA
     )
 
-    return(data_new %||% data_ref)
+    return(DT_new %||% DT_ref)
   }
 
   # names with . in front indicate one-hot encoded data
@@ -380,19 +400,29 @@ impute_soft <- function(
     # converting the soft impute fits into a list of numeric values
     # corresponding to the indices that need to be imputed for each
     # one-hot encoded column.
-    purrr::map(.soft_impute, miss_row = .impute_indx, data = .data_all) %>%
+    purrr::map(.soft_impute, miss_row = .impute_indx, data = .data_all)
+
+
+  if(restore_data){
     # converting the imputed columns back into the format given in data.
     # this should leave us with a list that can be directly plugged in.
-    purrr::map(restore_vectypes, data = data_all, impute_indx = impute_indx,
-      fctr_info = get_factor_info(data_all))
+    impute_vals <- purrr::map(
+      .x = impute_vals,
+      .f = restore_vectypes,
+      data = data_all,
+      impute_indx = impute_indx,
+      fctr_info = get_factor_info(data_all)
+    )
 
-  # if data_new are supplied, only data_new should be imputed.
+  }
+
+  # if DT_new are supplied, only DT_new should be imputed.
   if(!is.null(data_new)){
 
     # the indices in impute_indx should be kept only if they
-    # index something in data_new, i.e., only if they are
-    # greater than the number of rows in data_ref
-    impute_indx <- purrr::map(impute_indx, ~.x > nrow(data_ref))
+    # index something in DT_new, i.e., only if they are
+    # greater than the number of rows in DT_ref
+    impute_indx <- purrr::map(impute_indx, ~.x > nrow(DT_ref))
     # re-order names of impute_indx to match impute vals
     impute_indx <- impute_indx[names(impute_vals[[1]])]
 

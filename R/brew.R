@@ -111,35 +111,26 @@ brew <- function(
   flavor <- flavor[1]
   check_flavor(flavor = flavor)
 
-  # convert to data.table
-  DT <- as.data.table(data)
+  # convert to data.table (be careful not to modify by ref)
+  if(!is.data.table(data)) DT <- as.data.table(data) else DT <- copy(data)
 
   check_var_types(DT, c('numeric', 'integer', 'factor'))
 
   cols <- setdiff(names(DT), outcome)
   check_data_ref(DT[, ..cols])
 
-  if (any(is.na(DT[, ..outcome]))) stop(
-    glue::glue("missing values in outcome columns ",
-      "({list_things(outcome)}) are not allowed."),
-    call. = FALSE
-  )
+  if (any(is.na(DT[, ..outcome]))) stop(glue::glue(
+    "missing values in outcome columns ",
+    "({list_things(outcome)}) are not allowed."),
+    call. = FALSE)
 
   # outcomes should be removed prior to imputation
   # How are you going to impute missing values of X
   # if you need to know the outcome to impute X? If
   # you know the outcome, what are you predicting??
 
-  if(outcome %in% names(DT)){
-
-    outcome_data <- DT[, ..outcome]
-    DT[[outcome]] <- NULL
-
-  } else {
-
-    outcome_data <- NULL
-
-  }
+  outcome_data <- DT[, ..outcome]
+  DT[[outcome]] <- NULL
 
   # Initiate the brew
   structure(
