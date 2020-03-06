@@ -58,36 +58,41 @@ sip <- function(
 
   # if we are scoring training data, then we need to look at
   # the brew's training data. Same thing goes for scoring testing data.
-  data_missing <- brew$data[[.col]]
+  data_missing <- dplyr::bind_cols(
+    get_outcome(brew)$data[[.col]],
+    brew$data[[.col]]
+  )
 
-  # get the name of the outcome column(s) for the brew
-  outcome <- get_outcome(brew)$name
-
-  # brew data will not have any missing values in outcome columns
-  # so the outcome column needs to be taken out before scoring,
-  # b/c it can't really be scored.
-
-  for(i in seq_along(brew$wort[[.col]])){
-    if(any(outcome %in% names(brew$wort[[.col]][[i]])))
-    for(o in outcome) brew$wort[[.col]][[i]][[o]] <- NULL
-  }
-
-
-  # If the complete data have the outcome column,
-  # it needs to be removed as well.
-  if(any(outcome %in% names(data_complete)))
-    for(o in outcome) data_complete[[o]] <- NULL
+  # # get the name of the outcome column(s) for the brew
+  # outcome <- get_outcome(brew)$name
+  #
+  # # brew data will not have any missing values in outcome columns
+  # # so the outcome column needs to be taken out before scoring,
+  # # b/c it can't really be scored.
+  #
+  # for(i in seq_along(brew$wort[[.col]])){
+  #   if(any(outcome %in% names(brew$wort[[.col]][[i]])))
+  #   for(o in outcome) brew$wort[[.col]][[i]][[o]] <- NULL
+  # }
+  #
+  #
+  # # If the complete data have the outcome column,
+  # # it needs to be removed as well.
+  # if(any(outcome %in% names(data_complete)))
+  #   for(o in outcome) data_complete[[o]] <- NULL
 
   # after dealing with outcomes, these datasets should have
   # the same names for each column.
+  browser()
+
   check_data_new_names(
-    data_ref = brew$data[[.col]],
-    data_new = data_complete
+    data_ref = data_missing, label_ref = 'brew data',
+    data_new = data_complete, label_new = 'complete data'
   )
   # data need to have the same types too
   check_data_new_types(
-    data_ref = brew$data[[.col]],
-    data_new = data_complete
+    data_ref = data_missing, label_ref = 'brew data',
+    data_new = data_complete, label_new = 'complete data'
   )
 
   new_col <- paste(.col, 'score', sep = '_')
