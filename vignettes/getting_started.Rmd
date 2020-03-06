@@ -156,33 +156,16 @@ mshd_brew$wort
 
 3. The same strategy that was used to impute training data should also be used to impute testing data.
 
-Following these principles (and making exceptions when needed), `ipa` has two broad strategies to implement.
+Following these principles (and making exceptions when needed), `ipa` implements two strategies.
 
-**Impute with fit** (`ferment_fit`) Models developed from the training data are applied to create imputations for missing values in the testing data.
+**Impute with fit** Models developed from the training data are applied to create imputations for missing values in the testing data. This is 
+the strategy applied by nearest neighbor imputation. 
 
-**Stack and fit:** (`ferment_stk`) Training and testing data are stacked. Imputation models are re-fitted to the stacked dataset. This strategy works for any imputation method, but may require substantially more time to run. 
-
-```{r}
-
-# quicker
-start <- Sys.time()
-ferm_brew_fit <- ferment_fit(mshd_brew, new_data = testing(split))
-stop <- Sys.time()
-
-print(stop - start)
-
-# slower b/c models are re-fit
-start <- Sys.time()
-ferm_brew_stk <- ferment_stk(mshd_brew, new_data = testing(split))
-stop <- Sys.time()
-
-print(stop - start)
-
-```
+**Stack and fit:** Training and testing data are stacked. Imputation models are re-fitted to the stacked dataset. This strategy works for any imputation method, but it also requires more time to run. We use stack and fit for soft imputation of testing data automatically. However, we do not implement routines to use stack and fit for nearest neighbors. (If you really want to use stack and fit for nearest neighbors, just make two brews - one with the training data and one with the stacked data.)  
 
 # Bottle
 
-Once everything is imputed, your brew is ready to be bottled. You can choose whether you'd prefer to get the data back in the form of a `tibble` or `matrix`.
+After imputation, your brew is ready to be bottled. The `bottle` function will attach outcomes to imputed data in the `wort` and convert that data into a `type` of your choice (options are `'tibble'` or `'matrix'`).
 
 ```{r}
 
@@ -192,7 +175,7 @@ imputes
 
 ```
 
-The printed output of the `brew` has changed now that it is bottled, but the underlying `brew` object still has the same structure. `ipa_brew` objects keep this behavior because after bottling the brew, focus normally shifts to the imputed data. 
+The printed output of the `brew` has changed now that it is bottled, but the underlying `brew` object still has the same structure. `print.ipa_brew` does this because after imputation, focus normally shifts to the imputed data rather than the original data.
 
 # Pipes and brews
 
@@ -202,20 +185,20 @@ The workflow functions in `ipa` are designed to be used with the `%>%` operator.
 
 brew_nbrs <- training(split) %>% 
   brew_nbrs(outcome = diabetes) %>% 
-  spice(neighbors = 1:50) %>% 
+  spice(k_neighbors = 1:50) %>% 
   mash(with = masher_nbrs(fun_aggr_ctns = median)) %>% 
-  ferment_fit(new_data = testing(split)) %>% 
+  ferment(data_new = testing(split)) %>% 
   bottle(type = 'tibble')
 
 ```
 
-One question immediately comes to mind now that we have a total of 100 imputed data sets (50 training sets and 50 testing sets). Which neighbor specification imputed missing values most accurately?
+We now have a total of 100 imputed data sets (50 training sets and 50 testing sets). If we only want to use 2 of these (1 training set and 1 testing set) A reaonable question is: Which neighbor specification imputed missing values most accurately?
 
 # Sip
 
-`sip` helps you check the accuracy of imputed values. Before we go any further, let's address the obvious limitation: imputation accuracy can only be checked when you know what the imputed value should have been. Put another way, you can only check imputation accuracy if the data you imputed weren't really missing in the first place. 
+`sip` helps you check the accuracy of imputed values. Let's address an obvious limitation: imputation accuracy can only be checked when you know what the imputed value should have been. Put another way, you can only check imputation accuracy if the data you imputed weren't really missing in the first place. 
 
-Nevertheless, you may still be able to draw generalizable insights about the problem by subsetting your incomplete data to contain only complete observations and then artificially adding missing values (as we have done with the `diabetes` data). Once you've found a strategy that seems to work best for your simulated missing data, you can apply it to the entire incomplete dataset.
+Nevertheless, you may still be able to draw generalizable insights about a problem by subsetting your incomplete data to contain only complete observations and then artificially adding missing values (as we have done with the `diabetes` data). Once you've found a strategy that seems to work best for your simulated missing data, you can apply it to the entire incomplete dataset.
 
 Notably, `sip` needs you to tell it how to score accuracy. This instruction is passed using the arguments 
 
