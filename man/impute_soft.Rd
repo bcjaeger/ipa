@@ -7,8 +7,9 @@
 impute_soft(
   data_ref,
   data_new = NULL,
-  rank_max_init = 2,
+  cols = dplyr::everything(),
   rank_max_ovrl = min(dim(data_ref) - 1),
+  rank_max_init = min(2, rank_max_ovrl),
   rank_stp_size = 1,
   lambda = seq(rank_max_ovrl * 0.6, 1, length.out = 10),
   grid = FALSE,
@@ -36,12 +37,15 @@ will be used as a reference dataset for \code{data_new} and the output
 will contain imputed values for \code{data_new}. If not supplied,
 the output will contain imputed values for \code{data_ref}.}
 
-\item{rank_max_init}{an integer value that restricts the rank of the
-solution for the first \code{softImpute} fit. Sequential fits may have
-higher rank depending upon \code{rank_max_ovrl}, \code{rank_stp_size}, and \code{grid}.}
+\item{cols}{columns that should be imputed and/or used to impute other
+columns. Supports tidy select functions (see examples).}
 
 \item{rank_max_ovrl}{an integer value that restricts the rank of the
 solution for all \code{softImpute} fits.}
+
+\item{rank_max_init}{an integer value that restricts the rank of the
+solution for the first \code{softImpute} fit. Sequential fits may have
+higher rank depending upon \code{rank_max_ovrl}, \code{rank_stp_size}, and \code{grid}.}
 
 \item{rank_stp_size}{an integer value that indicates how much the maximum
 rank of \code{softImpute} fits should increase between iterations.}

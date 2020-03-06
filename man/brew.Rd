@@ -15,11 +15,11 @@ brew_soft(data, outcome, bind_miss = FALSE)
 \arguments{
 \item{data}{a data frame with missing values.}
 
-\item{outcome}{column name(s) of outcomes in \code{data}.
-These values can be provided as symbols (e.g., outcome = c(a,b,c)
-for multiple outcomes or outcome = a for one outcome) or
-character values (e.g., outcome = c('a','b','c') for multiple outcomes
-or outcome = 'a' for a single outcome).}
+\item{outcome}{column name(s) of outcomes. These values can be
+provided as symbols (e.g., outcome = c(a,b,c) for multiple outcomes
+or outcome = a for one outcome) or character values (e.g., outcome =
+c('a','b','c') for multiple outcomes or outcome = 'a' for a single
+outcome).}
 
 \item{flavor}{the computational approach that will be used to
 impute missing data. Valid options are 'kneighbors' and 'softImpute'.

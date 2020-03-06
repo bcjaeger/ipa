@@ -1,4 +1,39 @@
 
+
+
+#' Sip a brew
+#'
+#' @inheritParams scrimp_vars
+#'
+#' @param brew an `ipa_brew` object.
+#'
+#' @param from column name for sipping. Valid options are
+#'   training and testing. Inputs can be quoted (e.g. 'training')
+#'   or unquoted (e.g. training).
+#'
+#' @return an `ipa_brew` object with a new column added to the `wort`.
+#'   The new column contains a list of [tibble::tibble()]s with columns
+#'   `variable`, `type`, and `score`. The `score` column comprises
+#'   output from the `error` functions.
+#'
+#' @export
+#'
+#' @examples
+#'
+#' data("diabetes")
+#'
+#' df_miss <- diabetes$missing
+#' df_cplt <- diabetes$complete
+#'
+#' sft_brew <- brew_soft(df_miss, outcome = diabetes) %>%
+#'   mash() %>%
+#'   ferment() %>%
+#'   bottle(type = 'tibble')
+#'
+#' sip(sft_brew, from = training, data_complete = df_cplt)
+#'
+
+
 sip <- function(
   brew,
   from = 'training',
@@ -20,6 +55,7 @@ sip <- function(
     purrr::set_names(NULL) %>%
     .[1]
 
+
   # if we are scoring training data, then we need to look at
   # the brew's training data. Same thing goes for scoring testing data.
   data_missing <- brew$data[[.col]]
@@ -30,12 +66,17 @@ sip <- function(
   # brew data will not have any missing values in outcome columns
   # so the outcome column needs to be taken out before scoring,
   # b/c it can't really be scored.
-  data_missing[, outcome] <- NULL
+
+  for(i in seq_along(brew$wort[[.col]])){
+    if(any(outcome %in% names(brew$wort[[.col]][[i]])))
+    for(o in outcome) brew$wort[[.col]][[i]][[o]] <- NULL
+  }
+
 
   # If the complete data have the outcome column,
   # it needs to be removed as well.
   if(any(outcome %in% names(data_complete)))
-    data_complete[, outcome] <- NULL
+    for(o in outcome) data_complete[[o]] <- NULL
 
   # after dealing with outcomes, these datasets should have
   # the same names for each column.
@@ -55,7 +96,7 @@ sip <- function(
   # then attach that score to the corresponding row
   # of the wort
   brew$wort[[new_col]] <- brew$wort[[.col]] %>%
-    purrr::map(vamp_vars,
+    purrr::map(scrimp_vars,
       data_missing   = data_missing,
       data_complete  = data_complete,
       fun_ctns_error = fun_ctns_error,

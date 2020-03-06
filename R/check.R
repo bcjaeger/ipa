@@ -315,7 +315,6 @@ check_spicer <- function(spicer, expected){
 
 }
 
-
 # check masher input
 check_masher <- function(masher, expected){
 

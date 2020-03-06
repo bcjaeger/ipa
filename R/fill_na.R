@@ -58,9 +58,33 @@ fill_na.data.table <- function(data, vals, make_new_DT = TRUE){
     new_dt <- data
   }
 
+  val_names <- names(vals)
+  bad_names <- setdiff(names(vals), names(data))
+
+  if(!purrr::is_empty(bad_names)) stop("vals contains variable names ",
+    "that are not in data: ", list_things(bad_names), call. = FALSE)
+
   na_indx <- lapply(new_dt, function(x) which(is.na(x)))
   no_miss <- names(which(sapply(na_indx, function(x) length(x)==0)))
   na_indx[no_miss] <- NULL
+
+  # when softImpute is used and the imputed values are not restored
+  # to their original type, data.table will get upset by you trying
+  # to put doubles into integer columns. Since this is something we
+  # actually want to do when using restore = FALSE with soft_impute,
+  # we'll coerce the values to a double.
+  val_types <- sapply(vals, typeof)
+
+  dt_types <- sapply(new_dt[, ..val_names], typeof)
+  dt_convert <- names(which(val_types == 'double' & dt_types == 'integer'))
+
+  if(!purrr::is_empty(dt_convert)){
+
+    for(i in dt_convert){
+      new_dt[[i]] <- as.double(new_dt[[i]])
+    }
+
+  }
 
   for(col in names(vals)){
 
@@ -89,6 +113,12 @@ fill_na.data.table <- function(data, vals, make_new_DT = TRUE){
 
 #' @export
 fill_na.tbl_df <- function(data, vals, make_new_DT = TRUE){
+
+  val_names <- names(vals)
+  bad_names <- setdiff(names(vals), names(data))
+
+  if(!purrr::is_empty(bad_names)) stop("vals contains variable names ",
+    "that are not in data: ", list_things(bad_names), call. = FALSE)
 
   na_indx <- lapply(data, function(x) which(is.na(x)))
   no_miss <- names(which(sapply(na_indx, function(x) length(x)==0)))

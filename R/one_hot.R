@@ -35,6 +35,13 @@
 
 one_hot <- function (data){
 
+  output_fun <- switch (class(data)[1],
+    'data.frame' = as.data.frame,
+    'matrix' = as.matrix,
+    'tbl_df' = tibble::as_tibble,
+    'data.table' = function(x) x
+  )
+
   if(!is.data.table(data)){
     DT <- as.data.table(data)
   } else {
@@ -115,7 +122,7 @@ one_hot <- function (data){
 
   data.table::setcolorder(DT, OH_names)
 
-  DT
+  output_fun(DT)
 
 }
 

@@ -93,7 +93,7 @@ ferment <- function(brew, data_new = NULL){
 
   # pull the outcome out of testing data and attach
   # it to the brew as an attribute if necessary.
-  if(outcome %in% names(DT_new)){
+  if(any(outcome %in% names(DT_new))){
 
     if (any(is.na(DT_new[, ..outcome]))) stop(
       glue::glue("missing values in outcome columns ",
@@ -102,7 +102,7 @@ ferment <- function(brew, data_new = NULL){
     )
 
     attr(brew, 'outcome')$data$testing <- DT_new[, ..outcome]
-    DT_new[[outcome]] <- NULL
+    for(o in outcome) DT_new[[o]] <- NULL
 
   }
 

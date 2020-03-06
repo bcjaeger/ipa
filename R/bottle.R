@@ -69,11 +69,13 @@ bottle <- function(
 
   .cols <- attr(brew, 'fermented_cols')
 
-  for( i in .cols ) brew$wort[[i]] <- brew$wort[[i]] %>%
-    purrr::map(
-      .f = ~ dplyr::bind_cols(attr(brew, 'outcome')$data[[i]], .x)
-    )
+  # bind outcome column to the imputed datasets
+  for( i in .cols ) brew$wort[[i]] <- purrr::map(
+    .x = brew$wort[[i]],
+    .f = ~ dplyr::bind_cols(attr(brew, 'outcome')$data[[i]], .x)
+  )
 
+  # turn imputed datasets into tibbles
   brew$wort <- tibble::as_tibble(brew$wort) %>%
     dplyr::mutate_at(
       .vars = .cols,

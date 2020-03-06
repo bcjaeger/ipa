@@ -27,9 +27,9 @@ test_that("fill_na works", {
   bad_vals <- vals
   bad_vals$bad <- c(1)
 
-  expect_error(fill_na(df_miss, bad_vals), 'vals\\$bad')
-  expect_error(fill_na(dt_miss, bad_vals), 'vals\\$bad')
-  expect_error(fill_na(tb_miss, bad_vals), 'vals\\$bad')
+  expect_error(fill_na(df_miss, bad_vals), 'not in data: bad')
+  expect_error(fill_na(dt_miss, bad_vals), 'not in data: bad')
+  expect_error(fill_na(tb_miss, bad_vals), 'not in data: bad')
 
   bad_vals <- vals
   bad_vals$a <- c(bad_vals$a, 1L)

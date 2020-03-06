@@ -34,7 +34,8 @@ Imports:
     rlang,
     yardstick,
     data.table,
-    magrittr
+    magrittr,
+    glmnet
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.2
 VignetteBuilder: knitr

@@ -135,8 +135,9 @@
 impute_soft <- function(
   data_ref,
   data_new = NULL,
-  rank_max_init = 2,
+  cols = dplyr::everything(),
   rank_max_ovrl = min(dim(data_ref)-1),
+  rank_max_init = min(2, rank_max_ovrl),
   rank_stp_size = 1,
   lambda = seq(rank_max_ovrl * 0.60, 1, length.out = 10),
   grid = FALSE,
@@ -165,13 +166,13 @@ impute_soft <- function(
   check_l1_warn(grid, label = 'grid')
   check_bool(grid, label = 'grid')
 
-  check_min_lax(rank_max_init, value = 2,
+  check_min_lax(rank_max_init, value = 1,
     label = 'initial max rank (rank_max_init)')
 
   check_max_lax(rank_max_init, value = min(dim(data_ref) - 1),
     label = 'initial max rank (rank_max_init)')
 
-  check_min_lax(rank_max_ovrl, value = 2,
+  check_min_lax(rank_max_ovrl, value = 1,
     label = 'overall max rank (rank_max_ovrl)')
 
   check_max_lax(rank_max_ovrl, value = min(dim(data_ref) - 1),
@@ -221,6 +222,14 @@ impute_soft <- function(
   check_min_lax(si_thresh, value = 0,
     label = 'softImpute convergence threshold (si_thresh)')
 
+  # keep_cols = columns to be imputed
+  keep_cols <- names(data_ref) %>%
+    tidyselect::vars_select(!!rlang::enquo(cols))
+
+  if(length(keep_cols) == 1)
+    stop("1 column was selected (", keep_cols,
+      ") but 2+ are needed", call. = FALSE)
+
   # if data_ref is given and nothing else
   # --> create fits for data_ref, return fits + imputed data refs
   # if data_ref/data_new are given, but no fits
@@ -230,9 +239,9 @@ impute_soft <- function(
 
   # convert data frames into data.table objects if needed
   if(!is.data.table(data_ref)){
-    DT_ref <- as.data.table(data_ref)
+    DT_ref <- as.data.table(data_ref[, keep_cols])
   } else {
-    DT_ref <- copy(data_ref)
+    DT_ref <- copy(data_ref[, ..keep_cols])
   }
 
   # convert characters to factors
@@ -247,14 +256,17 @@ impute_soft <- function(
 
   }
 
+  # initialize a null DT_new object in case there isn't any new data
+  DT_new <- NULL
+
   # repeat the code above for the testing data if it exists.
   if(!is.null(data_new)){
 
     # convert data frames into data.table objects if needed
     if(!is.data.table(data_new)){
-      DT_new <- as.data.table(data_new)
+      DT_new <- as.data.table(data_new[, keep_cols])
     } else {
-      DT_new <- copy(data_new)
+      DT_new <- copy(data_new[, ..keep_cols])
     }
 
     if(any(sapply(DT_new, is.character))){
@@ -266,15 +278,10 @@ impute_soft <- function(
 
     }
 
-  } else {
-
-    DT_new <- NULL
-
   }
 
   # DT_ref should have >0 observed values in each row/column
   check_data_ref(DT_ref)
-
 
   # variable types should be...
   vt <- c('numeric', 'integer', 'factor')
@@ -289,13 +296,14 @@ impute_soft <- function(
 
   # bind data into one bundle
   # (this is the only way for si to impute new data)
+  # (this also does nothing if DT_new is NULL)
   data_all <- rbindlist(list(DT_ref, DT_new))
 
   impute_indx <- lapply(data_all, function(x) which(is.na(x))) %>%
     purrr::discard(purrr::is_empty)
 
   if(purrr::is_empty(impute_indx)){
-    warning("There are no missing values in the data",
+    warning("There are no missing values to impute",
       call. = FALSE)
     # TODO: make this output consistent with the normal output
     # (for grid = TRUE)
@@ -305,10 +313,10 @@ impute_soft <- function(
       rank_max = NA,
       rank_fit = NA,
       fit      = NA,
-      impute_vals = NA
+      impute_vals = list(NULL)
     )
 
-    return(DT_new %||% DT_ref)
+    return(output)
   }
 
   # names with . in front indicate one-hot encoded data
@@ -348,7 +356,7 @@ impute_soft <- function(
 
       if(any(cnst_rows)){
 
-        cnst_rows <- names(which(cnst_rows))
+        cnst_rows <- which(cnst_rows)
 
         stop('cannot compute standard deviation (i.e., row scale)',
           ' because some rows are constant: ', list_things(cnst_rows),
@@ -429,7 +437,11 @@ impute_soft <- function(
     impute_vals <- purrr::map(
       .x = impute_vals,
       .f = function(ivals){
-        purrr::map2(ivals, impute_indx, ~.x[.y])
+        purrr::map2(ivals, impute_indx, ~.x[.y]) %>%
+          # missing data in training data might not be missing in testing
+          # data. If this is the case, impute_vals should not include
+          # those columns, which will be empty at this point. Drop em.
+          purrr::discard(purrr::is_empty)
       }
     )
 

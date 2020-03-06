@@ -8,7 +8,7 @@ test_that(
       V1 = seq(n),
       V2 = factor(sample(letters[1:3], n, replace = TRUE)),
       V3 = seq(n) / 10,
-      V4 = factor(sample(letters[5:6], n, replace = TRUE))
+      V4 = sample(letters[5:6], n, replace = TRUE)
     )
 
     DT$V1[1] <- NA
@@ -17,7 +17,19 @@ test_that(
     DT$V2[1:2] <- NA
     DT$V4[2] <- NA
 
+    DF <- as.data.frame(DT)
+    TB <- tibble::as_tibble(DT)
+
     dt_1hot <- one_hot(DT)
+    df_1hot <- one_hot(DF)
+    tb_1hot <- one_hot(TB)
+
+    expect_is(dt_1hot, 'data.table')
+    expect_is(df_1hot, 'data.frame')
+    expect_is(tb_1hot, 'tbl_df')
+
+    expect_equal(df_1hot, as.data.frame(dt_1hot))
+    expect_equal(tibble::as_tibble(df_1hot), tb_1hot)
 
     expect_equal(
       colnames(dt_1hot),
@@ -62,4 +74,16 @@ test_that(
   }
 )
 
+test_that(
+  'one_hot_vec() works', {
+
+    x <- c(0, 1, 0, 1)
+
+    expect_equal(
+      one_hot_vec(x, ncats = 2),
+      structure(c(1, 0, 1, 0, 0, 1, 0, 1), .Dim = c(4L, 2L))
+    )
+
+  }
+)
 

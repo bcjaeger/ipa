@@ -18,11 +18,11 @@
 #'
 #' @param data a data frame with missing values.
 #'
-#' @param outcome column name(s) of outcomes in `data`.
-#'   These values can be provided as symbols (e.g., outcome = c(a,b,c)
-#'   for multiple outcomes or outcome = a for one outcome) or
-#'   character values (e.g., outcome = c('a','b','c') for multiple outcomes
-#'   or outcome = 'a' for a single outcome).
+#' @param outcome column name(s) of outcomes. These values can be
+#'   provided as symbols (e.g., outcome = c(a,b,c) for multiple outcomes
+#'   or outcome = a for one outcome) or character values (e.g., outcome =
+#'   c('a','b','c') for multiple outcomes or outcome = 'a' for a single
+#'   outcome).
 #'
 #' @param bind_miss (`TRUE` / `FALSE`). If `TRUE`, a set of additional
 #'   indicator columns (one for each non-outcome column) are added
@@ -130,7 +130,7 @@ brew <- function(
   # you know the outcome, what are you predicting??
 
   outcome_data <- DT[, ..outcome]
-  DT[[outcome]] <- NULL
+  for(o in outcome) DT[[o]] <- NULL
 
   # Initiate the brew
   structure(
