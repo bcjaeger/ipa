@@ -4,7 +4,7 @@
 \alias{fill_na}
 \title{Fill missing values}
 \usage{
-fill_na(data, vals, make_new_DT = TRUE)
+fill_na(data, vals, make_copy = TRUE)
 }
 \arguments{
 \item{data}{a data frame with missing values}
@@ -12,7 +12,7 @@ fill_na(data, vals, make_new_DT = TRUE)
 \item{vals}{a named list. Names correspond to columns in \code{data} with
 missing values.}
 
-\item{make_new_DT}{a logical value that is only relevant if \code{data}
+\item{make_copy}{a logical value that is only relevant if \code{data}
 is a \code{data.table}. if \code{TRUE}, a new object is created and \code{data}
 will not be modified. If \code{FALSE}, \code{data} will be modified in place.
 The latter will be more efficient but is onyl feasible when you

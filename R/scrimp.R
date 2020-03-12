@@ -2,10 +2,12 @@
 
 #' Score imputations based on accuracy of downstream models
 #'
-#' @description For __single__ imputation strategies,
-#'   imputing data more accurately generally correlates with
-#'   higher accuracy of prediction models fitted to the imputed data.
-#'   `scrimp_mdl` facilitates this type of validation.
+#' @description Imputation of missing data is generally completed
+#'   in order to fit downstream models that require complete input data.
+#'   For supervised learning analyses, a key goal is to develop models
+#'   with optimal accuracy, so analysts will likely want to use
+#'   whatever imputation strategy provides the most accurate downstream
+#'   model. `scrimp_mdl` facilitates this comparison.
 #'
 #' @param train_imputed an imputed data frame with training data.
 #'
@@ -31,11 +33,14 @@
 #'  will return the output of `.fun`.  If `.fun` is left unspecified,
 #'  a named list is returned with components
 #'
-#'  - `model`: the model fitted to the training data.
+#'  - `model_cv`: a model tuned by cross-validation and fitted to the
+#'     training data
 #'
-#'  - `preds`: the model's predicted values for testing data,
+#'  - `preds_cv`: the model's predicted values for internal testing data
 #'
-#'  - `score`: a numeric value indicating prediction accuracy.
+#'  - `preds_ex`: the model's predicted values for external testing data
+#'
+#'  - `score_ex`: a numeric value indicating external prediction accuracy
 #'
 #'  The list's contents will vary depending on `.fun_args`. By
 #'  default, when `fun` is unspecified, `.fun_args` is governed
@@ -55,10 +60,11 @@
 #'
 #' imputes <- brew_soft(trn, outcome = diabetes) %>%
 #'   mash(with = masher_soft(si_maxit = 1000)) %>%
+#'   stir() %>%
 #'   ferment(data_new = tst) %>%
 #'   bottle() %>%
-#'   purrr::pluck('wort') %>%
-#'   dplyr::slice(5)
+#'   .[['wort']] %>%
+#'   .[5, list(training, testing)]
 #'
 #' # use the default glmnet logistic regression model
 #' dflt_output <- scrimp_mdl(
@@ -257,10 +263,14 @@ net_gnrl <- function(
 
   if(family != 'cox'){
 
+    keep_cv_prd <- TRUE
     y_trn <- dplyr::pull(.trn, tidyselect::all_of(outcome))
     y_tst <- dplyr::pull(.tst, tidyselect::all_of(outcome))
 
   } else {
+
+    keep_cv_prd <- FALSE
+    cv_prd <- NULL
 
     y_trn <- as.matrix(dplyr::select(.trn, tidyselect::all_of(outcome)))
     y_tst <- as.matrix(dplyr::select(.tst, tidyselect::all_of(outcome)))
@@ -282,10 +292,27 @@ net_gnrl <- function(
     alpha   = .dots$alpha,
     weights = .dots$weights,
     foldid  = .dots$foldid,
-    nfolds  = .dots$nfolds
+    nfolds  = .dots$nfolds,
+    keep    = keep_cv_prd
   )
 
   prd <- stats::predict(mdl, newx = x_tst, s = .dots$cmplx, type = 'response')
+
+  if(keep_cv_prd){
+
+    cv_prd <- if(family == 'multinomial'){
+      mdl$fit.preval[, , which(mdl$lambda == mdl[[.dots$cmplx]])]
+    } else {
+      mdl$fit.preval[, which(mdl$lambda == mdl[[.dots$cmplx]])]
+    }
+
+    # cv_prd <- switch (family,
+    #   'multinomial' = multi_prob(cv_prd),
+    #   'binomial' = binom_prob(cv_prd),
+    #   'gaussian' = cv_prd
+    # )
+
+  }
 
   estimate <- if(family == 'multinomial'){
     matrix(prd, nrow = nrow(.tst), ncol = length(levels(.trn[[outcome]])))
@@ -299,15 +326,33 @@ net_gnrl <- function(
     'gaussian' = as.numeric(y_tst),
     'cox' = y_tst)
 
-  list(
-    model = if(.dots$keep_mdl) mdl else NULL,
-    preds = if(.dots$keep_prd) prd else NULL,
-    score = eval_fun(truth = truth, estimate = estimate)
+  output <- list(
+    model_cv = if(.dots$keep_mdl) mdl else NULL,
+    preds_cv = if(keep_cv_prd) cv_prd else NULL,
+    preds_ex = if(.dots$keep_prd) prd else NULL,
+    score_ex = eval_fun(truth = truth, estimate = estimate)
   )
 
+  purrr::discard(output, is.null)
 
 
 }
+
+multi_prob <- function(prd){
+
+  prd <- exp(prd)
+
+  divby <- matrix(
+    data = rep(rowSums(prd), each = ncol(prd)),
+    nrow = nrow(prd),
+    byrow = TRUE
+  )
+
+  prd / divby
+
+}
+
+binom_prob <- function(prd) exp(prd) / (1+exp(prd))
 
 # wrapper function to make glmnet::Cindex consistent with yardstick functions
 cnc_index <- function(truth, estimate){
@@ -391,8 +436,8 @@ scrimp_vars <- function(
   data_imputed,
   data_missing,
   data_complete,
-  fun_ctns_error = yardstick::rsq_vec,
-  fun_intg_error = yardstick::rsq_vec,
+  fun_ctns_error = yardstick::rsq_trad_vec,
+  fun_intg_error = yardstick::rsq_trad_vec,
   fun_bnry_error = yardstick::kap_vec,
   fun_catg_error = yardstick::kap_vec
 ){

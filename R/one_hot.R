@@ -39,7 +39,8 @@ one_hot <- function (data){
     'data.frame' = as.data.frame,
     'matrix' = as.matrix,
     'tbl_df' = tibble::as_tibble,
-    'data.table' = function(x) x
+    'data.table' = function(x) x,
+    stop("unrecognized type for data", call. = FALSE)
   )
 
   if(!is.data.table(data)){

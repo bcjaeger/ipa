@@ -27,8 +27,10 @@
 #'
 #' sft_brew <- brew_soft(df_miss, outcome = diabetes) %>%
 #'   mash() %>%
+#'   stir() %>%
 #'   ferment() %>%
 #'   bottle(type = 'tibble')
+#'
 #'
 #' sip(sft_brew, from = training, data_complete = df_cplt)
 #'
@@ -52,14 +54,14 @@ sip <- function(
   # if they want to.
   .col <- names(brew$wort) %>%
     tidyselect::vars_select(!!rlang::enquo(from)) %>%
-    purrr::set_names(NULL) %>%
-    .[1]
+    purrr::set_names(NULL)
 
+  check_l1_stop(.col, label = 'column to sip from')
 
   # if we are scoring training data, then we need to look at
   # the brew's training data. Same thing goes for scoring testing data.
-  data_missing <- dplyr::bind_cols(
-    get_outcome(brew)$data[[.col]],
+  data_missing <- cbind(
+    attr(brew, 'outcome')[[.col]],
     brew$data[[.col]]
   )
 
@@ -67,6 +69,7 @@ sip <- function(
     data_ref = data_missing, label_ref = 'brew data',
     data_new = data_complete, label_new = 'complete data'
   )
+
   # data need to have the same types too
   check_data_new_types(
     data_ref = data_missing, label_ref = 'brew data',
@@ -79,7 +82,8 @@ sip <- function(
   # then attach that score to the corresponding row
   # of the wort
   brew$wort[[new_col]] <- brew$wort[[.col]] %>%
-    purrr::map(scrimp_vars,
+    purrr::map(
+      .f = scrimp_vars,
       data_missing   = data_missing,
       data_complete  = data_complete,
       fun_ctns_error = fun_ctns_error,

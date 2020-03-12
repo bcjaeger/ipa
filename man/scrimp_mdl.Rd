@@ -37,9 +37,11 @@ If you supply your own function using \code{.fun}, \code{scrimp_mdl}
 will return the output of \code{.fun}.  If \code{.fun} is left unspecified,
 a named list is returned with components
 \itemize{
-\item \code{model}: the model fitted to the training data.
-\item \code{preds}: the model's predicted values for testing data,
-\item \code{score}: a numeric value indicating prediction accuracy.
+\item \code{model_cv}: a model tuned by cross-validation and fitted to the
+training data
+\item \code{preds_cv}: the model's predicted values for internal testing data
+\item \code{preds_ex}: the model's predicted values for external testing data
+\item \code{score_ex}: a numeric value indicating external prediction accuracy
 }
 
 The list's contents will vary depending on \code{.fun_args}. By
@@ -51,10 +53,12 @@ including \code{model} should write \code{.fun_args = net_args(keep_mdl = TRUE)}
 when calling \code{scrimp_mdl}.
 }
 \description{
-For \strong{single} imputation strategies,
-imputing data more accurately generally correlates with
-higher accuracy of prediction models fitted to the imputed data.
-\code{scrimp_mdl} facilitates this type of validation.
+Imputation of missing data is generally completed
+in order to fit downstream models that require complete input data.
+For supervised learning analyses, a key goal is to develop models
+with optimal accuracy, so analysts will likely want to use
+whatever imputation strategy provides the most accurate downstream
+model. \code{scrimp_mdl} facilitates this comparison.
 }
 \examples{
 
@@ -64,10 +68,11 @@ tst <- diabetes$missing[-c(1:200), ]
 
 imputes <- brew_soft(trn, outcome = diabetes) \%>\%
   mash(with = masher_soft(si_maxit = 1000)) \%>\%
+  stir() \%>\%
   ferment(data_new = tst) \%>\%
   bottle() \%>\%
-  purrr::pluck('wort') \%>\%
-  dplyr::slice(5)
+  .[['wort']] \%>\%
+  .[5, list(training, testing)]
 
 # use the default glmnet logistic regression model
 dflt_output <- scrimp_mdl(

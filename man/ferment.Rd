@@ -40,6 +40,7 @@ contains imputed datasets, models used to impute those datasets,
 and the corresponding hyper-parameters of those models.
 }
 \examples{
+
 x1 = rnorm(100)
 x2 = rnorm(100) + x1
 x3 = rnorm(100) + x1 + x2
@@ -53,6 +54,7 @@ data <- data.frame(x1=x1, x2=x2, x3=x3, outcome=outcome)
 
 sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE)
 sft_brew <- mash(sft_brew, with = masher_soft(bs = TRUE))
+sft_brew <- stir(sft_brew, timer = TRUE)
 
 ferment(sft_brew)
 

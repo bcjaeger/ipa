@@ -10,8 +10,10 @@
 #'
 #' @param ... additional arguments for specific brew flavors.
 #'
-#' @param with the output of a helper function for mashing brews.
-#'   The helper functions are [masher_nbrs] and [masher_soft]
+#' @param with a helper function for mashing brews.
+#'   See [masher_nbrs] and [masher_soft])
+#'
+#' @return an `ipa_brew` object with additional values attached to `pars`.
 #'
 #' @export
 #'
@@ -28,13 +30,17 @@
 #' n_miss = 10
 #'
 #' data[1:n_miss,'x1'] = NA
-#' sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE) %>%
-#'  verbose_on(level = 2)
+#' sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE)
+#'
+#' # these two calls are equivalent
 #' mash(sft_brew, with = masher_soft(bs = FALSE))
+#' mash(sft_brew, bs = FALSE)
 #'
 #' knn_brew <- brew_nbrs(data, outcome=outcome, bind_miss = TRUE) %>%
-#'  verbose_on(level = 2)
+#'
+#' # these two calls are equivalent
 #' mash(knn_brew, with = masher_nbrs(fun_aggr_ctns = median))
+#' mash(knn_brew, fun_aggr_ctns = median)
 #'
 
 mash <- function(brew, with = NULL, ...){
@@ -100,34 +106,6 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
   # is 1, we'll just show messages from ipa functions.
   .dots$si_trace <- .dots$bs_trace <- get_verbosity(brew) > 1
 
-  data_ref = if(get_bind_miss(brew)){
-    dplyr::bind_cols(brew$data$training, brew$miss$training)
-  } else {
-    brew$data$training
-  }
-
-  brew$wort <- impute_soft(
-    data_ref = data_ref,
-    rank_max_init = brew$pars$rank_max_init,
-    rank_max_ovrl = brew$pars$rank_max_ovrl,
-    rank_stp_size = brew$pars$rank_stp_size,
-    lambda        = brew$pars$lambda,
-    grid          = brew$pars$grid,
-    bs            = .dots$bs,
-    bs_maxit      = .dots$bs_maxit,
-    bs_thresh     = .dots$bs_thresh,
-    bs_row.center = .dots$bs_row.center,
-    bs_col.center = .dots$bs_col.center,
-    bs_row.scale  = .dots$bs_row.scale,
-    bs_col.scale  = .dots$bs_col.scale,
-    bs_trace      = .dots$bs_trace,
-    si_type       = .dots$si_type,
-    si_thresh     = .dots$si_thresh,
-    si_maxit      = .dots$si_maxit,
-    si_trace      = .dots$si_trace,
-    si_final.svd  = .dots$si_final.svd
-  )
-
   attr(brew, 'mashed')  <- TRUE
   brew$pars <- c(brew$pars, .dots)
   brew
@@ -176,24 +154,6 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
   # is 1, we'll just show messages from ipa functions.
   .dots$verbose <- get_verbosity(brew) > 0
 
-  data_ref <- if(get_bind_miss(brew)){
-    dplyr::bind_cols(brew$data$training, brew$miss$training)
-  } else {
-    brew$data$training
-  }
-
-  brew$wort <- impute_nbrs(
-    data_ref = data_ref,
-    k_neighbors   = brew$pars$k_neighbors,
-    aggregate     = brew$pars$aggregate,
-    epsilon       = .dots$epsilon,
-    nthread       = .dots$nthread,
-    verbose       = .dots$verbose,
-    fun_aggr_ctns = .dots$fun_aggr_ctns,
-    fun_aggr_intg = .dots$fun_aggr_intg,
-    fun_aggr_catg = .dots$fun_aggr_catg
-  )
-
   attr(brew, 'mashed')  <- TRUE
   brew$pars <- c(brew$pars, .dots)
   brew
@@ -202,18 +162,10 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
 
 
 #' Soft masher
-#'
-#' It can be a little overwhelming to remember which sets of
-#'   parameters go with each `ipa_brew` flavor. If you pair your
-#'   flavor with its `masher` function, e.g.
-#'   `mash(brew, with = masher_<flavor>())`, you can use tab-completion
-#'   inside of `masher_<flavor>()` to see which arguments should be
-#'   specified for your mash.
-#'
+#' @inherit masher_nbrs description return
+#' @inherit mash examples
 #' @inheritParams impute_soft
-#'
 #' @export
-#'
 
 masher_soft <- function(
   bs = TRUE,
@@ -246,15 +198,29 @@ masher_soft <- function(
 
 #' Neighbor's masher
 #'
-#' It can be a little overwhelming to remember which sets of
-#' parameters go with each `ipa_brew` flavor, so just pair your
-#' flavor with its `masher` function and get on with your `brew`.
+#'
+#' @description
+#' If you use Rstudio, the `masher` and `spicer` functions can help
+#'  remind you which parameters go along with which `ipa_brew` flavor.
+#'  The basic idea is to write `spice(brew, with = spicer_<flavor>())`
+#'  and `mash(brew, with = masher_<flavor>())`. Hitting the tab key with
+#'  your curser inside the parentheses of `masher_flavor()`will create a
+#'  drop-down menu that shows a list of the arguments that go along with
+#'  your brew's flavor.
+#'
+#' If you have no trouble remembering the parameters that go along
+#'  with your brew's flavor, or if you just want your code to be more concise,
+#'  you don't have to use the `with` argument. Instead, you can just
+#'  specify parameter values directly using the `...` argument in the `mash`
+#'  and `spice` functions. In the examples below, both approaches are shown.
 #'
 #' @inheritParams impute_nbrs
 #'
 #' @return a list with input values that can be passed directly into
-#'   a neighborhood brew objects via [mash],
-#'   e.g `mash(brew, with = masher_nbrs())`.
+#'   [mash], e.g `mash(brew, with = masher_nbrs())` for a neighbors brew or
+#'   `mash(brew, with = masher_soft())` for a soft brew.
+#'
+#' @inherit mash examples
 #'
 #' @export
 #'

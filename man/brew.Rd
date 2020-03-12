@@ -6,7 +6,7 @@
 \alias{brew_soft}
 \title{New brew}
 \usage{
-brew(data, outcome, flavor = c("kneighbors", "softImpute"), bind_miss = FALSE)
+brew(data, outcome, flavor, bind_miss = FALSE)
 
 brew_nbrs(data, outcome, bind_miss = FALSE)
 

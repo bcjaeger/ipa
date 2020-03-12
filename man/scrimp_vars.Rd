@@ -8,8 +8,8 @@ scrimp_vars(
   data_imputed,
   data_missing,
   data_complete,
-  fun_ctns_error = yardstick::rsq_vec,
-  fun_intg_error = yardstick::rsq_vec,
+  fun_ctns_error = yardstick::rsq_trad_vec,
+  fun_intg_error = yardstick::rsq_trad_vec,
   fun_bnry_error = yardstick::kap_vec,
   fun_catg_error = yardstick::kap_vec
 )

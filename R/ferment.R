@@ -27,6 +27,7 @@
 #' @param data_new a data frame with missing values.
 #'
 #' @examples
+#'
 #' x1 = rnorm(100)
 #' x2 = rnorm(100) + x1
 #' x3 = rnorm(100) + x1 + x2
@@ -40,6 +41,7 @@
 #'
 #' sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE)
 #' sft_brew <- mash(sft_brew, with = masher_soft(bs = TRUE))
+#' sft_brew <- stir(sft_brew, timer = TRUE)
 #'
 #' ferment(sft_brew)
 #'
@@ -66,16 +68,6 @@ ferment <- function(brew, data_new = NULL){
   # brew should be spiced and mashed by now
   check_brew(brew, expected_stage = 'ferment')
 
-  # fill in the training data
-  set(brew$wort,
-    j = 'training',
-    value = purrr::map(
-      .x = brew$wort$imputed_values,
-      .f = ~fill_na(brew$data$training, .x)
-    )
-  )
-
-  brew$wort$imputed_values <- NULL
   attr(brew, 'fermented_cols') <- "training"
 
   # if there aren't any testing data, stop here
@@ -86,10 +78,13 @@ ferment <- function(brew, data_new = NULL){
 
   }
 
-  DT_new <- as.data.table(data_new)
+  if(!is.data.table(data_new))
+    DT_new <- copy(as.data.table(data_new))
+  else
+    DT_new <- copy(data_new)
 
   # outcome column name
-  outcome <- get_outcome(brew)$name
+  outcome <- get_outcome_name(brew)
 
   # pull the outcome out of testing data and attach
   # it to the brew as an attribute if necessary.
@@ -101,24 +96,19 @@ ferment <- function(brew, data_new = NULL){
       call. = FALSE
     )
 
-    attr(brew, 'outcome')$data$testing <- DT_new[, ..outcome]
-    for(o in outcome) DT_new[[o]] <- NULL
+    attr(brew, 'outcome')$testing <- copy(DT_new[, ..outcome])
+
+    # remove all outcomes from DT
+    DT_new <- DT_new[, (outcome) := NULL]
 
   }
 
-  # bind missing cols to DT_new if needed
-  if(get_bind_miss(brew)){
-    # using drop_const = FALSE to make sure all columns are included
-    miss_new <- mindx(DT_new, drop_const = FALSE)
-    # then filtering down to only the columns that are in training data
-    miss_new <- miss_new[, names(brew$miss$training)]
-    # this forces the training/testing sets to be stackable.
-    brew$miss$testing <- miss_new
-  }
+  brew$miss$testing <- mindx(DT_new, drop_empty = TRUE)
 
-  # update the brew's data to include both the
-  # training set and testing set.
-  brew$data$testing <- DT_new
+  if(get_bind_miss(brew))
+    DT_new <- .bind_miss(DT_new,
+      miss_indx = brew$miss$testing,
+      cols = names(brew$miss$training))
 
   # check testing data names and types
   # (they need to be equal to those of brew$data)
@@ -132,21 +122,15 @@ ferment <- function(brew, data_new = NULL){
     data_new = DT_new
   )
 
+  # update the brew's data to include both the
+  # training set and testing set.
+  brew$data$testing <- DT_new
+
   impute_args <- brew$pars
   impute_args$data_ref <- brew$data$training
-  impute_args$data_new <- DT_new
+  impute_args$data_new <- brew$data$testing
 
-  if(get_bind_miss(brew)){
-
-    impute_args$data_ref <- impute_args$data_ref %>%
-      dplyr::bind_cols(brew$miss$training)
-
-    impute_args$data_new <- impute_args$data_new %>%
-      dplyr::bind_cols(brew$miss$testing)
-
-  }
-
-  brew$wort$testing <- do.call(
+  brew$wort$iv_testing <- do.call(
     what = switch(
       get_flavor(brew),
       'kneighbors' = impute_nbrs,
@@ -154,15 +138,6 @@ ferment <- function(brew, data_new = NULL){
     ),
     args = impute_args
   )$imputed_values
-
-  # fill in the testing data
-  set(brew$wort,
-    j = 'testing',
-    value = purrr::map(
-      .x = brew$wort$testing,
-      .f = ~fill_na(brew$data$testing, .x)
-    )
-  )
 
   attr(brew, 'fermented_cols') <- c(attr(brew, 'fermented_cols'), "testing")
   attr(brew, 'fermented') <- TRUE

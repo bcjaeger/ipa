@@ -7,7 +7,7 @@
 #' @param data a data frame with missing values
 #' @param vals a named list. Names correspond to columns in `data` with
 #'   missing values.
-#' @param make_new_DT a logical value that is only relevant if `data`
+#' @param make_copy a logical value that is only relevant if `data`
 #'   is a `data.table`. if `TRUE`, a new object is created and `data`
 #'   will not be modified. If `FALSE`, `data` will be modified in place.
 #'   The latter will be more efficient but is onyl feasible when you
@@ -27,30 +27,30 @@
 #' fill_na(df, vals)
 #'
 
-fill_na <- function(data, vals, make_new_DT = TRUE){
+fill_na <- function(data, vals, make_copy = TRUE){
   UseMethod("fill_na")
 }
 
 #' @export
-fill_na.default <- function(data, vals, make_new_DT = TRUE){
+fill_na.default <- function(data, vals, make_copy = TRUE){
   stop("unrecognized data type: <", class(data)[1], "> \n",
     " supported types are <data.table>, <data.frame>, and <tibble>.",
     call. = FALSE)
 }
 
 #' @export
-fill_na.data.frame <- function(data, vals, make_new_DT = TRUE){
+fill_na.data.frame <- function(data, vals, make_copy = TRUE){
 
   as.data.table(data) %>%
-    fill_na(vals, make_new_DT = FALSE) %>%
+    fill_na(vals, make_copy = FALSE) %>%
     as.data.frame()
 
 }
 
 #' @export
-fill_na.data.table <- function(data, vals, make_new_DT = TRUE){
+fill_na.data.table <- function(data, vals, make_copy = TRUE){
 
-  if (make_new_DT) {
+  if (make_copy) {
     # create a deep copy of the input
     new_dt <- copy(data)
   } else {
@@ -61,12 +61,10 @@ fill_na.data.table <- function(data, vals, make_new_DT = TRUE){
   val_names <- names(vals)
   bad_names <- setdiff(names(vals), names(data))
 
-  if(!purrr::is_empty(bad_names)) stop("vals contains variable names ",
+  if(!is_empty(bad_names)) stop("vals contains variable names ",
     "that are not in data: ", list_things(bad_names), call. = FALSE)
 
-  na_indx <- lapply(new_dt, function(x) which(is.na(x)))
-  no_miss <- names(which(sapply(na_indx, function(x) length(x)==0)))
-  na_indx[no_miss] <- NULL
+  na_indx <- mindx(new_dt, drop_empty = TRUE)
 
   # when softImpute is used and the imputed values are not restored
   # to their original type, data.table will get upset by you trying
@@ -112,7 +110,7 @@ fill_na.data.table <- function(data, vals, make_new_DT = TRUE){
 }
 
 #' @export
-fill_na.tbl_df <- function(data, vals, make_new_DT = TRUE){
+fill_na.tbl_df <- function(data, vals, make_copy = TRUE){
 
   val_names <- names(vals)
   bad_names <- setdiff(names(vals), names(data))

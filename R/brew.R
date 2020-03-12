@@ -97,58 +97,74 @@
 brew <- function(
   data,
   outcome,
-  flavor = c('kneighbors', 'softImpute'),
+  flavor,
   bind_miss = FALSE
 ) {
 
-  # Check outcome and transform to simple character value
+  if(is.function(data)){
+    stop("data is a function. \nDid you remember to name",
+      " the object you intended to brew 'data'?", call. = FALSE)
+  }
 
+  # Check outcome and transform to simple character value
   outcome <- names(data) %>%
     tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
     purrr::set_names(NULL)
 
   # check flavor input
-  flavor <- flavor[1]
-  check_flavor(flavor = flavor)
+  check_l1_stop(flavor, label = 'flavor')
+  check_chr(flavor, label = 'flavor', options = c('kneighbors', 'softImpute'))
 
   # convert to data.table (be careful not to modify by ref)
-  if(!is.data.table(data)) DT <- as.data.table(data) else DT <- copy(data)
-
-  check_var_types(DT, c('numeric', 'integer', 'factor'))
-
-  cols <- setdiff(names(DT), outcome)
-  check_data_ref(DT[, ..cols])
+  if(!is.data.table(data))
+    DT <- as.data.table(data)
+  else
+    DT <- copy(data)
 
   if (any(is.na(DT[, ..outcome]))) stop(glue::glue(
     "missing values in outcome columns ",
     "({list_things(outcome)}) are not allowed."),
     call. = FALSE)
 
-  # outcomes should be removed prior to imputation
-  # How are you going to impute missing values of X
-  # if you need to know the outcome to impute X? If
-  # you know the outcome, what are you predicting??
+  check_var_types(DT, c('numeric', 'integer', 'factor'))
 
-  outcome_data <- DT[, ..outcome]
-  for(o in outcome) DT[[o]] <- NULL
+  miss_indx <- mindx(DT, drop_empty = FALSE)
+
+  # drop outcome from miss_indx
+  miss_indx[outcome] <- NULL
+  # check for missing rows/columns
+  check_missingness(miss_indx, N = nrow(DT),
+    P = ncol(DT), label = 'brew data')
+  # drop empty cols from miss_indx
+  miss_indx[sapply(miss_indx, is_empty)] <- NULL
+
+
+  # outcomes should be removed prior to imputation
+  outcome_DT <- DT[, ..outcome]
+  # remove all outcomes from DT
+  DT <- DT[, (outcome) := NULL]
+
+  if(bind_miss) DT <- .bind_miss(DT, miss_indx = miss_indx)
 
   # Initiate the brew
   structure(
     .Data = list(
       data = list(training = DT),
-      miss = list(training = mindx(DT, drop_const = TRUE)),
-      lims = get_par_bounds(DT, flavor),
+      miss = list(training = miss_indx),
       pars = list(),
       wort = NULL
     ),
     class = c('ipa_brew', paste(flavor, 'brew', sep = '_')),
+    lims = get_par_bounds(DT, flavor),
     flavor = flavor,
     bind_miss = bind_miss,
-    outcome = list(name = outcome, data = list(training = outcome_data)),
+    outcome = list(training = outcome_DT),
     verbose = 0,
     spiced = FALSE,
     mashed = FALSE,
-    fermented = FALSE
+    stirred = FALSE,
+    fermented = FALSE,
+    bottled = FALSE
   )
 
 }
@@ -156,6 +172,11 @@ brew <- function(
 #' @rdname brew
 #' @export
 brew_nbrs <- function(data, outcome, bind_miss = FALSE){
+
+  if(is.function(data)){
+    stop("data is a function. \nDid you remember to name",
+      " the object you intended to brew 'data'?", call. = FALSE)
+  }
 
   outcome <- names(data) %>%
     tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
@@ -168,6 +189,11 @@ brew_nbrs <- function(data, outcome, bind_miss = FALSE){
 #' @rdname brew
 #' @export
 brew_soft <- function(data, outcome, bind_miss = FALSE){
+
+  if(is.function(data)){
+    stop("data is a function. \nDid you remember to name",
+    " the object you intended to brew 'data'?", call. = FALSE)
+  }
 
   outcome <- names(data) %>%
     tidyselect::vars_select(!!rlang::enquo(outcome)) %>%
@@ -196,28 +222,24 @@ print.ipa_brew <- function(x, ...){
     'softImpute' = 'soft imputation'
   )
 
-  if(is_mashed(x)){
+  brew_symbol <- if(interactive()) "\U1F37A" else "brew"
+
+  if(is_stirred(x)){
 
     cat(glue::glue(
-      "A \U1F37A to handle missing data using {flavor_expand}. \n\n"
+      "A {brew_symbol} to handle missing data using {flavor_expand}. \n\n"
     ))
-    print(tibble::as_tibble(x$wort))
+
+    print(x$wort, class = TRUE)
 
   } else {
 
     cat(glue::glue(
-      "A \U1F37A to handle missing data using {flavor_expand}. \n",
+      "A {brew_symbol} to handle missing data using {flavor_expand}. \n",
       "Data used for imputation (outcomes are wittheld): \n\n"
     ))
-    if(get_bind_miss(x)){
 
-      dplyr::bind_cols(x$data$training, x$miss$training) %>%
-        tibble::as_tibble() %>%
-        print()
-
-    } else {
-      print(tibble::as_tibble(x$data$training))
-    }
+    print(x$data$training, class = TRUE)
 
   }
 
@@ -225,14 +247,14 @@ print.ipa_brew <- function(x, ...){
 
 
 # helpers for working with brew attributes
-get_flavor      <- function(brew) attr(brew, 'flavor')
-get_bind_miss   <- function(brew) attr(brew, 'bind_miss')
-get_outcome     <- function(brew) attr(brew, 'outcome')
-get_composition <- function(brew) attr(brew, 'composition')
-
-
-
-
+get_lims         <- function(brew) attr(brew, 'lims')
+get_flavor       <- function(brew) attr(brew, 'flavor')
+get_bind_miss    <- function(brew) attr(brew, 'bind_miss')
+get_outcome      <- function(brew) attr(brew, 'outcome')
+get_outcome_name <- function(brew) names(attr(brew, 'outcome')$training)
+get_outcome_trn  <- function(brew) attr(brew, 'outcome')$training
+get_outcome_tst  <- function(brew) attr(brew, 'outcome')$testing
+get_composition  <- function(brew) attr(brew, 'composition')
 
 
 

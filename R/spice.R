@@ -7,11 +7,10 @@
 #'
 #' @param ... additional arguments for specific brew flavors.
 #'
-#' @param with the output of a helper function for spicing brews.
-#'   The helper functions are [spicer_nbrs] and [spicer_soft]
+#' @param with a helper function for mashing brews.
+#'   See [spicer_nbrs] and [spicer_soft])
 #'
-#' @return a spiced `ipa_brew`, with imputation
-#'    parameters just how you like them.
+#' @return an `ipa_brew` object with values added to `pars`.
 #'
 #' @export
 #'
@@ -27,10 +26,16 @@
 #' data[1:2, 1:2] = NA
 #'
 #' knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-#' spicy_knn <- spice(knn_brew, k_neighbors = c(3, 5), aggregate = TRUE)
-#'
 #' sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
+#'
+#' # these two calls are equivalent
+#' spicy_knn <- spice(knn_brew, with = spicer_nbrs(k_neighbors = c(3, 5)))
+#' spicy_knn <- spice(knn_brew, k_neighbors = c(3, 5))
+#'
+#' # these two calls are equivalent
 #' spicy_sft <- spice(sft_brew, with = spicer_soft(grid = TRUE))
+#' spicy_sft <- spice(sft_brew, grid = TRUE)
+#'
 #'
 spice <- function(brew, with = NULL, ...){
 
@@ -50,31 +55,32 @@ spice.kneighbors_brew <- function(brew, with = NULL, ...){
     unclass()
 
   args$k_neighbors <- args$k_neighbors %||% seq(5, 50, by = 5)
-
   args$aggregate <- args$aggregate %||% TRUE
 
   if (check_l1_warn(args$aggregate, label = 'aggregate'))
     args$aggregate <- args$aggregate[1]
 
-  if (any(args$k_neighbors < brew$lims$neighbors$min)) {
+  lims <- get_lims(brew)
+
+  if (any(args$k_neighbors < lims$neighbors$min)) {
 
     warning(glue::glue(
-      "neighbor values < {brew$lims$neighbors$min} have been removed"),
+      "neighbor values < {lims$neighbors$min} have been removed"),
       call. = FALSE)
 
     args$k_neighbors <-
-      args$k_neighbors[args$k_neighbors >= brew$lims$neighbors$min]
+      args$k_neighbors[args$k_neighbors >= lims$neighbors$min]
 
   }
 
-  if (any(args$k_neighbors > brew$lims$neighbors$max)) {
+  if (any(args$k_neighbors > lims$neighbors$max)) {
 
-    warning(glue::glue("neighbor values > {brew$lims$neighbors$max}",
+    warning(glue::glue("neighbor values > {lims$neighbors$max}",
     " (max no. of neighbors for the given data) have been removed"),
       call. = FALSE)
 
     args$k_neighbors <-
-      args$k_neighbors[args$k_neighbors <= brew$lims$neighbors$max]
+      args$k_neighbors[args$k_neighbors <= lims$neighbors$max]
 
   }
 
@@ -125,25 +131,27 @@ spice.softImpute_brew <- function(brew, with = NULL, ...){
   check_bool(args$grid, label = 'grid')
   check_l1_warn(args$grid, label = 'grid')
 
+  lims <- get_lims(brew)
+
   check_min_lax(args$rank_max_init,
     label = 'initial max rank (rank_max_init)',
-    value = brew$lims$rank_max_init$min)
+    value = lims$rank_max_init$min)
 
   check_max_lax(args$rank_max_init,
     label = 'initial max rank (rank_max_init)',
-    value = brew$lims$rank_max_init$max)
+    value = lims$rank_max_init$max)
 
   check_min_lax(args$rank_max_ovrl,
     label = 'overall max rank (rank_max_ovrl)',
-    value = brew$lims$rank_max_ovrl$min)
+    value = lims$rank_max_ovrl$min)
 
   check_max_lax(args$rank_max_ovrl,
     label = 'overall max rank (rank_max_ovrl)',
-    value = brew$lims$rank_max_ovrl$max)
+    value = lims$rank_max_ovrl$max)
 
   check_min_lax(args$rank_stp_size,
     label = 'rank step size (rank_stp_size)',
-    value = brew$lims$rank_stp_size$min
+    value = lims$rank_stp_size$min
   )
 
   check_min_lax(args$lambda, label = 'lambda', value = 0)
@@ -161,18 +169,9 @@ spice.softImpute_brew <- function(brew, with = NULL, ...){
 
 
 #' Soft spices
-#'
-#' It can be a little overwhelming to remember which sets of
-#' parameters go with each `ipa_brew` flavor, so just add a dash
-#' from a handy `spicer` function and get on with your `brew`.
-#'
+#' @inherit spicer_nbrs description return examples
 #' @inheritParams impute_soft
-#'
-#' @return a list with parameter values that can be passed
-#'   directly into `softImpute_brew` objects via [spice].
-#'
 #' @export
-#'
 spicer_soft <- function(rank_max_init = 2L, rank_max_ovrl = NULL,
   rank_stp_size = 1L, lambda = NULL, grid = FALSE
 ){
@@ -190,21 +189,13 @@ spicer_soft <- function(rank_max_init = 2L, rank_max_ovrl = NULL,
 }
 
 #' Neighbor's spices
-#'
-#' It can be a little overwhelming to remember which sets of
-#' parameters go with each `ipa_brew` flavor, so just add a dash
-#' from a handy `spicer` function and get on with your `brew`.
-#'
+#' @inherit masher_nbrs description
+#' @inherit spice examples
 #' @inheritParams impute_nbrs
-#'
-#' @return a list with parameter values that can be passed
-#'   directly into `kneighbors_brew` objects via [spice].
-#'
-#' @concept spices
-#'
+#' @return a list with input values that can be passed directly into
+#'   [spice], e.g `spice(brew, with = spicer_nbrs())` for a neighbors
+#'   brew or `spice(brew, with = spicer_soft())` for a soft brew.
 #' @export
-#'
-#'
 
 spicer_nbrs <- function(
   k_neighbors = seq(10),
@@ -218,8 +209,6 @@ spicer_nbrs <- function(
   )
 
 }
-
-
 
 
 is_spicer <- function(x){

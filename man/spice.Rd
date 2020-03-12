@@ -9,14 +9,13 @@ spice(brew, with = NULL, ...)
 \arguments{
 \item{brew}{an \code{ipa_brew} object.}
 
-\item{with}{the output of a helper function for spicing brews.
-The helper functions are \link{spicer_nbrs} and \link{spicer_soft}}
+\item{with}{a helper function for mashing brews.
+See \link{spicer_nbrs} and \link{spicer_soft})}
 
 \item{...}{additional arguments for specific brew flavors.}
 }
 \value{
-a spiced \code{ipa_brew}, with imputation
-parameters just how you like them.
+an \code{ipa_brew} object with values added to \code{pars}.
 }
 \description{
 When an \code{ipa_brew} is spiced, tuning parameters
@@ -34,9 +33,15 @@ data <- data.frame(
 data[1:2, 1:2] = NA
 
 knn_brew <- brew(data, outcome = outcome, flavor = 'kneighbors')
-spicy_knn <- spice(knn_brew, k_neighbors = c(3, 5), aggregate = TRUE)
-
 sft_brew <- brew(data, outcome = outcome, flavor = 'softImpute')
+
+# these two calls are equivalent
+spicy_knn <- spice(knn_brew, with = spicer_nbrs(k_neighbors = c(3, 5)))
+spicy_knn <- spice(knn_brew, k_neighbors = c(3, 5))
+
+# these two calls are equivalent
 spicy_sft <- spice(sft_brew, with = spicer_soft(grid = TRUE))
+spicy_sft <- spice(sft_brew, grid = TRUE)
+
 
 }

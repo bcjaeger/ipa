@@ -16,21 +16,39 @@ knitr::opts_chunk$set(
 
 # Overview
 
-The `ipa` package helps create multiply imputed datasets for prediction models. The datasets are differentiated by specific tuning parameters that correspond to the imputation technique. Analysts can identify a single missing data strategy that works best for develop an ensembling method to combine different data strategies. 
+This vignette shows you how to create a `brew` object, a container for multiple imputed datasets and the primary focus of the `ipa` package. 
+
+# Why use `ipa`?
+
+The `ipa` package helps create multiple imputed datasets for prediction models. The datasets are differentiated by specific tuning parameters that correspond to the imputation technique. After creating these imputed sets, 
+
+- you can identify one single missing data strategy that most accurately imputes missing data or one strategy that results in the most accurate predition model.
+
+- You can blend imputation strategies to eek out the best possible set of imputed data for your analysis needs. 
+
+- You can combine imputation strategies to create a framework for multiple imputation, which may provide even more accurate prediction models than a well-chosen single imputation strategy.
 
 True to its name, `ipa` has a workflow based around the process of brewing. The main steps involved are
 
-1. `brew` create a container to hold your imputations
+1. `brew`: create a container to hold your imputations
 
-2. `spice` set parameters that govern the number of imputations
+1. `spice`: set primary imputation parameters
 
-3. `mash` set parameters that govern imputation models
+1. `mash`: set secondary imputation parameters 
 
-4. `ferment` impute missing values in training and (optional) testing data 
+1. `stir`: fit imputation model(s) to training data
 
-5. `bottle` output the imputed datasets as tibbles or matrices.
+1. `ferment`: impute missing values in training and (optional) testing data 
 
-6. `sip` Evaluate the accuracy of imputed values (requires observed data)
+1. `bottle`: convert imputed values to imputed sets (`tibble` or `matrix`)
+
+1. `sip`: evaluate accuracy of imputed values for each variable, separately. (requires observed data).
+
+1. `chug`: evaluate accuracy of downstream prediction models.
+
+1. `distill`: reduce multiple imputed sets into one (based on accuracy from `sip` or `chug`)
+
+1. `flight`: subset the multiple imputed sets into a smaller set optimized for prediction accuracy (in development).
 
 # Diabetes data
 
@@ -45,14 +63,7 @@ We'll work with the complete (`diab_complete`) and incomplete (`diab_incomplete`
 library(ipa)
 library(dplyr)
 library(purrr)
-library(rsample)
-library(parsnip)
-library(rsample)
-library(ggplot2)
 library(yardstick)
-
-# random seed for reproducing these results
-set.seed(329)
 
 data("diabetes", package = 'ipa')
 
@@ -83,9 +94,12 @@ We'll work with a training set and testing set in this example:
 
 ```{r}
 
-split <- initial_split(diab_missing, prop = 1/2, strata = 'diabetes')
+# random seed for reproducing these results
+set.seed(730)
+train_index <- sample(nrow(diab_missing), 200)
 
-split
+training <- diab_missing[train_index, ]
+testing  <- diab_missing[-train_index, ]
 
 ```
 
@@ -103,23 +117,29 @@ Printing your `brew` object will show the original data with missing values, alo
 
 ```{r}
 
-brew_nbrs <- brew_nbrs(data = training(split), outcome = diabetes)
+brew_init <- brew_nbrs(data = training, outcome = diabetes)
 
-brew_nbrs
+brew_init
 
 ```
 
-Here we use `brew_nbrs` to create `brew_nbrs`. This function initiates an object that will use k-nearest neighbors to impute missing values. Other brewing functions include `brew_soft` for soft imputation and `brew_rngr` for imputation using `missRanger`.
+Here we use `brew_nbrs` to create `brew_init`. This function initiates an object that will use k-nearest neighbors to impute missing values. Other brewing functions include `brew_soft` for soft imputation and `brew_rngr` for imputation using `missRanger`.
 
 # Spice
 
-`spice` lets you control how many datasets are created and the primary tuning parameter for the given imputation flavor. For nearest neighbor imputation, the primary tuning parameter is the number of nearest neighbors.
+`spice` lets you control the primary parameters for imputing data with your brew. By primary parameters, we mean the parameters that govern how many imputed datasets are created. For nearest neighbor imputation, the primary tuning parameter is the number of nearest neighbors.
 
-The `spice` function has an argument called `with` that depends on your brew's flavor. Basically, you want to use `with = spicer_<flavor>` for a `<flavor>` brew. Following that recipe, we use `spicer_nbrs` for our `nbrs` brew.
+The `spice` function has an argument called `with` that depends on your brew's flavor. The general idea is to use `with = spicer_<flavor>` for a `<flavor>` brew, so we use `spicer_nbrs` for our `nbrs` brew. The advantage of using `spicer` functions is that, if you use Rstudio, you can hit the tab key and automatically see a list of the relevant parameters for your brew.  
+
+For brewing veterans, `spice` also contains a `...` input that lets you specific parameters directly instead if using `with = spicer_nbrs()`. This lets you write more concise code if you already know what parameters go with your brew's flavor and you don't need any help remembering them. To clarify this, we use the `spice` function both ways below. 
 
 ```{r}
 
-spcd_brew <- spice(brew_nbrs, with = spicer_nbrs(k_neighbors = c(1:50)))
+# how to spice if you want help remembering what parameters to use
+spcd_brew <- spice(brew_init, with = spicer_nbrs(k_neighbors = c(1:50)))
+
+# a more concise spice for those who don't need auto-completion
+spcd_brew <- spice(brew_init, k_neighbors = 1:50)
 
 # take a look at the brew's parameters (what we added using spice)
 spcd_brew$pars
@@ -128,254 +148,98 @@ spcd_brew$pars
 
 # Mash
 
-`mash` allows you to set secondary parameters for imputing data with your brew. Additionally, `mash` will fit the models needed to impute the `brew`'s data. For a nearest neighbors brew, we can set the function that will be used to aggregate neighbors with continuous, integer, or categorical data using `masher_nbrs`. Just like `spice`, we want to use `masher_<flavor>` for a `<flavor>` brew.
+`mash` allows you to set secondary parameters for imputing data with your brew. Additionally, `mash` fits the models and adds their imputed values to the `wort` component of the `brew`. By secondary, we mean parameters that do not impact the number of imputed datasets created. 
+
+For a nearest neighbors brew, `mash` allows us to set functions that will be used to aggregate continuous, integer, or categorical values from $k$ nearest neighbors. Just like `spice`, we can use `masher_<flavor>` for a `<flavor>` brew, or we can write input arguments directly using `...`.
 
 ```{r}
 
+# how to mash if you want help remembering what parameters to use
 mshd_brew <- mash(spcd_brew, with = masher_nbrs(fun_aggr_ctns = median))
 
-mshd_brew$wort
+# a more concise mashing call if you don't need help remembering parameters.
+mshd_brew <- mash(spcd_brew, fun_aggr_ctns = median)
+
+mshd_brew
 
 ```
 
-The `brew`'s `wort` will be filled with imputation models (i.e., the column called `fit`) after `mash`ing. For nearest neighbors imputation, the `fit` is just the training data.
+# Stir
+
+Once the parameters are set, it's time to fit imputation models with `stir`. This step will probably require more computation time compared to other steps in the `brew` workflow. the `timer` argument can be set to `TRUE` for this function in case you'd like to monitor time taken to fit the models used for imputation.
 
 ```{r}
 
-mshd_brew$wort
+stirred_brew <- stir(mshd_brew, timer = TRUE)
+
+stirred_brew
 
 ```
+
+
+The printed output of the `brew` has changed. Originally, printing our `brew` showed the data we wanted to impute, but now printing the brew object shows a `tibble` comprising our imputed data. Notably, the `brew` object's structure has not changed (it is still a list with four things), but `print.ipa_brew()` now shows `brew$wort` instad of `brew$data`. We've organized `print` to work like this because focus normally shifts to the imputed data after running imputation.
+
 
 # Ferment
 
-`ferment` imputes missing values in testing data using models fitted to training data. `ipa` tries to adhere to a few principles when it comes to imputing missing values in testing data: 
+`ferment` imputes missing values in testing data and only has two arguments (a `brew` and a data frame with missing values), making it very simple to use: 
 
-1. Outcome columns should not be used to impute missing values in training data. The outcome column will naturally be missing in the testing data, so any imputation model that depends on accessing the outcome column will be unable to impute missing values in testing data.
+```{r}
 
-2. Missing data strategies should use the training data and only the training data to impute missing values in the testing data. Some imputation strategies cannot do this by design, e.g. `softImpute`, so `ipa` applies a workaround (`ferment_stk`; see below).
+ferm_brew <- ferment(stirred_brew, data_new = testing)
 
-3. The same strategy that was used to impute training data should also be used to impute testing data.
+ferm_brew
 
-Following these principles (and making exceptions when needed), `ipa` implements two strategies.
+```
 
-**Impute with fit** Models developed from the training data are applied to create imputations for missing values in the testing data. This is 
-the strategy applied by nearest neighbor imputation. 
+Under the hood, `ferment` does a lot of opinionated work based on the following general principles: 
 
-**Stack and fit:** Training and testing data are stacked. Imputation models are re-fitted to the stacked dataset. This strategy works for any imputation method, but it also requires more time to run. We use stack and fit for soft imputation of testing data automatically. However, we do not implement routines to use stack and fit for nearest neighbors. (If you really want to use stack and fit for nearest neighbors, just make two brews - one with the training data and one with the stacked data.)  
+1. _Missing data strategies should use the training data to impute missing values in the testing data and should never use the testing data to impute the training data._ `ipa` applies two methods to follow this principle:
+
+- _Impute with fit:_ Models developed from the training data are applied to create imputations for missing values in the testing data. This is 
+the strategy applied by nearest neighbor imputation. Some imputation strategies cannot do this by design (e.g. `softImpute`), and `ipa` applies the 'stack and fit' method for these.
+
+- _Stack and fit:_ Training data are imputed using only the training data. To impute testing data, the unimputed training and testing data are stacked. The same imputation models that were used to impute training data are re-fitted to the stacked dataset, and testing data are imputed based on these models. This strategy may require a lot more computing time than 'impute with fit', and is therefore only applied when needed.
+
+2. _Outcome columns should not be used to impute missing values in training data._ Outcome columns will naturally be missing in the testing data, so any missing data strategy that depends on accessing an outcome column will struggle to impute missing values in testing data.  
+
+3. The same modeling strategy that was used to impute training data should also be used to impute testing data. In other words, we don't recommend imputing the training data with `softImpute` and then imputing the testing data using nearest neighbors. 
+
+_What if you don't agree with these principles?_ It is very hard to break from these principles using functions in the `brew` family (`brew`, `spice`, `mash`, `ferment`, `bottle`, `sip`, `chug`, and `distill`.). However, the more flexible `ipa` functions (e.g., `impute_nbrs`, `impute_soft`) can break these principles if you ask them to.
 
 # Bottle
 
-After imputation, your brew is ready to be bottled. The `bottle` function will attach outcomes to imputed data in the `wort` and convert that data into a `type` of your choice (options are `'tibble'` or `'matrix'`).
+After imputation, your brew is ready to be bottled. The `bottle` function will
+
+- replace the lists of imputed values with lists of imputed data sets in the `wort` of the brew. 
+
+- bind the outcome column(s) with these imputed datasets.
+
+- format the imputed datasets into `tibble` or `matrix` composition.
 
 ```{r}
 
-imputes <- bottle(ferm_brew_fit, type = 'tibble')
+imputes <- bottle(ferm_brew, type = 'tibble')
 
 imputes
 
 ```
-
-The printed output of the `brew` has changed now that it is bottled, but the underlying `brew` object still has the same structure. `print.ipa_brew` does this because after imputation, focus normally shifts to the imputed data rather than the original data.
 
 # Pipes and brews
 
-The workflow functions in `ipa` are designed to be used with the `%>%` operator. 
+The `brew` functions in `ipa` are designed to be used with the `%>%` operator and the `training()` / `testing()` functions in the `rsample` package. A typical workflow for creating a brew looks like the code below:
 
 ```{r}
 
-brew_nbrs <- training(split) %>% 
-  brew_nbrs(outcome = diabetes) %>% 
-  spice(k_neighbors = 1:50) %>% 
-  mash(with = masher_nbrs(fun_aggr_ctns = median)) %>% 
-  ferment(data_new = testing(split)) %>% 
-  bottle(type = 'tibble')
+imputes <- training %>%           # start with training data
+  brew_nbrs(outcome = diabetes) %>%      # initialize brew; separate outcomes
+  spice(k_neighbors = 1:50) %>%          # set primary tuning parameters
+  mash(fun_aggr_ctns = median) %>%       # set secondary tuning parameters
+  stir(timer = TRUE) %>%                 # impute training data
+  ferment(data_new = testing) %>% # impute testing data
+  bottle(type = 'tibble')                # turn imputed values into datasets
 
 ```
 
-We now have a total of 100 imputed data sets (50 training sets and 50 testing sets). If we only want to use 2 of these (1 training set and 1 testing set) A reaonable question is: Which neighbor specification imputed missing values most accurately?
-
-# Sip
-
-`sip` helps you check the accuracy of imputed values. Let's address an obvious limitation: imputation accuracy can only be checked when you know what the imputed value should have been. Put another way, you can only check imputation accuracy if the data you imputed weren't really missing in the first place. 
-
-Nevertheless, you may still be able to draw generalizable insights about a problem by subsetting your incomplete data to contain only complete observations and then artificially adding missing values (as we have done with the `diabetes` data). Once you've found a strategy that seems to work best for your simulated missing data, you can apply it to the entire incomplete dataset.
-
-Notably, `sip` needs you to tell it how to score accuracy. This instruction is passed using the arguments 
-
-1. `fun_ctns_error` function to score continuous variables (doubles and integers)
-1. `fun_bnry_error` function to score binary variables (2 categories)
-1. `fun_catg_error` function to score categorical variables (>2 categories)
-
-You can supply your own function for different variable types or rely on the default approach, which evaluates continuous variables using an R-squared statistic and binary + categorical variables using a Kappa statistic. A benefit of the default approach is that both statistics are on the same scale and have similar interpretations.  
-
-```{r}
-
-trn_cplt <- diab_complete[split$in_id, ]
-tst_cplt <- diab_complete[-split$in_id, ]
-
-# sip from the bottled brew.
-# (two sips total to score both training and testing)
-brew_nbrs <- brew_nbrs %>% 
-  sip(training, data_complete = trn_cplt) %>% 
-  sip(testing, data_complete = tst_cplt)
-
-
-```
-
-Save the scores as a tibble outside of the brew so that they are easier to analyze.
-
-```{r}
-
-
-impute_acc <- brew_nbrs$wort %>% 
-  select(k_neighbors = impute, training_score) %>% 
-  unnest(training_score)
-
-# here are accuracy scores when using 10 neighbors.
-filter(impute_acc, k_neighbors == 10)
-
-```
-
-Is there an ideal number of neighbors to use for the imputation of missing values in these data? A quick but limited way to investigate this is to compute an overall accuracy score for each imputed set by averaging the scores of individual variables together.
-
-```{r}
-
-impute_acc_ovrl <- impute_acc %>% 
-  group_by(k_neighbors) %>% 
-  summarize(score_overall = mean(score, na.rm = TRUE)) %>% 
-  arrange(desc(score_overall))
-
-impute_acc_ovrl
-
-```
-
-It doesn't look like there is a clear 'best' value of `k_neighbors` for the aggregated score, but what about a 'best' number of neighbors for individual variables? Let's visalize the imputation accuracy of four variables as a function of the number of neighbors used for imputation.
-
-```{r}
-
-impute_acc %>% 
-  filter(variable %in% c('gender', 'frame', 'waist', 'hdl')) %>% 
-  ggplot(aes(x=k_neighbors, y=score)) + 
-  geom_point() + 
-  geom_smooth() + 
-  facet_wrap(~variable)
-
-```
-
-
-```{r, echo = FALSE}
-
-best_frame <- impute_acc %>% 
-  filter(variable == 'frame') %>% 
-  arrange(desc(score)) %>% 
-  slice(1) %>% 
-  pull('k_neighbors')
-
-best_gender <- impute_acc %>% 
-  filter(variable == 'gender') %>% 
-  arrange(desc(score)) %>% 
-  slice(1) %>% 
-  pull('k_neighbors')
-
-```
-
-It looks like the relationship between `k_neighbors` and accuracy of imputed values is variable-dependent. For example, the Kappa statistic for `frame` is maximized when we impute missing values with `r best_frame` neighbors, whereas the Kappa statistic for gender is maximized using `r best_gender`. Additionally, imputation of `waist` is fairly accurate, but imputation of `hdl` is generally inaccurate. 
-
-# Blend
-
-We may need to use different values of `k_neighbor` for each variable to maximize the accuracy of our imputed dataset. The easiest way to do this is with the `blend` function. There are three variants of blend:
-
-- `blend_recipe` creates a dataframe that describes how to blend imputed data.
-- `blend_training` creates a single dataframe from the training imputes.
-- `blend_testing` creates a single dataframe from the testing imputes.
-
-```{r}
-
-recipe_nbrs <- blend_recipe(brew_nbrs)
-
-# impute shows which value of k_neighbors maximized score for each variable
-recipe_nbrs
-
-# an imputed training set is created by plugging a recipe into blend_training.
-bb_trn <- blend_training(brew_nbrs, recipe = recipe_nbrs)
-# an imputed test set can be created using blend_testing
-bb_tst <- blend_testing(brew_nbrs, recipe = recipe_nbrs)
-
-# note: bb stands for best brew
-
-```
-
-# Modeling
-
-Another interesting question is whether any of the 50 pairs of imputed datasets will provide a better set of data for developing and evaluating prediction models. Let's fit a `parsnip` logistic regression model to the imputed training sets and then compute predictions on the corresponding imputed testing sets.
-
-```{r}
-
-# save the imputed data to an object with a better name
-imputes <- brew_nbrs$wort
-
-# a function to fit logit model, and predict on new data
-fit_logit <- function(df_train, df_test){
-  logistic_reg() %>% 
-    set_engine('glm') %>% 
-    fit(diabetes ~ ., data = df_train) %>% 
-    predict(new_data = df_test, type = 'prob')
-}
-
-imputes <- imputes %>% 
-  mutate(logit_probs = map2(training, testing, fit_logit),
-    truth = map(testing, 'diabetes')) %>% 
-  select(impute, truth, logit_probs)
-
-imputes
-
-```
-
-Let's go through these predictions.
-
-
-```{r}
-
-bb_probs <- fit_logit(bb_trn, bb_tst)$.pred_Yes
-
-# compute the AUC for these predictions
-bb_auc <- roc_auc_vec(bb_tst$diabetes, bb_probs)
-
-```
-
-Now we can look at the area underneath the ROC curve for each of the 50 neighbor values we used to impute our data as well as the 'best brew' we created with `sip` and `blend`.
-
-```{r}
-
-results <- imputes %>% 
-  transmute(
-    impute,
-    auc = map2_dbl(
-      .x = logit_probs,
-      .y = truth,
-      .f = ~ roc_auc_vec(estimate = .x$.pred_Yes, truth = .y)
-    )
-  ) 
-
-results
-
-```
-
-
-
-```{r}
-
-ggplot(results) + 
-  aes(x = impute, y = auc) + 
-  geom_line(col = 'grey') + 
-  geom_point(shape = 21, size = 2.4, col = 'black', fill = 'red') + 
-  geom_hline(yintercept = bb_auc, col = 'black', linetype = 2) +
-  theme_classic() +
-  theme(text = element_text(size = 12)) +
-  labs(y = 'Area underneath ROC curve',
-    x = 'Number of neighbors used to impute missing values')
-
-```
-
-
+We now have a total of 100 imputed data sets (50 training sets and 50 testing sets). In the next vignette, we will talk about `sip`, `chug`, and `distill`, which will help you assess your imputation strategies, identify an optimal strategy for your primary analysis, and create one (or multiple) imputed dataset(s) to do that analysis.
 

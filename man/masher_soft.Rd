@@ -65,11 +65,49 @@ ridge-regressions do not lead to exact zeros. With the default
 iteration is performed, followed by soft-thresholding of the
 singular values, leading to hard zeros.}
 }
+\value{
+a list with input values that can be passed directly into
+\link{mash}, e.g \code{mash(brew, with = masher_nbrs())} for a neighbors brew or
+\code{mash(brew, with = masher_soft())} for a soft brew.
+}
 \description{
-It can be a little overwhelming to remember which sets of
-parameters go with each \code{ipa_brew} flavor. If you pair your
-flavor with its \code{masher} function, e.g.
-\verb{mash(brew, with = masher_<flavor>())}, you can use tab-completion
-inside of \verb{masher_<flavor>()} to see which arguments should be
-specified for your mash.
+If you use Rstudio, the \code{masher} and \code{spicer} functions can help
+remind you which parameters go along with which \code{ipa_brew} flavor.
+The basic idea is to write \verb{spice(brew, with = spicer_<flavor>())}
+and \verb{mash(brew, with = masher_<flavor>())}. Hitting the tab key with
+your curser inside the parentheses of \code{masher_flavor()}will create a
+drop-down menu that shows a list of the arguments that go along with
+your brew's flavor.
+
+If you have no trouble remembering the parameters that go along
+with your brew's flavor, or if you just want your code to be more concise,
+you don't have to use the \code{with} argument. Instead, you can just
+specify parameter values directly using the \code{...} argument in the \code{mash}
+and \code{spice} functions. In the examples below, both approaches are shown.
+}
+\examples{
+
+x1 = rnorm(100)
+x2 = rnorm(100) + x1
+x3 = rnorm(100) + x1 + x2
+
+outcome = 0.5 * (x1 - x2 + x3)
+
+data <- data.frame(x1=x1, x2=x2, x3=x3, outcome=outcome)
+
+n_miss = 10
+
+data[1:n_miss,'x1'] = NA
+sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE)
+
+# these two calls are equivalent
+mash(sft_brew, with = masher_soft(bs = FALSE))
+mash(sft_brew, bs = FALSE)
+
+knn_brew <- brew_nbrs(data, outcome=outcome, bind_miss = TRUE) \%>\%
+
+# these two calls are equivalent
+mash(knn_brew, with = masher_nbrs(fun_aggr_ctns = median))
+mash(knn_brew, fun_aggr_ctns = median)
+
 }

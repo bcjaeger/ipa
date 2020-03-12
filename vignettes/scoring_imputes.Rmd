@@ -1,0 +1,242 @@
+---
+title: "scoring_imputes"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{scoring_imputes}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+  
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  fig.width = 7, 
+  fig.height = 5,
+  comment = "#>"
+)
+```
+
+
+```{r setup}
+
+library(ipa)
+library(dplyr)
+library(purrr)
+library(tidyr)
+library(ggplot2)
+library(yardstick)
+
+data("ames", package = 'ipa')
+
+df_cplt <- ames$complete
+df_miss <- ames$missing
+
+```
+
+In the previous vignette, we covered the first 6 steps in the brewing process. This vignette adds the next two steps: sipping and chugging. Also, we will 
+
+- use an amputed version of the Ames housing data from the `AmesHousing` package, which is available on CRAN. 
+
+- introduce the `soft` brew, which leverages the extremely fast `softImpute` algorithm.
+
+First, we split our data into training / testing sets and then apply the first 6 brew steps.
+  
+```{r}
+
+# random seed for reproducing these results
+set.seed(3290)
+train_index <- sample(nrow(df_miss), 2000)
+
+# data to impute
+training <- df_miss[train_index, ]
+testing <- df_miss[-train_index, ]
+
+# complete data (used to evaluate accuracy of imputations)
+training_cplt <- df_cplt[train_index, ]
+testing_cplt  <- df_cplt[-train_index, ]
+
+# drop unused factor levels from training and testing sets
+# this often happens when training/testing data are made, and
+# it can cause problems if the testing data do not have factor
+# levels that are observed in the training data. However,
+# impute_soft will automatically add the training data factor
+# levels to the testing data when the testing data are imputed.
+
+sft_brew <- training %>%              
+  brew_soft(outcome = Sale_Price) %>% 
+  verbose_on(level = 2) %>% 
+  spice(with = spicer_soft(grid = TRUE, rank_stp_size = 10)) %>%       
+  mash(with = masher_soft(bs_col.scale = FALSE)) %>%  
+  stir(timer = TRUE) %>%              
+  ferment(data_new = testing) %>%     
+  bottle(type = 'tibble')             
+
+```
+
+In this vignette we cover the final three steps, each of which are geared to help develop an accurate supervised prediction model using the `brew`'s imputed data. 
+
+So far, we have imputed one training and testing set using 1 through 50 nearest neighbors. A reasonable question to ask is "Which neighbor specification imputed missing values most accurately?"
+
+# Sip
+
+`sip` helps you check the accuracy of imputed values. Here is an obvious limitation: imputation accuracy can only be checked when you know what the imputed value should have been. Put another way, you can only check imputation accuracy if the data you imputed weren't really missing in the first place. 
+
+Nevertheless, you may still be able to draw insights about a problem by subsetting your incomplete data to contain only complete observations (using e.g. `tidyr::drop_na()`) and then artificially adding missing values (using e.g. `mice::ampute`), as we have done with the `diabetes` data. Once you've found a strategy that seems to work best for your simulated missing data, you can apply it to the real missing data. (A key assumption in this approach is that the simulated missing patterns match the real ones. If this does not seem plausible, `chug` is a viable alternative to `sip`).
+
+`sip` lets you tell it how to score accuracy. This instruction is passed using the arguments 
+
+1. `fun_ctns_error` function to score continuous variables (doubles and integers)
+1. `fun_bnry_error` function to score binary variables (2 categories)
+1. `fun_catg_error` function to score categorical variables (>2 categories)
+
+You can supply your own function for different variable types or rely on `ipa`'s defaults, which evaluates continuous variables using an R-squared statistic and binary + categorical variables using a Kappa statistic. A benefit of the default approach is that both statistics are on the same scale and have similar interpretations.  
+
+```{r}
+
+# sip from the bottled brew.
+# (two sips total to score both training and testing)
+sft_brew <- sft_brew %>% 
+  sip(from = training, data_complete = training_cplt)
+
+```
+
+Save the scores as a tibble outside of the brew so that they are easier to analyze.
+
+```{r}
+
+impute_accuracy <- sft_brew %>% 
+  pluck('wort') %>%
+  .[, lambda := lapply(pars, function(x) x[1])]
+  .[ , c('lambda', 'rank_max', 'rank_fit') := transpose(pars)]
+  
+  
+  select(impute, score = training_score) %>% 
+  unnest(cols = score)
+
+impute_accuracy
+
+```
+
+Is there an ideal number of neighbors to use for the imputation of missing values in these data? A quick but limited way to investigate this is to compute an overall accuracy score for each imputed set by averaging the scores of individual variables together.
+
+```{r}
+
+impute_accuracy_ovrl <- impute_accuracy %>% 
+  group_by(impute) %>% 
+  summarize(score_overall = mean(score, na.rm = TRUE)) %>% 
+  arrange(desc(score_overall))
+
+ggplot(impute_accuracy_ovrl) + 
+  aes(x = impute, y = score_overall) + 
+  geom_smooth(method = 'lm', col = 'grey90', formula = y~poly(x,3)) +
+  geom_point(shape = 21, size = 2.4, col = 'black', fill = 'red') + 
+  theme_classic() +
+  theme(text = element_text(size = 12)) +
+  labs(y = 'Overall accuracy of imputed training values',
+    x = 'Number of neighbors used to impute missing values')
+
+
+```
+
+It looks like `r pull(impute_accuracy_ovrl, impute)[1]` neighbors has the best overall score. We can also look at the accuracy of imputations for individual variables:
+
+```{r}
+
+impute_accuracy %>% 
+  filter(variable %in% c('Longitude', 'Neighborhood')) %>% 
+  ggplot(aes(x=impute, y=score)) + 
+  geom_point() + 
+  geom_smooth() + 
+  facet_wrap(~variable)
+
+```
+
+# Chug
+
+In applied settings where `sip`ing isn't feasible, `chug` provides a more direct way to assess the quality of imputed data. Specifically, `chug` will fit a learning algorithm to the `training` set and predict outcomes in the corresponding `testing` set, then summarize the accuracy of those predictions:
+
+```{r}
+
+sft_brew <- chug(sft_brew)
+
+mdl_scores <- sft_brew$wort %>% 
+  select(impute, model_score) %>% 
+  unnest_wider(model_score)
+
+arrange(mdl_scores, desc(score_ex))
+
+```
+
+Under the hood, `chug` is using `cv.glmnet` to internally validate a regression model using the training data and then externally validate the model using the testing data, returning a list with 
+
+- `model_cv`: a model tuned by cross-validation, fitted to the training data
+
+- `preds_cv`: the model's predicted values for internal testing data
+
+- `preds_ex`: the model's predicted values for external testing data
+
+- `score_ex`: a numeric value indicating external prediction accuracy
+
+The type of model and model summary depend on the type of `outcome` in the `brew`. Notably, `model_cv` will only be returned if `keep_mdl = TRUE`, which must be passed into `.fun_args` using the `net_args()` helper function:
+
+```{r, eval = FALSE}
+
+sft_brew <- chug(sft_brew, .fun_args = net_args(keep_mdl = TRUE))
+
+```
+
+`net_args()` will also let you dictate `glmnet` arguments. For example, we can adjust the value of `alpha` and the complexity of the final model using `cmplx`. 
+
+```{r}
+
+sft_brew <- chug(sft_brew, 
+  .fun_args = net_args(
+    alpha = 0.1, 
+    cmplx = 'lambda.min'
+  )
+)
+
+arrange(mdl_scores, desc(score_ex))
+
+```
+
+`chug` allows you to provide your own function with arguments that include `.trn`, `.tst`, and `outcome`. Below we write and use a function to fit and validate a classical logistic regression model:
+
+```{r}
+
+# a function to fit logit model, and predict on new data
+fit_logit <- function(.trn, .tst, outcome){
+  f = as.formula(paste(outcome, '~ .'))
+  glm(formula = f, data = .trn, family = 'binomial') %>% 
+    predict(.tst, type = 'response') %>% 
+    roc_auc_vec(truth = .tst$diabetes, estimate = .)
+}
+
+knn_brew <- chug(knn_brew, .fun = fit_logit)
+
+model_scores <- knn_brew$wort %>% 
+  select(k_neighbors = impute, model_score) %>% 
+  mutate(model_score = as.numeric(model_score)) %>% 
+  select(-starts_with('pred'))
+
+```
+
+The model scores are graphed here, showing a maximum AUC statistic when `r model_scores$k_neighbors[which.max(model_scores$model_score)]` neighbors are used.
+
+```{r}
+
+ggplot(model_scores) + 
+  aes(x=k_neighbors, y = model_score) + 
+  geom_smooth(method = 'lm', col = 'grey90', formula = y~poly(x,3)) +
+  geom_point(shape = 21, size = 2.4, col = 'black', fill = 'red') + 
+  theme_classic() +
+  theme(text = element_text(size = 12)) +
+  labs(y = 'Area underneath ROC curve',
+    x = 'Number of neighbors used to impute missing values')
+
+```
+
+# Distill
+
+
+

@@ -1,5 +1,17 @@
 
 
+drop_empty <- function(x){
+
+  stopifnot(is.list(x))
+
+  cells_to_drop <- which(purrr::map_lgl(x, is_empty))
+
+  if(!is_empty(cells_to_drop)) x[-cells_to_drop] else x
+
+}
+
+is_empty <- function (x) length(x) == 0
+
 list_things <- function(things){
 
   glue::glue_collapse(things, sep = ', ', last = ' and ')

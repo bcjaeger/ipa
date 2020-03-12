@@ -104,34 +104,21 @@ impute_nbrs <- function(
 
   # convert data frames into data.table objects if needed
   # subset to the columns we are imputing
-  if(!is.data.table(data_ref)){
-    DT_ref <- as.data.table(data_ref[, keep_cols])
-  } else {
+
+  if(!is.data.table(data_ref))
+    DT_ref <- as.data.table(data_ref)[, ..keep_cols]
+  else
     DT_ref <- data_ref[, ..keep_cols]
-  }
 
   # the row numbers that contain missing data for each keep_col
-  miss_indx <- lapply(DT_ref, function(x) which(is.na(x)))
+  miss_indx <- mindx(DT_ref, drop_empty = FALSE)
   # the number of missing values in each row
-  miss_nobs <- lapply(miss_indx, length)
-  # the rows that contain only missing values
-  miss_rows <- Reduce(x = miss_indx, f = intersect)
-  # the columns that contain only missing values
-  miss_cols <- names(which(sapply(miss_nobs, function(x) x==nrow(DT_ref))))
+  check_missingness(miss_indx, N = nrow(DT_ref),
+    P = ncol(DT_ref), label = 'reference data')
   # variable types should be...
   vt <- c('numeric', 'integer', 'logical', 'character', 'factor')
   # check that the columns in DT_ref fit this constraint
   check_var_types(DT_ref, valid_types = vt)
-
-  if(!purrr::is_empty(miss_rows)){
-    stop("rows in data_ref are missing data for all values: ",
-      list_things(miss_rows), call. = FALSE)
-  }
-
-  if(!purrr::is_empty(miss_cols)){
-    stop("columns in data_ref missing data for all values: ",
-      list_things(miss_cols), call. = FALSE)
-  }
 
   # initialize a null DT_new object in case there isn't any new data
   DT_new <- NULL
@@ -145,7 +132,7 @@ impute_nbrs <- function(
     # convert data frames into data.table objects if needed
     # subset to the columns we are imputing
     if(!is.data.table(data_new)){
-      DT_new <- as.data.table(data_new[, keep_cols])
+      DT_new <- as.data.table(data_new)[, ..keep_cols]
     } else {
       DT_new <- data_new[, ..keep_cols]
     }
@@ -171,16 +158,16 @@ impute_nbrs <- function(
     check_data_new_types(DT_ref, DT_new)
 
     # the row numbers that contain missing data for each keep_col
-    miss_indx <- lapply(DT_new, function(x) which(is.na(x)))
+    miss_indx <- mindx(DT_new, drop_empty = FALSE)
 
   }
 
   # Safety checks done
 
   # identify which columns (if any) don't need to be imputed
-  complete_cols <- which(sapply(miss_indx, purrr::is_empty))
+  complete_cols <- which(sapply(miss_indx, is_empty))
   # if there are complete columns, remove them from missing index
-  if(!purrr::is_empty(complete_cols)) miss_indx <- miss_indx[-complete_cols]
+  if(!is_empty(complete_cols)) miss_indx <- miss_indx[-complete_cols]
   # initialize the list of imputed values (the function's output)
   imputed_values <- vector(mode = 'list', length = length(k_neighbors))
 
@@ -240,9 +227,9 @@ impute_nbrs <- function(
       # the error, then the output will be very hard to manage and possibly
       # incorrect (i.e., it may say we used 20 neighbors when we only use 8).
       stop("some values of k_neighbors (",
-        list_things(k_neighbors[k_neighbors>=nrow(DT_ref)]),
+        list_things(k_neighbors[k_neighbors>=length(irows_ref)]),
         ") exceed or match the number", " of observed values (",
-        nrow(DT_ref), ") for ", impute_col, ".", call. = FALSE)
+        length(irows_ref), ") for ", impute_col, ".", call. = FALSE)
 
     }
 
@@ -282,8 +269,9 @@ impute_nbrs <- function(
     # loop through the columns, replacing each set of indices with
     # the corresponding imputed values from DT_ref
     for(i in seq(nrow(gwr_topn))){
-      gwr_topn[i, ] <- DT_ref[[impute_col]][ gwr_topn[i, ] ]
+      gwr_topn[i, ] <- DT_ref[[impute_col]][ as.numeric(gwr_topn[i, ]) ]
     }
+
 
     impute_vals <- lapply(k_neighbors, function(x){
       apply(gwr_topn[seq(x), , drop = FALSE], 2, aggregate_function)
@@ -298,7 +286,7 @@ impute_nbrs <- function(
 
       impute_vals <- purrr::map(
         .x = impute_vals,
-        .f = ~ dplyr::recode(.x, !!!labels)
+        .f = ~ factor(dplyr::recode(.x, !!!labels), levels = labels)
       )
 
     }

@@ -13,6 +13,7 @@ tst <- diabetes$missing[-c(1:200), ]
 
 imputes <- brew_soft(trn, outcome = c(diabetes, time, status)) %>%
   mash(with = masher_soft(si_maxit = 1000)) %>%
+  stir() %>%
   ferment(data_new = tst) %>%
   bottle() %>%
   purrr::pluck('wort') %>%
@@ -28,7 +29,7 @@ test_that("scrimp_vars() works, real data", {
       data_missing = diabetes$missing[1:200, check_cols])
 
   expect_is(score_vars, 'tbl_df')
-  expect_true(is.na(score_vars$score[score_vars$variable=='diabetes']))
+  expect_equal(nrow(score_vars), nrow(na.omit(score_vars)))
 
 })
 
@@ -74,7 +75,7 @@ dflt_output <- scrimp_mdl(
 
 test_that("height r-squared is correct", {
   expect_equal(
-    as.numeric(cor(dflt_output$preds, imputes$testing[[1]]$height_cm)^2),
+    as.numeric(cor(dflt_output$preds_ex, imputes$testing[[1]]$height_cm)^2),
     dflt_output$score
   )
 })
@@ -90,7 +91,7 @@ dflt_output <- scrimp_mdl(
 
 test_that("sbp r-squared is correct", {
   expect_equal(
-    as.numeric(cor(dflt_output$preds, imputes$testing[[1]]$sbp)^2),
+    as.numeric(cor(dflt_output$preds_ex, imputes$testing[[1]]$sbp)^2),
     dflt_output$score
   )
 })
@@ -174,9 +175,8 @@ test_that("scrimp_vars() works, artificial data", {
   scored <- scrimp_vars(df_imputed, df_miss, df_complete)
 
   expect_true(all(na.omit(scored$score) == 1))
-  expect_true(is.na(scored$score[4]))
-  expect_true(all(scored$type[1:4] == 'intg'))
-  expect_true(scored$type[5] == 'bnry')
+  expect_true(all(scored$type[1:3] == 'intg'))
+  expect_true(scored$type[4] == 'bnry')
 
 
 })

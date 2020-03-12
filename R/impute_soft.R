@@ -238,22 +238,17 @@ impute_soft <- function(
   # --> same as above but use warm starts
 
   # convert data frames into data.table objects if needed
-  if(!is.data.table(data_ref)){
-    DT_ref <- as.data.table(data_ref[, keep_cols])
-  } else {
+  if(!is.data.table(data_ref))
+    DT_ref <- as.data.table(data_ref)[, ..keep_cols]
+  else
     DT_ref <- copy(data_ref[, ..keep_cols])
-  }
 
   # convert characters to factors
   # modifying in place rather than copying data
   # the code is less readable but more performant
   if(any(sapply(DT_ref, is.character))){
-
     chr_cols <- names(DT_ref)[sapply(DT_ref, is.character)]
-
-    for(col in chr_cols)
-      set(DT_ref, j = col, value = as.factor(DT_ref[[col]]))
-
+    DT_ref[, (chr_cols) := lapply(.SD, as.factor), .SDcols = chr_cols]
   }
 
   # initialize a null DT_new object in case there isn't any new data
@@ -263,29 +258,25 @@ impute_soft <- function(
   if(!is.null(data_new)){
 
     # convert data frames into data.table objects if needed
-    if(!is.data.table(data_new)){
-      DT_new <- as.data.table(data_new[, keep_cols])
-    } else {
+
+    if(!is.data.table(data_new))
+      DT_new <- as.data.table(data_new)[, ..keep_cols]
+    else
       DT_new <- copy(data_new[, ..keep_cols])
-    }
+
 
     if(any(sapply(DT_new, is.character))){
 
       chr_cols <- names(DT_new)[sapply(DT_new, is.character)]
-
-      for(col in chr_cols)
-        set(DT_new, j = col, value = as.factor(DT_new[[col]]))
+      DT_new[, (chr_cols) := lapply(.SD, as.factor), .SDcols = chr_cols]
 
     }
 
+
   }
 
-  # DT_ref should have >0 observed values in each row/column
-  check_data_ref(DT_ref)
-
   # variable types should be...
-  vt <- c('numeric', 'integer', 'factor')
-  check_var_types(DT_ref, valid_types = vt)
+  check_var_types(DT_ref, valid_types = c('numeric', 'integer', 'factor'))
 
   # if new data are supplied,
   # it should have exactly the same names and types as reference data
@@ -299,10 +290,9 @@ impute_soft <- function(
   # (this also does nothing if DT_new is NULL)
   data_all <- rbindlist(list(DT_ref, DT_new))
 
-  impute_indx <- lapply(data_all, function(x) which(is.na(x))) %>%
-    purrr::discard(purrr::is_empty)
+  impute_indx <- mindx(data_all, drop_empty = TRUE)
 
-  if(purrr::is_empty(impute_indx)){
+  if(is_empty(impute_indx)){
     warning("There are no missing values to impute",
       call. = FALSE)
     # TODO: make this output consistent with the normal output
@@ -319,12 +309,18 @@ impute_soft <- function(
     return(output)
   }
 
+  # check for missing rows/columns
+  check_missingness(impute_indx, N = nrow(data_all),
+    P = ncol(data_all), label = 'stacked data')
+  # drop empty cols from miss_indx
+  impute_indx <- drop_empty(impute_indx)
+
+
   # names with . in front indicate one-hot encoded data
   # data_all and .data_all are both needed - don't try to optimize
   .data_all <- one_hot(data_all)
 
-  .impute_indx <- lapply(.data_all, function(x) which(is.na(x))) %>%
-    purrr::discard(purrr::is_empty)
+  .impute_indx <- mindx(.data_all, drop_empty = TRUE)
 
   if(bs){
 
@@ -427,6 +423,10 @@ impute_soft <- function(
   # if DT_new are supplied, only DT_new should be imputed.
   if(!is.null(data_new)){
 
+    # if we aren't restoring data types, then the one hot impute index
+    # can take over here.
+    if(!restore_data) impute_indx <- .impute_indx
+
     # the indices in impute_indx should be kept only if they
     # index something in DT_new, i.e., only if they are
     # greater than the number of rows in DT_ref
@@ -441,11 +441,12 @@ impute_soft <- function(
           # missing data in training data might not be missing in testing
           # data. If this is the case, impute_vals should not include
           # those columns, which will be empty at this point. Drop em.
-          purrr::discard(purrr::is_empty)
+          drop_empty()
       }
     )
 
   }
+
 
   set(imputes, j = 'imputed_values', value = impute_vals)
 
@@ -458,10 +459,10 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
 
   fctr_imputes <- fctr_info$keys %>%
     purrr::map(~do.call(cbind, impute_vals[.x])) %>%
-    purrr::discard(is.null) %>%
+    drop_empty() %>%
     purrr::map(apply, 1, which.max)
 
-  if(!purrr::is_empty(fctr_imputes)){
+  if(!is_empty(fctr_imputes)){
 
     for(f in names(fctr_imputes)){
 

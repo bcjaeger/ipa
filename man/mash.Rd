@@ -16,10 +16,13 @@ mash(brew, with = NULL, ...)
 \item{brew}{an \code{ipa_brew} object that may or may not have
 been spiced (see \link{spice}).}
 
-\item{with}{the output of a helper function for mashing brews.
-The helper functions are \link{masher_nbrs} and \link{masher_soft}}
+\item{with}{a helper function for mashing brews.
+See \link{masher_nbrs} and \link{masher_soft})}
 
 \item{...}{additional arguments for specific brew flavors.}
+}
+\value{
+an \code{ipa_brew} object with additional values attached to \code{pars}.
 }
 \description{
 When an \code{ipa_brew} is mashed, training data are
@@ -45,12 +48,16 @@ data <- data.frame(x1=x1, x2=x2, x3=x3, outcome=outcome)
 n_miss = 10
 
 data[1:n_miss,'x1'] = NA
-sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE) \%>\%
- verbose_on(level = 2)
+sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE)
+
+# these two calls are equivalent
 mash(sft_brew, with = masher_soft(bs = FALSE))
+mash(sft_brew, bs = FALSE)
 
 knn_brew <- brew_nbrs(data, outcome=outcome, bind_miss = TRUE) \%>\%
- verbose_on(level = 2)
+
+# these two calls are equivalent
 mash(knn_brew, with = masher_nbrs(fun_aggr_ctns = median))
+mash(knn_brew, fun_aggr_ctns = median)
 
 }

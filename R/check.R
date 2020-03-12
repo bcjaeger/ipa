@@ -6,15 +6,14 @@ check_type <- function(x, label, type){
     'double' = is.double,
     'integer' = is.integer,
     'factor' = is.factor,
+    stop('type is unrecognized', call. = FALSE)
   )
 
   .type <- class(x)[1]
 
-  if(!.fun(x)) stop(
-    glue::glue(
-      "{label} must have type <{type}>.\n Instead, it has type <{.type}>"
-    )
-  )
+  if(!.fun(x)) stop(glue::glue(
+    "{label} must have type <{type}>, but it has type <{.type}>"),
+    call. = FALSE)
 
 }
 
@@ -30,7 +29,7 @@ check_int <- function(x, label){
 
 check_chr <- function(x, label, options){
 
-  opts <- glue::glue_collapse(options, sep = ', ', last = ', or ')
+  opts <- glue::glue_collapse(options, sep = ', ', last = ' or ')
 
   if( !(x %in% options) ){
     stop(glue::glue('{label} should be one of {opts}'), call. = FALSE)
@@ -81,18 +80,6 @@ check_step_size <- function(step_size, n_impute,  max_rank){
     stop("step_size or n_impute is too big. ",
       "Try reducing n_impute or step_size",
       call. = FALSE)
-  }
-
-}
-
-# Check the flavor
-check_flavor <- function(flavor){
-
-  good_flavors <- c('kneighbors','softImpute')
-  glue_flavors <- glue::glue_collapse(good_flavors, sep = ', ', last = ', or ')
-
-  if( !(flavor %in% good_flavors) ){
-    stop('flavor should be one of ', glue_flavors, call. = FALSE)
   }
 
 }
@@ -240,58 +227,66 @@ check_brew <- function(brew, expected_stage){
   previous_stage <- switch(
     expected_stage,
     'spice' = 'initiated',
-    'ferment' = 'mashed',
+    'ferment' = 'stirred',
     'bottle' = 'fermented',
-    'sip' = 'bottled'
+    'sip' = 'bottled',
+    'chug' = 'bottled'
   )
 
   recommended_function <- switch(
     expected_stage,
     'spice' = 'brew',
-    'ferment' = 'mash',
+    'ferment' = 'stir',
     'bottle' = 'ferment',
-    'sip' = 'bottle'
+    'sip' = 'bottle',
+    'chug' = 'bottle'
   )
 
   brew_checker <- switch(
     expected_stage,
     'spice' = is_brew,
-    'ferment' = is_mashed,
+    'ferment' = is_stirred,
     'bottle' = is_fermented,
-    'sip' = is_bottled
+    'sip' = is_bottled,
+    'chug' = is_bottled
   )
 
-  if(!brew_checker(brew)){
-    stop(
-      glue::glue("the brew has not been {previous_stage}!\n",
-        "Try using the {recommended_function}() function before ",
-        "using the {expected_stage}() function")
-    )
-  }
+  if(!brew_checker(brew))
+    stop(glue::glue("the brew has not been {previous_stage}!\n",
+      "Try using the {recommended_function}() function before ",
+      "using the {expected_stage}() function"), call. = FALSE)
+
 
 }
 
 # make sure data ref can be imputed
-check_data_ref <- function(data_ref){
+check_missingness <- function(miss_indx, N, P, label){
 
-  # the row numbers that contain missing data for each keep_col
-  miss_indx <- lapply(data_ref, function(x) which(is.na(x)))
-  # the number of missing values in each row
+  if(is_empty(miss_indx)) return(NULL)
+
+  # No. of missing observations for each variable with >1 missings
   miss_nobs <- lapply(miss_indx, length)
-  # the rows that contain only missing values
-  miss_rows <- Reduce(x = miss_indx, f = intersect)
   # the columns that contain only missing values
-  miss_cols <- names(which(sapply(miss_nobs, function(x) x==nrow(data_ref))))
+  miss_cols <- names( which( sapply(miss_nobs, function(x) x==N) ) )
 
-  if(!purrr::is_empty(miss_rows)){
-    stop("rows in data_ref are missing data for all values: ",
-      list_things(miss_rows), call. = FALSE)
-  }
-
-  if(!purrr::is_empty(miss_cols)){
-    stop("columns in data_ref missing data for all values: ",
+  if(!is_empty(miss_cols)){
+    stop("columns in ", label, " are missing data for all values: ",
       list_things(miss_cols), call. = FALSE)
   }
+
+  # the rows that contain only missing values
+  # only need to worry about these if
+  if(length(miss_indx) == P){
+
+    miss_rows <- Reduce(x = miss_indx, f = intersect)
+
+    if(!is_empty(miss_rows)){
+      stop("rows in ", label, " are missing data for all values: ",
+        list_things(miss_rows), call. = FALSE)
+    }
+
+  }
+
 
 }
 

@@ -20,22 +20,23 @@ Suggests:
     testthat (>= 2.1.0),
     covr,
     knitr,
+    ggplot2,
     rmarkdown
 Imports: 
     purrr,
     dplyr,
-    gower,
     tidyselect,
     tidyr,
-    softImpute,
+    rlang,
     glue,
     tibble,
+    softImpute,
+    glmnet,
+    gower,
     stats,
-    rlang,
     yardstick,
     data.table,
     magrittr,
-    glmnet
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.0.2
 VignetteBuilder: knitr

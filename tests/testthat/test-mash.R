@@ -27,7 +27,8 @@ test_that(
     # make sure my brew's answer is the same as softImpute's answer
     set.seed(1)
     soft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE) %>%
-      mash(with = masher_soft(bs = TRUE))
+      mash(with = masher_soft(bs = TRUE)) %>%
+      stir()
 
     x <- softImpute::biScale(x = as.matrix(data[, 1:3]),
       row.scale = FALSE, row.center = FALSE)

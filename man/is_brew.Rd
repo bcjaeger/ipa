@@ -4,6 +4,7 @@
 \alias{is_brew}
 \alias{is_spiced}
 \alias{is_mashed}
+\alias{is_stirred}
 \alias{is_fermented}
 \alias{is_bottled}
 \title{Brew types}
@@ -13,6 +14,8 @@ is_brew(x)
 is_spiced(x)
 
 is_mashed(x)
+
+is_stirred(x)
 
 is_fermented(x)
 

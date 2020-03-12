@@ -58,8 +58,10 @@ df_cplt <- diabetes$complete
 
 sft_brew <- brew_soft(df_miss, outcome = diabetes) \%>\%
   mash() \%>\%
+  stir() \%>\%
   ferment() \%>\%
   bottle(type = 'tibble')
+
 
 sip(sft_brew, from = training, data_complete = df_cplt)
 

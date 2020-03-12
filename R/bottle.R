@@ -2,18 +2,50 @@
 
 #' Bottle a brew
 #'
-#' @param brew a `brew` object that has been passed through all
-#'   the brewing steps: [brew], [spice], [mash], and [ferment].
+#' @param brew an `ipa_brew` object.
 #'
 #' @param type a character value indicating what composition
 #'   the training and testing data should have. Valid options
 #'   are 'tibble' and 'matrix'
 #'
-#' @param drop_fit (`TRUE` / `FALSE`). If `TRUE`, the column in
+#' @param drop_fit a logical value. If `TRUE`, the column in
 #'   the `wort` comprising imputation models will be dropped.
 #'   Otherwise, the column will be retained.
 #'
 #' @export
+#'
+#' @examples
+#'
+#' x1 = rnorm(100)
+#' x2 = rnorm(100) + x1
+#' x3 = rnorm(100) + x1 + x2
+#'
+#' outcome = 0.5 * (x1 - x2 + x3)
+#'
+#' n_miss = 10
+#' x1[1:n_miss] <- NA
+#'
+#' data <- data.frame(x1=x1, x2=x2, x3=x3, outcome=outcome)
+#'
+#' sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE)
+#' sft_brew <- mash(sft_brew, with = masher_soft(bs = TRUE))
+#' sft_brew <- stir(sft_brew, timer = TRUE)
+#'
+#' data_new = data.frame(
+#'   x1      = c(1/2, NA_real_),
+#'   x2      = c(NA_real_, 2/3),
+#'   x3      = c(5/2, 2/3),
+#'   outcome = c(1/3, 2/3)
+#' )
+#'
+#' # soft models are re-fitted after stacking data_new with data_ref
+#'
+#' sft_brew <- ferment(sft_brew, data_new = data_new)
+#'
+#' bottle(sft_brew, type = 'tibble')
+#'
+#'
+# TODO: there is a problem with modify in place. document or change?
 bottle <- function(
   brew,
   type = 'tibble',
@@ -26,38 +58,56 @@ bottle <- function(
   check_bool(drop_fit, label = 'drop_fit')
   check_l1_stop(drop_fit, label = 'drop_fit')
 
-  brew <- switch (
-    EXPR = type,
-    'tibble' = .tibble_bottle(brew),
-    'matrix' = .matrix_bottle(brew)
+  .cols <- attr(brew, 'fermented_cols')
+
+  for(.col in .cols){
+
+    .col_name <- paste('iv', .col, sep = '_')
+
+    # fill in the training/testing data
+    set(brew$wort, j = .col_name,
+      value = purrr::map(
+        .x = brew$wort[[.col_name]],
+        .f = ~fill_na(brew$data[[.col]], .x)
+      )
+    )
+
+    # bind outcome column to the imputed datasets
+    set(brew$wort, j = .col_name,
+      value = purrr::map(
+        .x = brew$wort[[.col_name]],
+        .f = ~ cbind(attr(brew, 'outcome')[[.col]], .x)
+      )
+    )
+
+  }
+
+  setnames(brew$wort,
+    paste0("iv_", attr(brew, 'fermented_cols')),
+    attr(brew, 'fermented_cols')
   )
 
   if(drop_fit & 'fit' %in% names(brew$wort)){
     brew$wort$fit <- NULL
   }
 
-  if(get_flavor(brew) == 'softImpute') {
+  par_cols <- switch (get_flavor(brew),
+    softImpute = c('lambda', 'rank_max', 'rank_fit'),
+    kneighbors = c('k_neighbors')
+  )
 
-    brew$wort <- dplyr::mutate(
-      brew$wort,
-      pars = apply(cbind(lambda, rank_max, rank_fit), 1, as.list)
-    ) %>%
-      dplyr::select(-c(lambda, rank_max, rank_fit))
+  brew$wort <- set(brew$wort, j = 'pars',
+    value = apply(brew$wort[, ..par_cols], 1, as.list))
 
-  }
+  brew$wort[, (par_cols) := NULL]
 
-  if(get_flavor(brew) == 'kneighbors') {
+  setcolorder(brew$wort, c('impute', 'pars'))
 
-    brew$wort <- dplyr::mutate(
-      brew$wort,
-      pars = apply(cbind(k_neighbors), 1, as.list),
-    ) %>%
-      dplyr::select(-c(k_neighbors))
-
-  }
-
-  brew$wort <-  brew$wort %>%
-    dplyr::select(impute, pars, dplyr::everything())
+  brew <- switch (
+    EXPR = type,
+    'tibble' = .tibble_bottle(brew),
+    'matrix' = .matrix_bottle(brew)
+  )
 
   brew
 
@@ -69,31 +119,16 @@ bottle <- function(
 
   .cols <- attr(brew, 'fermented_cols')
 
-  # bind outcome column to the imputed datasets
-  for( i in .cols ) brew$wort[[i]] <- purrr::map(
-    .x = brew$wort[[i]],
-    .f = ~ dplyr::bind_cols(attr(brew, 'outcome')$data[[i]], .x)
-  )
+  for(.col in .cols){
 
-  # turn imputed datasets into tibbles
-  brew$wort <- tibble::as_tibble(brew$wort) %>%
-    dplyr::mutate_at(
-      .vars = .cols,
-      .funs = ~purrr::map(.x, tibble::as_tibble)
-    )
-
-  if(get_bind_miss(brew)){
-
-    for(f in attr(brew, 'fermented_cols')){
-
-      brew$wort[[f]] <- purrr::map(
-        .x = brew$wort[[f]],
-        .f = ~ dplyr::bind_cols(.x, brew$miss[[f]])
-      )
-
-    }
+    set(brew$wort, j = .col,
+      value = list(purrr::map(brew$wort[[.col]], tibble::as_tibble)))
 
   }
+
+  # this NEEDS to be a tibble.
+  # data.tables don't do well with columns that are long lists
+  # brew$wort <- tibble::as_tibble(brew$wort)
 
   attr(brew, 'bottled') <- TRUE
   attr(brew, 'composition') <- 'tibble'
@@ -106,32 +141,14 @@ bottle <- function(
 
   .cols <- attr(brew, 'fermented_cols')
 
-  .list_mats <- function(...){
-    list(...) %>%
-      purrr::set_names(c('X','Y')) %>%
-      purrr::map(one_hot) %>%
-      purrr::map(as.matrix)
-  }
+  xvar <- names(brew$data$training)
+  outcome <- get_outcome_name(brew)
 
+  for(col in .cols){
 
-  brew$wort <- tibble::as_tibble(brew$wort)
-
-  for( i in .cols ) brew$wort[[i]] <- brew$wort[[i]] %>%
-    purrr::map(.list_mats, attr(brew, 'outcome')$data[[i]])
-
-  if(get_bind_miss(brew)){
-
-    for(f in attr(brew, 'fermented_cols')){
-
-      brew$wort[[f]] <- purrr::map(
-        .x = brew$wort[[f]],
-        .f = ~ {
-          .x$X <- cbind(.x$X, as.matrix(brew$miss[[f]]))
-          .x
-        }
-      )
-
-    }
+    brew$wort[[col]] <- purrr::map(brew$wort[[col]], .f = ~ {
+      list(Y = .x[[outcome]], X = as.matrix(one_hot(.x[, ..xvar])))
+    })
 
   }
 

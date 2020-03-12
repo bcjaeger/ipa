@@ -7,17 +7,48 @@
 bottle(brew, type = "tibble", drop_fit = TRUE)
 }
 \arguments{
-\item{brew}{a \code{brew} object that has been passed through all
-the brewing steps: \link{brew}, \link{spice}, \link{mash}, and \link{ferment}.}
+\item{brew}{an \code{ipa_brew} object.}
 
 \item{type}{a character value indicating what composition
 the training and testing data should have. Valid options
 are 'tibble' and 'matrix'}
 
-\item{drop_fit}{(\code{TRUE} / \code{FALSE}). If \code{TRUE}, the column in
+\item{drop_fit}{a logical value. If \code{TRUE}, the column in
 the \code{wort} comprising imputation models will be dropped.
 Otherwise, the column will be retained.}
 }
 \description{
 Bottle a brew
+}
+\examples{
+
+x1 = rnorm(100)
+x2 = rnorm(100) + x1
+x3 = rnorm(100) + x1 + x2
+
+outcome = 0.5 * (x1 - x2 + x3)
+
+n_miss = 10
+x1[1:n_miss] <- NA
+
+data <- data.frame(x1=x1, x2=x2, x3=x3, outcome=outcome)
+
+sft_brew <- brew_soft(data, outcome=outcome, bind_miss = FALSE)
+sft_brew <- mash(sft_brew, with = masher_soft(bs = TRUE))
+sft_brew <- stir(sft_brew, timer = TRUE)
+
+data_new = data.frame(
+  x1      = c(1/2, NA_real_),
+  x2      = c(NA_real_, 2/3),
+  x3      = c(5/2, 2/3),
+  outcome = c(1/3, 2/3)
+)
+
+# soft models are re-fitted after stacking data_new with data_ref
+
+sft_brew <- ferment(sft_brew, data_new = data_new)
+
+bottle(sft_brew, type = 'tibble')
+
+
 }
