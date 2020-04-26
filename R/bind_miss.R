@@ -4,7 +4,7 @@
 #' Missing index
 #'
 #' @param data a data set with missing values.
-#' @param drop_empty a logical value. If `TRUE`, columns in `data` with no
+#' @param drop_empty a logical value. If `TRUE`, columns in `data` without any
 #'   missing values will be dropped from the output. If `FALSE`, all column
 #'   names in `data` will be present in the output.
 #'
