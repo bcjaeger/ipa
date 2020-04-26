@@ -9,7 +9,7 @@ mindx(data, drop_empty = TRUE)
 \arguments{
 \item{data}{a data set with missing values.}
 
-\item{drop_empty}{a logical value. If \code{TRUE}, columns in \code{data} with no
+\item{drop_empty}{a logical value. If \code{TRUE}, columns in \code{data} without any
 missing values will be dropped from the output. If \code{FALSE}, all column
 names in \code{data} will be present in the output.}
 }
