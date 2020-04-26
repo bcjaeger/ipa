@@ -62,6 +62,10 @@ bottle <- function(
 
   for(.col in .cols){
 
+    if(get_verbosity(brew) > 0){
+      message("Bottling ", .col, ' data.')
+    }
+
     .col_name <- paste('iv', .col, sep = '_')
 
     # fill in the training/testing data
@@ -103,11 +107,16 @@ bottle <- function(
 
   setcolorder(brew$wort, c('impute', 'pars'))
 
+  if(get_verbosity(brew) > 0){
+    message("Converting bottled data into a ", type)
+  }
+
   brew <- switch (
     EXPR = type,
     'tibble' = .tibble_bottle(brew),
     'matrix' = .matrix_bottle(brew)
   )
+
 
   brew
 

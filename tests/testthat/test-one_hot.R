@@ -87,3 +87,17 @@ test_that(
   }
 )
 
+test_that(
+  'one_hot_chr() works', {
+
+    x <- c(letters[c(1,2,1)])
+    lvls <- c('a', 'b')
+
+    expect_equal(
+      one_hot_chr(x, lvls),
+      structure(c(1, 0, 1, 0, 1, 0), .Dim = 3:2)
+    )
+
+  }
+)
+

@@ -92,6 +92,9 @@
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -131,9 +134,9 @@
       <tr>
         
         <td>
-          <p><code><a href="add_missing.html">add_missing()</a></code> </p>
+          <p><code><a href="ames.html">ames</a></code> </p>
         </td>
-        <td><p>easy wrapper for ampute</p></td>
+        <td><p>Ames housing data</p></td>
       </tr><tr>
         
         <td>
@@ -143,32 +146,61 @@
       </tr><tr>
         
         <td>
-          <p><code><a href="brew.html">brew()</a></code> </p>
+          <p><code><a href="brew.html">brew()</a></code> <code><a href="brew.html">brew_nbrs()</a></code> <code><a href="brew.html">brew_soft()</a></code> </p>
         </td>
-        <td><p>Brews for Imputation</p></td>
+        <td><p>New brew</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="ferment.html">ferment()</a></code> <code><a href="ferment.html">is_fermented()</a></code> </p>
+          <p><code><a href="chug.html">chug()</a></code> </p>
+        </td>
+        <td><p>Chug a brew</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="diabetes.html">diabetes</a></code> </p>
+        </td>
+        <td><p>Diabetes data.</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="ferment.html">ferment()</a></code> </p>
         </td>
         <td><p>Ferment a brew</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="gen_simdata.html">gen_simdata()</a></code> </p>
+          <p><code><a href="fill_na.html">fill_na()</a></code> </p>
         </td>
-        <td><p>a simple framework to simulate simple dataframes</p></td>
+        <td><p>Fill missing values</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="impute_nbrs.html">impute_nbrs()</a></code> </p>
+        </td>
+        <td><p>Nearest neighbor imputation</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="impute_soft.html">impute_soft()</a></code> </p>
+        </td>
+        <td><p>Soft imputation</p></td>
       </tr><tr>
         
         <td>
           <p><code><a href="ipa-package.html">ipa-package</a></code> </p>
         </td>
-        <td><p>ipa: a framework for multiple imputation with decision trees
-in the tidyverse.</p></td>
+        <td><p>imputation for predictive analytics - ipa.</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="mash.html">mash()</a></code> <code><a href="mash.html">is_mashed()</a></code> </p>
+          <p><code><a href="is_brew.html">is_brew()</a></code> <code><a href="is_brew.html">is_spiced()</a></code> <code><a href="is_brew.html">is_mashed()</a></code> <code><a href="is_brew.html">is_stirred()</a></code> <code><a href="is_brew.html">is_fermented()</a></code> <code><a href="is_brew.html">is_bottled()</a></code> </p>
+        </td>
+        <td><p>Brew types</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="mash.html">mash()</a></code> </p>
         </td>
         <td><p>Mash a brew</p></td>
       </tr><tr>
@@ -180,25 +212,55 @@ in the tidyverse.</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="masher_rngr.html">masher_rngr()</a></code> </p>
-        </td>
-        <td><p>Ranger's masher</p></td>
-      </tr><tr>
-        
-        <td>
           <p><code><a href="masher_soft.html">masher_soft()</a></code> </p>
         </td>
         <td><p>Soft masher</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="print.ipa_brew.html">print(<i>&lt;ipa_brew&gt;</i>)</a></code> <code><a href="print.ipa_brew.html">is_brew()</a></code> </p>
+          <p><code><a href="mode_est.html">mode_est()</a></code> <code><a href="mode_est.html">medn_est()</a></code> <code><a href="mode_est.html">medn_est_conserve()</a></code> </p>
+        </td>
+        <td><p>Neighbor aggregates</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="net_args.html">net_args()</a></code> </p>
+        </td>
+        <td><p>glmnet arguments helper function</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="one_hot.html">one_hot()</a></code> </p>
+        </td>
+        <td><p>One hot encoding</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="print.ipa_brew.html">print(<i>&lt;ipa_brew&gt;</i>)</a></code> </p>
         </td>
         <td><p>Print a brew</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="spice.html">spice()</a></code> <code><a href="spice.html">is_spiced()</a></code> </p>
+          <p><code><a href="scrimp_mdl.html">scrimp_mdl()</a></code> </p>
+        </td>
+        <td><p>Score imputations based on accuracy of downstream models</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="scrimp_vars.html">scrimp_vars()</a></code> </p>
+        </td>
+        <td><p>Score imputations for specific variables</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="sip.html">sip()</a></code> </p>
+        </td>
+        <td><p>Sip a brew</p></td>
+      </tr><tr>
+        
+        <td>
+          <p><code><a href="spice.html">spice()</a></code> </p>
         </td>
         <td><p>Spice a brew</p></td>
       </tr><tr>
@@ -210,33 +272,15 @@ in the tidyverse.</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="spicer_rngr.html">spicer_rngr()</a></code> </p>
-        </td>
-        <td><p>Ranger's spices</p></td>
-      </tr><tr>
-        
-        <td>
           <p><code><a href="spicer_soft.html">spicer_soft()</a></code> </p>
         </td>
         <td><p>Soft spices</p></td>
       </tr><tr>
         
         <td>
-          <p><code><a href="stack_data.html">stack_data()</a></code> <code><a href="stack_data.html">list_data()</a></code> </p>
+          <p><code><a href="stir.html">stir()</a></code> </p>
         </td>
-        <td><p>Data Stacks &amp; Lists</p></td>
-      </tr><tr>
-        
-        <td>
-          <p><code><a href="test_nbrs.html">test_nbrs()</a></code> </p>
-        </td>
-        <td><p>Impute test data</p></td>
-      </tr><tr>
-        
-        <td>
-          <p><code><a href="test_stkr.html">test_stkr()</a></code> </p>
-        </td>
-        <td><p>Impute test data</p></td>
+        <td><p>Stir your brew</p></td>
       </tr><tr>
         
         <td>

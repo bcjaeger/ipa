@@ -95,6 +95,9 @@ used to fit imputation models based on the brew flavor." />
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -129,12 +132,7 @@ used to fit imputation models based on the brew flavor.</p>
 <span class='fu'>mash</span>(<span class='no'>brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='no'>...</span>)
 
 <span class='co'># S3 method for kneighbors_brew</span>
-<span class='fu'>mash</span>(<span class='no'>brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='no'>...</span>)
-
-<span class='co'># S3 method for missRanger_brew</span>
-<span class='fu'>mash</span>(<span class='no'>brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='no'>...</span>)
-
-<span class='fu'>is_mashed</span>(<span class='no'>brew</span>)</pre>
+<span class='fu'>mash</span>(<span class='no'>brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='no'>...</span>)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -146,9 +144,8 @@ been spiced (see <a href='spice.html'>spice</a>).</p></td>
     </tr>
     <tr>
       <th>with</th>
-      <td><p>the output of a helper function for mashing brews.
-The helper functions are <a href='masher_nbrs.html'>masher_nbrs</a>, <a href='masher_soft.html'>masher_soft</a>, and
-<a href='masher_rngr.html'>masher_rngr</a>.</p></td>
+      <td><p>a helper function for mashing brews.
+See <a href='masher_nbrs.html'>masher_nbrs</a> and <a href='masher_soft.html'>masher_soft</a>)</p></td>
     </tr>
     <tr>
       <th>...</th>
@@ -156,53 +153,88 @@ The helper functions are <a href='masher_nbrs.html'>masher_nbrs</a>, <a href='ma
     </tr>
     </table>
 
+    <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
+
+    <p>an <code>ipa_brew</code> object with additional values attached to <code>pars</code>.</p>
     <h2 class="hasAnchor" id="methods-by-class-"><a class="anchor" href="#methods-by-class-"></a>Methods (by class)</h2>
 
     
 <ul>
 <li><p><code>softImpute_brew</code>: Mash a soft brew (use <a href='masher_soft.html'>masher_soft</a> for <code>with</code>).</p></li>
 <li><p><code>kneighbors_brew</code>: Mash a neighbor's brew (use <a href='masher_nbrs.html'>masher_nbrs</a> for <code>with</code>)</p></li>
-<li><p><code>missRanger_brew</code>: Mash a ranger's brew (use <a href='masher_rngr.html'>masher_rngr</a> for <code>with</code>)</p></li>
 </ul>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
     <pre class="examples"><div class='input'>
-<span class='fu'><a href='https://rdrr.io/r/base/Random.html'>set.seed</a></span>(<span class='fl'>101</span>)
-<span class='no'>n</span><span class='kw'>=</span><span class='fl'>200</span>
-<span class='no'>p</span><span class='kw'>=</span><span class='fl'>100</span>
-<span class='no'>J</span><span class='kw'>=</span><span class='fl'>50</span>
-<span class='no'>np</span><span class='kw'>=</span><span class='no'>n</span>*<span class='no'>p</span>
-<span class='no'>missfrac</span><span class='kw'>=</span><span class='fl'>0.3</span>
-<span class='no'>x</span><span class='kw'>=</span><span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span>(<span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='no'>n</span>*<span class='no'>J</span>),<span class='no'>n</span>,<span class='no'>J</span>)<span class='kw'>%*%</span><span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span>(<span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='no'>J</span>*<span class='no'>p</span>),<span class='no'>J</span>,<span class='no'>p</span>)+<span class='fu'><a href='https://rdrr.io/r/base/matrix.html'>matrix</a></span>(<span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='no'>np</span>),<span class='no'>n</span>,<span class='no'>p</span>)/<span class='fl'>5</span>
-<span class='no'>ix</span><span class='kw'>=</span><span class='fu'><a href='https://rdrr.io/r/base/seq.html'>seq</a></span>(<span class='no'>np</span>)
-<span class='no'>imiss</span><span class='kw'>=</span><span class='fu'><a href='https://rdrr.io/r/base/sample.html'>sample</a></span>(<span class='no'>ix</span>,<span class='no'>np</span>*<span class='no'>missfrac</span>,<span class='kw'>replace</span><span class='kw'>=</span><span class='fl'>FALSE</span>)
-<span class='no'>xna</span><span class='kw'>=</span><span class='no'>x</span>
-<span class='no'>xna</span>[<span class='no'>imiss</span>]<span class='kw'>=</span><span class='fl'>NA</span>
+<span class='no'>x1</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>)
+<span class='no'>x2</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span>
+<span class='no'>x3</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span> + <span class='no'>x2</span>
 
-<span class='no'>data</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/as.data.frame.html'>as.data.frame</a></span>(<span class='no'>xna</span>)
+<span class='no'>outcome</span> <span class='kw'>=</span> <span class='fl'>0.5</span> * (<span class='no'>x1</span> - <span class='no'>x2</span> + <span class='no'>x3</span>)
 
-<span class='no'>soft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>V1</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'softImpute'</span>)
-<span class='no'>soft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='spice.html'>spice</a></span>(<span class='no'>soft_brew</span>, <span class='kw'>n_impute</span> <span class='kw'>=</span> <span class='fl'>10</span>, <span class='kw'>step_size</span> <span class='kw'>=</span> <span class='fl'>2</span>)
-<span class='no'>soft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'>mash</span>(<span class='no'>soft_brew</span>, <span class='kw'>scale_lambda</span> <span class='kw'>=</span> <span class='fl'>0.12</span>)
+<span class='no'>data</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(<span class='kw'>x1</span><span class='kw'>=</span><span class='no'>x1</span>, <span class='kw'>x2</span><span class='kw'>=</span><span class='no'>x2</span>, <span class='kw'>x3</span><span class='kw'>=</span><span class='no'>x3</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>)
 
-<span class='no'>soft_brew</span>$<span class='no'>wort</span></div><div class='output co'>#&gt; <span style='color: #555555;'># A tibble: 10 x 3</span><span>
-#&gt;    impute fit              args            
-#&gt;     </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span> </span><span style='color: #555555;font-style: italic;'>&lt;list&gt;</span><span>           </span><span style='color: #555555;font-style: italic;'>&lt;list&gt;</span><span>          
-#&gt; </span><span style='color: #555555;'> 1</span><span>      1 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 2</span><span>      2 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 3</span><span>      3 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 4</span><span>      4 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 5</span><span>      5 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 6</span><span>      6 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 7</span><span>      7 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 8</span><span>      8 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 9</span><span>      9 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'>10</span><span>     10 </span><span style='color: #555555;'>&lt;named list [3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [7]&gt;</span><span></div></span></pre>
+<span class='no'>n_miss</span> <span class='kw'>=</span> <span class='fl'>10</span>
+
+<span class='no'>data</span>[<span class='fl'>1</span>:<span class='no'>n_miss</span>,<span class='st'>'x1'</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew_soft</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)
+
+<span class='co'># these two calls are equivalent</span>
+<span class='fu'>mash</span>(<span class='no'>sft_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='masher_soft.html'>masher_soft</a></span>(<span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>))</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;              x1          x2          x3
+#&gt;           &lt;num&gt;       &lt;num&gt;       &lt;num&gt;
+#&gt;   1:         NA -1.40948234 -2.07312599
+#&gt;   2:         NA  2.99864237  5.54649232
+#&gt;   3:         NA  0.03442976 -0.14236551
+#&gt;   4:         NA -0.24258010  0.05113776
+#&gt;   5:         NA -1.90544725 -3.81345843
+#&gt;  ---                                   
+#&gt;  96: -1.4491557  0.29799455 -0.30289646
+#&gt;  97: -0.7915040 -0.87320863  0.91068400
+#&gt;  98: -0.5044807 -0.38033915 -0.79055992
+#&gt;  99:  0.4018267  0.79406284  0.67594001
+#&gt; 100:  0.9713965  1.34981644  3.09564153</div><div class='input'><span class='fu'>mash</span>(<span class='no'>sft_brew</span>, <span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;              x1          x2          x3
+#&gt;           &lt;num&gt;       &lt;num&gt;       &lt;num&gt;
+#&gt;   1:         NA -1.40948234 -2.07312599
+#&gt;   2:         NA  2.99864237  5.54649232
+#&gt;   3:         NA  0.03442976 -0.14236551
+#&gt;   4:         NA -0.24258010  0.05113776
+#&gt;   5:         NA -1.90544725 -3.81345843
+#&gt;  ---                                   
+#&gt;  96: -1.4491557  0.29799455 -0.30289646
+#&gt;  97: -0.7915040 -0.87320863  0.91068400
+#&gt;  98: -0.5044807 -0.38033915 -0.79055992
+#&gt;  99:  0.4018267  0.79406284  0.67594001
+#&gt; 100:  0.9713965  1.34981644  3.09564153</div><div class='input'>
+<span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew_nbrs</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>) <span class='kw'>%&gt;%</span>
+
+<span class='co'># these two calls are equivalent</span>
+<span class='fu'>mash</span>(<span class='no'>knn_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='masher_nbrs.html'>masher_nbrs</a></span>(<span class='kw'>fun_aggr_ctns</span> <span class='kw'>=</span> <span class='no'>median</span>))
+<span class='fu'>mash</span>(<span class='no'>knn_brew</span>, <span class='kw'>fun_aggr_ctns</span> <span class='kw'>=</span> <span class='no'>median</span>)</div><div class='output co'>#&gt; A brew to handle missing data using k-nearest-neighbors. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;              x1          x2          x3 x1_missing
+#&gt;           &lt;num&gt;       &lt;num&gt;       &lt;num&gt;      &lt;int&gt;
+#&gt;   1:         NA -1.40948234 -2.07312599          1
+#&gt;   2:         NA  2.99864237  5.54649232          1
+#&gt;   3:         NA  0.03442976 -0.14236551          1
+#&gt;   4:         NA -0.24258010  0.05113776          1
+#&gt;   5:         NA -1.90544725 -3.81345843          1
+#&gt;  ---                                              
+#&gt;  96: -1.4491557  0.29799455 -0.30289646          0
+#&gt;  97: -0.7915040 -0.87320863  0.91068400          0
+#&gt;  98: -0.5044807 -0.38033915 -0.79055992          0
+#&gt;  99:  0.4018267  0.79406284  0.67594001          0
+#&gt; 100:  0.9713965  1.34981644  3.09564153          0</div><div class='input'>
+</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>
     <ul class="nav nav-pills nav-stacked">
       <li><a href="#arguments">Arguments</a></li>
+      <li><a href="#value">Value</a></li>
       <li><a href="#methods-by-class-">Methods (by class)</a></li>
       <li><a href="#examples">Examples</a></li>
     </ul>

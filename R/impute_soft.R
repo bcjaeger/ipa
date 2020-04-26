@@ -1,9 +1,8 @@
 
 #' Soft imputation
 #'
-#' The `softImpute` algorithm is used to impute missing values with this
-#'  For more details on this strategy to handle missing values, see
-#'  [softImpute][softImpute::softImpute()]
+#' The `softImpute` algorithm is used to impute missing values.
+#'  For more details, see [softImpute][softImpute::softImpute()]
 #'
 #' @inheritParams impute_nbrs
 #'
@@ -32,6 +31,12 @@
 #'   of the imputed values will match those of the original data. If `FALSE`,
 #'   the imputed values are returned in a one-hot encoded format.
 #'
+#' @param verbose an integer value of 0, 1, or 2. If `verbose = 0`, nothing
+#'  is printed. If `verbose = 1`, messages are printed to the console showing
+#'  what general steps are being taken in the imputation process. If
+#'  `verbose = 2`, all relevant information on convergence is printed in
+#'  addition to general messages.
+#'
 #' @param bs a logical value. If `TRUE`, [softImpute::biScale()] is applied
 #'   to `data_ref` or `rbind(data_ref, data_new)` prior to fitting `softImpute`
 #'   models.
@@ -52,9 +57,6 @@
 #'
 #' @param bs_col.scale a logical value. If `TRUE` (default), column scaling
 #'   will be performed. If `FALSE`, then nothing is done.
-#'
-#' @param bs_trace with `bs_trace = TRUE`, convergence progress is reported
-#'  for the `biScale` algorithm.
 #'
 #' @param si_type two algorithms are implemented, type="svd" or the default
 #'  type="als". The "svd" algorithm repeatedly computes the svd of the
@@ -80,9 +82,6 @@
 #'
 #' @param si_maxit maximum number of iterations for the `softImpute`
 #'   algorithm.
-#'
-#' @param si_trace with `si_trace = TRUE`, convergence progress is reported
-#'  for the `softImpute` algorithm.
 #'
 #' @param si_final.svd only applicable to `si_type = "als"`. The alternating
 #'   ridge-regressions do not lead to exact zeros. With the default
@@ -142,6 +141,7 @@ impute_soft <- function(
   lambda = seq(rank_max_ovrl * 0.60, 1, length.out = 10),
   grid = FALSE,
   restore_data = TRUE,
+  verbose = 1,
   bs = TRUE,
   bs_maxit = 20,
   bs_thresh = 1e-09,
@@ -149,13 +149,27 @@ impute_soft <- function(
   bs_col.center = TRUE,
   bs_row.scale = FALSE,
   bs_col.scale = TRUE,
-  bs_trace = FALSE,
   si_type = "als",
   si_thresh = 1e-05,
   si_maxit = 100,
-  si_trace = FALSE,
   si_final.svd = TRUE
 ){
+
+  # keep_cols = columns to be imputed
+  keep_cols <- names(data_ref) %>%
+    tidyselect::vars_select(!!rlang::enquo(cols))
+
+  if(length(keep_cols) == 1) stop("1 column was selected (",
+    keep_cols, ") but 2+ are needed", call. = FALSE)
+
+  # if a subset of columns were selected, the maximum ranks
+  # and lambda sequence need to be reset:
+  if(length(keep_cols) < ncol(data_ref)){
+
+    rank_max_ovrl = min(c(nrow(data_ref), length(keep_cols))-1)
+    rank_max_init = min(2, rank_max_ovrl)
+
+  }
 
   # Safety checks start:
 
@@ -165,6 +179,10 @@ impute_soft <- function(
 
   check_l1_warn(grid, label = 'grid')
   check_bool(grid, label = 'grid')
+
+  check_int(verbose, label = 'verbosity')
+  check_min_lax(verbose, label = 'verbosity', value = 0)
+  check_max_lax(verbose, label = 'verbosity', value = 2)
 
   check_min_lax(rank_max_init, value = 1,
     label = 'initial max rank (rank_max_init)')
@@ -183,7 +201,6 @@ impute_soft <- function(
 
   check_min_lax(lambda, label = 'lambda', value = 0)
 
-
   check_bool(bs, label = 'biScale indicator (bs)')
   check_l1_stop(bs, label = 'biScale indicator (bs)')
 
@@ -194,9 +211,8 @@ impute_soft <- function(
   check_min_lax(bs_thresh, value = 0,
     label = 'biScale convergence threshold (bs_thresh)')
 
-  check_min_lax(bs_thresh,
-    label = 'biScale convergence threshold (bs_thresh)',
-    value = 0)
+  check_min_lax(bs_thresh, value = 0,
+    label = 'biScale convergence threshold (bs_thresh)')
 
   check_bool(bs_row.scale,
     label = 'biScale row scaling indicator (bs_row.scale)')
@@ -222,13 +238,7 @@ impute_soft <- function(
   check_min_lax(si_thresh, value = 0,
     label = 'softImpute convergence threshold (si_thresh)')
 
-  # keep_cols = columns to be imputed
-  keep_cols <- names(data_ref) %>%
-    tidyselect::vars_select(!!rlang::enquo(cols))
-
-  if(length(keep_cols) == 1)
-    stop("1 column was selected (", keep_cols,
-      ") but 2+ are needed", call. = FALSE)
+  bs_trace <- si_trace <- verbose > 1
 
   # if data_ref is given and nothing else
   # --> create fits for data_ref, return fits + imputed data refs
@@ -241,7 +251,7 @@ impute_soft <- function(
   if(!is.data.table(data_ref))
     DT_ref <- as.data.table(data_ref)[, ..keep_cols]
   else
-    DT_ref <- copy(data_ref[, ..keep_cols])
+    DT_ref <- data_ref[, ..keep_cols]
 
   # convert characters to factors
   # modifying in place rather than copying data
@@ -262,7 +272,7 @@ impute_soft <- function(
     if(!is.data.table(data_new))
       DT_new <- as.data.table(data_new)[, ..keep_cols]
     else
-      DT_new <- copy(data_new[, ..keep_cols])
+      DT_new <- data_new[, ..keep_cols]
 
 
     if(any(sapply(DT_new, is.character))){
@@ -324,7 +334,7 @@ impute_soft <- function(
 
   if(bs){
 
-    if(bs_trace) message("Applying biScale() to data")
+    if(verbose > 0) message("Applying biScale() to data")
 
     # safety checks for biscale
     # if you scale columns, each column needs >= 2 unique values.
@@ -393,6 +403,7 @@ impute_soft <- function(
 
   imputes <- .soft_fun(
     data            = .data_all,
+    verbose         = verbose,
     rank_max_init   = rank_max_init,
     rank_max_ovrl   = rank_max_ovrl,
     rank_stp_size   = rank_stp_size,
@@ -400,11 +411,25 @@ impute_soft <- function(
     args_softimp    = .args_softimp
   )
 
+  if(verbose > 0){
+
+    text <- 'obtaining imputed values'
+
+    if(restore_data) text <- paste(text,
+      'and restoring original types')
+
+    message(text)
+
+  }
+
+  # TODO: make this faster
   impute_vals <- imputes$fit %>%
     # converting the soft impute fits into a list of numeric values
     # corresponding to the indices that need to be imputed for each
     # one-hot encoded column.
-    purrr::map(.soft_impute, miss_row = .impute_indx, data = .data_all)
+    purrr::map(.f = get_softImpute_values,
+      miss_row    = .impute_indx,
+      data        = .data_all)
 
 
   if(restore_data){
@@ -506,6 +531,7 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
 
 .soft_fit_grid <- function(
   data,
+  verbose,
   rank_max_init,
   rank_max_ovrl,
   rank_stp_size,
@@ -523,7 +549,7 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
   warm <- NULL
   indx <- 1
 
-  if(args_softimp$trace.it) message("Fitting soft-impute models")
+  if(verbose > 0) message("Fitting soft-impute models")
 
   for(i in seq_along(rank_sequence)){
 
@@ -548,9 +574,9 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
       attr(fits[[indx]], 'rank')     <- as.integer(rank_fit)
       attr(fits[[indx]], 'rank_max') <- as.integer(rank_sequence[i])
 
-      if(args_softimp$trace.it){
+      if(verbose > 0){
 
-        print(
+        message(
           glue::glue(
             "fit {indx} of {n_fits}: \\
             lambda = {format(round(lambda_sequence[j], 3),nsmall=3)}, \\
@@ -590,6 +616,7 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
 
 .soft_fit <- function(
   data,
+  verbose,
   rank_max_init,
   rank_max_ovrl,
   rank_stp_size,
@@ -605,7 +632,7 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
   rank_max <- rank_max_init
   warm <- NULL
 
-  if(args_softimp$trace.it) message("Fitting soft-impute models")
+  if(verbose > 0) message("Fitting soft-impute models")
 
   for( i in seq(n_fits) ){
 
@@ -629,9 +656,9 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
     attr(fits[[i]], 'rank')     <- as.integer(rank_fit)
     attr(fits[[i]], 'rank_max') <- as.integer(rank_max)
 
-    if(args_softimp$trace.it){
+    if(verbose > 0){
 
-      print(
+      message(
         glue::glue(
           "fit {i} of {n_fits}: \\
             lambda = {format(round(lambda_sequence[i], 3),nsmall=3)}, \\
@@ -660,7 +687,7 @@ restore_vectypes <- function(impute_vals, data, impute_indx, fctr_info){
 }
 
 
-.soft_impute <- function(fit, miss_row, data){
+get_softImpute_values <- function(fit, miss_row, data){
 
   miss_col <- purrr::map(names(miss_row),
     .f = match, table = colnames(data))

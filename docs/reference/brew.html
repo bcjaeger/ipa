@@ -6,7 +6,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Brews for Imputation — brew • ipa</title>
+<title>New brew — brew • ipa</title>
 
 
 <!-- jquery -->
@@ -35,13 +35,8 @@
 
 
 
-<meta property="og:title" content="Brews for Imputation — brew" />
-<meta property="og:description" content="Brewing a delicious beer is not that different from imputing
-missing data. Once a brew is started, you can add spices
-(set tuning parameters; see spice) or just go right to mashing
-(fitting imputation models; see mash). To finish off the brew, add
-yeast (new data; see ferment), and then bottle it up (see bottle)
-and share an ipa_brew with your friends!" />
+<meta property="og:title" content="New brew — brew" />
+<meta property="og:description" content="brew() is the first function in the ipa workflow ." />
 <meta name="twitter:card" content="summary" />
 
 
@@ -99,6 +94,9 @@ and share an ipa_brew with your friends!" />
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -117,21 +115,20 @@ and share an ipa_brew with your friends!" />
 <div class="row">
   <div class="col-md-9 contents">
     <div class="page-header">
-    <h1>Brews for Imputation</h1>
+    <h1>New brew</h1>
     
     <div class="hidden name"><code>brew.Rd</code></div>
     </div>
 
     <div class="ref-description">
-    <p>Brewing a delicious beer is not that different from imputing
-missing data. Once a brew is started, you can add spices
-(set tuning parameters; see <a href='spice.html'>spice</a>) or just go right to mashing
-(fitting imputation models; see <a href='mash.html'>mash</a>). To finish off the brew, add
-yeast (new data; see <a href='ferment.html'>ferment</a>), and then bottle it up (see <a href='bottle.html'>bottle</a>)
-and share an <code>ipa_brew</code> with your friends!</p>
+    <p><code>brew()</code> is the first function in the <code>ipa</code> workflow .</p>
     </div>
 
-    <pre class="usage"><span class='fu'>brew</span>(<span class='no'>data</span>, <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='st'>"kneighbors"</span>, <span class='st'>"missRanger"</span>, <span class='st'>"softImpute"</span>))</pre>
+    <pre class="usage"><span class='fu'>brew</span>(<span class='no'>data</span>, <span class='no'>outcome</span>, <span class='no'>flavor</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)
+
+<span class='fu'>brew_nbrs</span>(<span class='no'>data</span>, <span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)
+
+<span class='fu'>brew_soft</span>(<span class='no'>data</span>, <span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -142,24 +139,44 @@ and share an <code>ipa_brew</code> with your friends!</p>
     </tr>
     <tr>
       <th>outcome</th>
-      <td><p>column name(s) of outcomes in <code>data</code>.
-These values can be provided as symbols (e.g., outcome = c(a,b,c)
-for multiple outcomes or outcome = a for one outcome) or
-character values (e.g., outcome = c('a','b','c') for multiple outcomes
-or outcome = 'a' for a single outcome).</p></td>
+      <td><p>column name(s) of outcomes. These values can be
+provided as symbols (e.g., outcome = c(a,b,c) for multiple outcomes
+or outcome = a for one outcome) or character values (e.g., outcome =
+c('a','b','c') for multiple outcomes or outcome = 'a' for a single
+outcome).</p></td>
     </tr>
     <tr>
       <th>flavor</th>
       <td><p>the computational approach that will be used to
-impute missing data. Valid options are 'kneighbors', 'softImpute',
-and 'missRanger.' These values should be input as characters
-(e.g., 'kneighbors').</p></td>
+impute missing data. Valid options are 'kneighbors' and 'softImpute'.
+These values should be input as characters (e.g., 'kneighbors').</p></td>
+    </tr>
+    <tr>
+      <th>bind_miss</th>
+      <td><p>(<code>TRUE</code> / <code>FALSE</code>). If <code>TRUE</code>, a set of additional
+indicator columns (one for each non-outcome column) are added
+to <code>data</code>. The indicator columns take values of 0 and 1, with
+0 indicating that this variable is not missing for this row
+and 1 indicating that this variable is missing for this row.
+If <code>FALSE</code>, no additional columns are added to <code>data</code>.</p></td>
     </tr>
     </table>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
     <p>an <code>ipa_brew</code> object with your specified <code>flavor</code></p>
+    <h2 class="hasAnchor" id="details"><a class="anchor" href="#details"></a>Details</h2>
+
+    <p>Brewing a great beer is not that different from imputing
+missing data. Once a brew is started, you can add spices
+(set primary parameters; see <a href='spice.html'>spice</a>) and then mash the mixture
+(fitting imputation models; see <a href='mash.html'>mash</a>). To finish the brew, add
+yeast (new data; see <a href='ferment.html'>ferment</a>), and then bottle it up (see
+<a href='bottle.html'>bottle</a>) as a <code>tibble</code> or <code>matrix</code>.</p>
+<p><code>brew()</code> includes an input variable called <code>flavor</code> that determines
+how data will be imputed.  <code>brew_nbrs()</code> and <code>brew_soft()</code> are
+convenience functions, e.g. <code>brew_nbrs()</code> is a
+shortcut for calling <code>brew(flavor = 'kneighbors')</code>.</p>
     <h2 class="hasAnchor" id="note"><a class="anchor" href="#note"></a>Note</h2>
 
     <p>Gower (1971) originally defined a similarity measure (s, say) with
@@ -188,13 +205,6 @@ a neighborhood, rather than aggregate values into a summary.</p>
 missing values with this <code>brew</code>. For more details on this strategy
 to handle missing values, please see
 <a href='https://rdrr.io/pkg/softImpute/man/softImpute.html'>softImpute</a>.</p>
-    <h2 class="hasAnchor" id="ranger-s-brew"><a class="anchor" href="#ranger-s-brew"></a><strong>Ranger's brew</strong></h2>
-
-    <p>The <code>missRanger</code> algorithm is used to
-impute missing values with the <code>brew</code>. This strategy is very similar
-to the algorithm proposed by Stekhoven (2012). For more details
-on this strategy  to handle missing values, please see
-<a href='https://rdrr.io/pkg/missRanger/man/missRanger.html'>missRanger</a>.</p>
     <h2 class="hasAnchor" id="references"><a class="anchor" href="#references"></a>References</h2>
 
     <p>Gower, John C. "A general coefficient of similarity
@@ -203,9 +213,6 @@ and some of its properties." Biometrics (1971): 857-871.</p>
 Spectral Regularization Algorithms for Learning Large Incomplete
 Matrices, http://www.stanford.edu/~hastie/Papers/mazumder10a.pdf
 <em>Journal of Machine Learning Research</em> 11 (2010) 2287-2322</p>
-<p>Stekhoven, D.J. and Buehlmann, P. (2012), 'MissForest - nonparametric
-missing value imputation for mixed-type data', Bioinformatics, 28(1)
-2012, 112-118, doi: 10.1093/bioinformatics/btr597</p>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
     <pre class="examples"><div class='input'>
@@ -220,36 +227,35 @@ missing value imputation for mixed-type data', Bioinformatics, 28(1)
 
 <span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'>brew</span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'kneighbors'</span>)
 <span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'>brew</span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'softImpute'</span>)
-<span class='no'>rgr_brew</span> <span class='kw'>&lt;-</span> <span class='fu'>brew</span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'missRanger'</span>)
 
-<span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span>(<span class='no'>knn_brew</span>)</div><div class='output co'>#&gt; A &lt;U+0001F37A&gt; to handle missing data using K-nearest-neighbors. 
-#&gt; 
+<span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'>brew_nbrs</span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>)
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'>brew_soft</span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>)
+
+<span class='fu'><a href='https://rdrr.io/r/base/print.html'>print</a></span>(<span class='no'>knn_brew</span>)</div><div class='output co'>#&gt; A brew to handle missing data using k-nearest-neighbors. 
 #&gt; Data used for imputation (outcomes are wittheld): 
-#&gt; 
-#&gt; <span style='color: #555555;'># A tibble: 10 x 3</span><span>
-#&gt;       x1    x2    x3
-#&gt;    </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span> </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span> </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span>
-#&gt; </span><span style='color: #555555;'> 1</span><span>    </span><span style='color: #BB0000;'>NA</span><span>    </span><span style='color: #BB0000;'>NA</span><span>     1
-#&gt; </span><span style='color: #555555;'> 2</span><span>    </span><span style='color: #BB0000;'>NA</span><span>    </span><span style='color: #BB0000;'>NA</span><span>     2
-#&gt; </span><span style='color: #555555;'> 3</span><span>     3     8     3
-#&gt; </span><span style='color: #555555;'> 4</span><span>     4     7     4
-#&gt; </span><span style='color: #555555;'> 5</span><span>     5     6     5
-#&gt; </span><span style='color: #555555;'> 6</span><span>     6     5     6
-#&gt; </span><span style='color: #555555;'> 7</span><span>     7     4     7
-#&gt; </span><span style='color: #555555;'> 8</span><span>     8     3     8
-#&gt; </span><span style='color: #555555;'> 9</span><span>     9     2     9
-#&gt; </span><span style='color: #555555;'>10</span><span>    10     1    10</div><div class='input'>
-</div></span></pre>
+#&gt;        x1    x2    x3
+#&gt;     &lt;int&gt; &lt;int&gt; &lt;int&gt;
+#&gt;  1:    NA    NA     1
+#&gt;  2:    NA    NA     2
+#&gt;  3:     3     8     3
+#&gt;  4:     4     7     4
+#&gt;  5:     5     6     5
+#&gt;  6:     6     5     6
+#&gt;  7:     7     4     7
+#&gt;  8:     8     3     8
+#&gt;  9:     9     2     9
+#&gt; 10:    10     1    10</div><div class='input'>
+</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>
     <ul class="nav nav-pills nav-stacked">
       <li><a href="#arguments">Arguments</a></li>
       <li><a href="#value">Value</a></li>
+      <li><a href="#details">Details</a></li>
       <li><a href="#note">Note</a></li>
       <li><a href="#neighbor-s-brew"><strong>Neighbor's brew</strong></a></li>
       <li><a href="#soft-brew"><strong>Soft brew</strong></a></li>
-      <li><a href="#ranger-s-brew"><strong>Ranger's brew</strong></a></li>
       <li><a href="#references">References</a></li>
       <li><a href="#examples">Examples</a></li>
     </ul>

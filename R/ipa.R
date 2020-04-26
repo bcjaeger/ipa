@@ -8,7 +8,7 @@
 #' `browseVignettes(package = "ipa")`
 #'
 #' @importFrom rlang %||%
-#' @importFrom stats median na.omit
+#' @importFrom stats median na.omit coef predict
 #' @import data.table
 #'
 #'
@@ -35,6 +35,7 @@ if(getRversion() >= "2.15.1")  utils::globalVariables(
     'lambda',
     'aggr_fun',
     'variable',
+    'n_impute',
     'node_size',
     'donor_size',
     'k_neighbors',

@@ -6,7 +6,7 @@
 \usage{
 masher_nbrs(
   epsilon = 1e-08,
-  nthread = getOption("gd_num_thread"),
+  nthread = NULL,
   fun_aggr_ctns = mean,
   fun_aggr_intg = medn_est,
   fun_aggr_catg = mode_est

@@ -1,6 +1,7 @@
-pandoc: '2.6'
+pandoc: 2.7.1
 pkgdown: 1.4.1
 pkgdown_sha: ~
 articles:
   getting_started: getting_started.html
+  scoring_imputes: scoring_imputes.html
 

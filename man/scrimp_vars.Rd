@@ -8,6 +8,7 @@ scrimp_vars(
   data_imputed,
   data_missing,
   data_complete,
+  miss_indx = NULL,
   fun_ctns_error = yardstick::rsq_trad_vec,
   fun_intg_error = yardstick::rsq_trad_vec,
   fun_bnry_error = yardstick::kap_vec,
@@ -21,6 +22,8 @@ scrimp_vars(
 
 \item{data_complete}{a data frame containing the 'true' values
 that were 'missing'.}
+
+\item{miss_indx}{an object returned from the \link{mindx} function applied to \code{data_missing}.}
 
 \item{fun_ctns_error}{a function that will evaluate errors for
 continuous variables. Continuous variables have type \code{double}.

@@ -36,9 +36,18 @@
 
 
 <meta property="og:title" content="Soft spices — spicer_soft" />
-<meta property="og:description" content="It can be a little overwhelming to remember which sets of
-parameters go with each ipa_brew flavor, so just add a dash
-from a handy spicer function and get on with your brew." />
+<meta property="og:description" content="If you use Rstudio, the masher and spicer functions can help
+remind you which parameters go along with which ipa_brew flavor.
+The basic idea is to write spice(brew, with = spicer_&amp;lt;flavor&amp;gt;())
+and mash(brew, with = masher_&amp;lt;flavor&amp;gt;()). Hitting the tab key with
+your curser inside the parentheses of masher_flavor()will create a
+drop-down menu that shows a list of the arguments that go along with
+your brew's flavor.
+If you have no trouble remembering the parameters that go along
+with your brew's flavor, or if you just want your code to be more concise,
+you don't have to use the with argument. Instead, you can just
+specify parameter values directly using the ... argument in the mash
+and spice functions. In the examples below, both approaches are shown." />
 <meta name="twitter:card" content="summary" />
 
 
@@ -96,6 +105,9 @@ from a handy spicer function and get on with your brew." />
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -120,39 +132,98 @@ from a handy spicer function and get on with your brew." />
     </div>
 
     <div class="ref-description">
-    <p>It can be a little overwhelming to remember which sets of
-parameters go with each <code>ipa_brew</code> flavor, so just add a dash
-from a handy <code>spicer</code> function and get on with your <code>brew</code>.</p>
+    <p>If you use Rstudio, the <code>masher</code> and <code>spicer</code> functions can help
+remind you which parameters go along with which <code>ipa_brew</code> flavor.
+The basic idea is to write <code>spice(brew, with = spicer_&lt;flavor&gt;())</code>
+and <code>mash(brew, with = masher_&lt;flavor&gt;())</code>. Hitting the tab key with
+your curser inside the parentheses of <code>masher_flavor()</code>will create a
+drop-down menu that shows a list of the arguments that go along with
+your brew's flavor.</p>
+<p>If you have no trouble remembering the parameters that go along
+with your brew's flavor, or if you just want your code to be more concise,
+you don't have to use the <code>with</code> argument. Instead, you can just
+specify parameter values directly using the <code>...</code> argument in the <code>mash</code>
+and <code>spice</code> functions. In the examples below, both approaches are shown.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>spicer_soft</span>(<span class='kw'>n_impute</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='kw'>step_size</span> <span class='kw'>=</span> <span class='fl'>1L</span>)</pre>
+    <pre class="usage"><span class='fu'>spicer_soft</span>(
+  <span class='kw'>rank_max_init</span> <span class='kw'>=</span> <span class='fl'>2L</span>,
+  <span class='kw'>rank_max_ovrl</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
+  <span class='kw'>rank_stp_size</span> <span class='kw'>=</span> <span class='fl'>1L</span>,
+  <span class='kw'>lambda</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
+  <span class='kw'>grid</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>
+)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
-      <th>n_impute</th>
-      <td><p>An integer indicating the number of imputed
-datasets to create.</p></td>
+      <th>rank_max_init</th>
+      <td><p>an integer value that restricts the rank of the
+solution for the first <code>softImpute</code> fit. Sequential fits may have
+higher rank depending upon <code>rank_max_ovrl</code>, <code>rank_stp_size</code>, and <code>grid</code>.</p></td>
     </tr>
     <tr>
-      <th>step_size</th>
-      <td><p>An integer indicating the number by which to increase
-the maximum rank of the softImpute solution after each iteration.</p></td>
+      <th>rank_max_ovrl</th>
+      <td><p>an integer value that restricts the rank of the
+solution for all <code>softImpute</code> fits.</p></td>
+    </tr>
+    <tr>
+      <th>rank_stp_size</th>
+      <td><p>an integer value that indicates how much the maximum
+rank of <code>softImpute</code> fits should increase between iterations.</p></td>
+    </tr>
+    <tr>
+      <th>lambda</th>
+      <td><p>nuclear-norm regularization parameter. If <code>lambda = 0</code>,
+the algorithm reverts to "hardImpute", for which convergence is typically
+slower, and to local minimum. Ideally lambda should be chosen so that
+the solution reached has rank slightly less than rank.max. See also
+<code>lambda0()</code> for computing the smallest <code>lambda</code> with a zero solution.</p></td>
+    </tr>
+    <tr>
+      <th>grid</th>
+      <td><p>a logical value. If <code>TRUE</code>, all combinations of rank and
+lambda are used to fit <code>softImpute</code> models. If <code>FALSE</code>, then one
+fit is supplied for each value of <code>lambda</code>, and increasing maximum
+ranks are paired with decreasing values of <code>lambda</code>.</p></td>
     </tr>
     </table>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>a list with parameter values that can be passed
-directly into <code>missRanger_brew</code> objects via <a href='spice.html'>spice</a>.</p>
+    <p>a list with input values that can be passed directly into
+<a href='spice.html'>spice</a>, e.g <code><a href='spice.html'>spice(brew, with = spicer_nbrs())</a></code> for a neighbors
+brew or <code><a href='spice.html'>spice(brew, with = spicer_soft())</a></code> for a soft brew.</p>
 
+    <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
+    <pre class="examples"><div class='input'>
+<span class='no'>data</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(
+  <span class='kw'>x1</span> <span class='kw'>=</span> <span class='fl'>1</span>:<span class='fl'>10</span>,
+  <span class='kw'>x2</span> <span class='kw'>=</span> <span class='fl'>10</span>:<span class='fl'>1</span>,
+  <span class='kw'>x3</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>10</span>),
+  <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='fl'>11</span> + <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span>(<span class='fl'>10</span>)
+)
+
+<span class='no'>data</span>[<span class='fl'>1</span>:<span class='fl'>2</span>, <span class='fl'>1</span>:<span class='fl'>2</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
+
+<span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'kneighbors'</span>)
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'softImpute'</span>)
+
+<span class='co'># these two calls are equivalent</span>
+<span class='no'>spicy_knn</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='spice.html'>spice</a></span>(<span class='no'>knn_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='spicer_nbrs.html'>spicer_nbrs</a></span>(<span class='kw'>k_neighbors</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>3</span>, <span class='fl'>5</span>)))
+<span class='no'>spicy_knn</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='spice.html'>spice</a></span>(<span class='no'>knn_brew</span>, <span class='kw'>k_neighbors</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>3</span>, <span class='fl'>5</span>))
+
+<span class='co'># these two calls are equivalent</span>
+<span class='no'>spicy_sft</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='spice.html'>spice</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'>spicer_soft</span>(<span class='kw'>grid</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>))
+<span class='no'>spicy_sft</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='spice.html'>spice</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>grid</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>
     <ul class="nav nav-pills nav-stacked">
       <li><a href="#arguments">Arguments</a></li>
       <li><a href="#value">Value</a></li>
+      <li><a href="#examples">Examples</a></li>
     </ul>
 
   </div>

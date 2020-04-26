@@ -104,7 +104,10 @@ mash.softImpute_brew <- function(brew, with = NULL, ...){
   # printed output for each iteration of the corresponding function.
   # if verbose level is 2, we'll show that output. If verbose level
   # is 1, we'll just show messages from ipa functions.
-  .dots$si_trace <- .dots$bs_trace <- get_verbosity(brew) > 1
+  .dots$verbose <- get_verbosity(brew)
+
+  if(.dots$verbose > 0) message("Additional parameters set:\n",
+    text_pillar(lhs = names(.dots), rhs = .dots, middle = 'has value(s)'))
 
   attr(brew, 'mashed')  <- TRUE
   brew$pars <- c(brew$pars, .dots)
@@ -153,6 +156,9 @@ mash.kneighbors_brew <- function(brew, with = NULL, ...){
   # if verbose level is 2, we'll show that output. If verbose level
   # is 1, we'll just show messages from ipa functions.
   .dots$verbose <- get_verbosity(brew) > 0
+
+  if(.dots$verbose) message("Additional parameters set:\n",
+    text_pillar(lhs = names(.dots), rhs = .dots, middle = 'has value(s)'))
 
   attr(brew, 'mashed')  <- TRUE
   brew$pars <- c(brew$pars, .dots)
@@ -227,7 +233,7 @@ masher_soft <- function(
 
 masher_nbrs <- function(
   epsilon = 1e-08,
-  nthread = getOption("gd_num_thread"),
+  nthread = NULL,
   fun_aggr_ctns = mean,
   fun_aggr_intg = medn_est,
   fun_aggr_catg = mode_est
@@ -235,7 +241,7 @@ masher_nbrs <- function(
 
   structure(
     .Data = list(epsilon = epsilon,
-      nthread = nthread,
+      nthread = nthread %||% getDTthreads(),
       fun_aggr_ctns = fun_aggr_ctns,
       fun_aggr_intg = fun_aggr_intg,
       fun_aggr_catg = fun_aggr_catg

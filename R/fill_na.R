@@ -5,6 +5,9 @@
 #' Fill missing values
 #'
 #' @param data a data frame with missing values
+#' @param na_indx a named list containing the indices where missing data
+#'   are located. Names should correspond to columns in `data`. The
+#'   [mindx] function will create this type of object.
 #' @param vals a named list. Names correspond to columns in `data` with
 #'   missing values.
 #' @param make_copy a logical value that is only relevant if `data`
@@ -27,19 +30,19 @@
 #' fill_na(df, vals)
 #'
 
-fill_na <- function(data, vals, make_copy = TRUE){
+fill_na <- function(data, vals, na_indx = NULL, make_copy = TRUE){
   UseMethod("fill_na")
 }
 
 #' @export
-fill_na.default <- function(data, vals, make_copy = TRUE){
+fill_na.default <- function(data, vals, na_indx = NULL, make_copy = TRUE){
   stop("unrecognized data type: <", class(data)[1], "> \n",
     " supported types are <data.table>, <data.frame>, and <tibble>.",
     call. = FALSE)
 }
 
 #' @export
-fill_na.data.frame <- function(data, vals, make_copy = TRUE){
+fill_na.data.frame <- function(data, vals, na_indx = NULL, make_copy = TRUE){
 
   as.data.table(data) %>%
     fill_na(vals, make_copy = FALSE) %>%
@@ -48,7 +51,7 @@ fill_na.data.frame <- function(data, vals, make_copy = TRUE){
 }
 
 #' @export
-fill_na.data.table <- function(data, vals, make_copy = TRUE){
+fill_na.data.table <- function(data, vals, na_indx = NULL, make_copy = TRUE){
 
   if (make_copy) {
     # create a deep copy of the input
@@ -64,7 +67,7 @@ fill_na.data.table <- function(data, vals, make_copy = TRUE){
   if(!is_empty(bad_names)) stop("vals contains variable names ",
     "that are not in data: ", list_things(bad_names), call. = FALSE)
 
-  na_indx <- mindx(new_dt, drop_empty = TRUE)
+  na_indx <- na_indx %||% mindx(new_dt, drop_empty = TRUE)
 
   # when softImpute is used and the imputed values are not restored
   # to their original type, data.table will get upset by you trying
@@ -95,7 +98,7 @@ fill_na.data.table <- function(data, vals, make_copy = TRUE){
     }
 
     if(length(na_indx[[col]]) != length(vals[[col]])){
-      stop(glue::glue(
+      if(length(vals[[col]]) > 1) stop(glue::glue(
         "data${col} has {length(na_indx[[col]])} missing values",
         " but vals${col} has {length(vals[[col]])} values"),
         call. = FALSE)
@@ -110,7 +113,7 @@ fill_na.data.table <- function(data, vals, make_copy = TRUE){
 }
 
 #' @export
-fill_na.tbl_df <- function(data, vals, make_copy = TRUE){
+fill_na.tbl_df <- function(data, vals, na_indx = NULL, make_copy = TRUE){
 
   val_names <- names(vals)
   bad_names <- setdiff(names(vals), names(data))
@@ -118,9 +121,7 @@ fill_na.tbl_df <- function(data, vals, make_copy = TRUE){
   if(!purrr::is_empty(bad_names)) stop("vals contains variable names ",
     "that are not in data: ", list_things(bad_names), call. = FALSE)
 
-  na_indx <- lapply(data, function(x) which(is.na(x)))
-  no_miss <- names(which(sapply(na_indx, function(x) length(x)==0)))
-  na_indx[no_miss] <- NULL
+  na_indx <- na_indx %||% mindx(data, drop_empty = TRUE)
 
   for(col in names(vals)){
 

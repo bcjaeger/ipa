@@ -1,5 +1,3 @@
-
-
 drop_empty <- function(x){
 
   stopifnot(is.list(x))
@@ -20,6 +18,13 @@ list_things <- function(things){
 
 text_pillar <- function(lhs, rhs, middle){
 
+  fun_indx <- which(purrr::map_lgl(rhs, is.function))
+
+  if(!is_empty(fun_indx)){
+    rhs <- rhs[-fun_indx]
+    lhs <- lhs[-fun_indx]
+  }
+
   rhs <- purrr::map_chr(rhs, .f = function(x){
     if(is.logical(x)) x <- as.character(x)
     if(is.numeric(x)) x <- as.character(round(x, digits = 2))
@@ -37,5 +42,7 @@ text_pillar <- function(lhs, rhs, middle){
 
 }
 
-
-
+df_unique_indx <- function(fit_dfs){
+  runs <- rle(fit_dfs)
+  cumsum(runs$lengths)
+}

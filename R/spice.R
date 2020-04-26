@@ -94,6 +94,10 @@ spice.kneighbors_brew <- function(brew, with = NULL, ...){
 
   brew$pars <- args
 
+  if(get_verbosity(brew) > 0) message("Spices being used:\n",
+    text_pillar(lhs = names(brew$pars), rhs = brew$pars,
+      middle = 'has value(s)'))
+
   attr(brew, 'n_impute') <- length(args$k_neighbors)
   attr(brew, 'spiced')   <- TRUE
 
@@ -160,6 +164,11 @@ spice.softImpute_brew <- function(brew, with = NULL, ...){
   n_lambda <- length(args$lambda)
 
   brew$pars <- args
+
+  if(get_verbosity(brew) > 0) message("Spices being used:\n",
+    text_pillar(lhs = names(brew$pars), rhs = brew$pars,
+      middle = 'has value(s)'))
+
   attr(brew, 'n_impute') <- if (args$grid) n_rank * n_lambda else n_lambda
   attr(brew, 'spiced')   <- TRUE
 

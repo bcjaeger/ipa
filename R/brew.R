@@ -230,7 +230,7 @@ print.ipa_brew <- function(x, ...){
       "A {brew_symbol} to handle missing data using {flavor_expand}. \n\n"
     ))
 
-    print(x$wort, class = TRUE)
+    print(x$wort, class = TRUE, nrows = 10)
 
   } else {
 
@@ -239,7 +239,7 @@ print.ipa_brew <- function(x, ...){
       "Data used for imputation (outcomes are wittheld): \n\n"
     ))
 
-    print(x$data$training, class = TRUE)
+    print(x$data$training, class = TRUE, nrows = 10)
 
   }
 

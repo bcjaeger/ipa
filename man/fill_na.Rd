@@ -4,13 +4,17 @@
 \alias{fill_na}
 \title{Fill missing values}
 \usage{
-fill_na(data, vals, make_copy = TRUE)
+fill_na(data, vals, na_indx = NULL, make_copy = TRUE)
 }
 \arguments{
 \item{data}{a data frame with missing values}
 
 \item{vals}{a named list. Names correspond to columns in \code{data} with
 missing values.}
+
+\item{na_indx}{a named list containing the indices where missing data
+are located. Names should correspond to columns in \code{data}. The
+\link{mindx} function will create this type of object.}
 
 \item{make_copy}{a logical value that is only relevant if \code{data}
 is a \code{data.table}. if \code{TRUE}, a new object is created and \code{data}

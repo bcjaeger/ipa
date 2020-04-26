@@ -260,7 +260,7 @@ check_brew <- function(brew, expected_stage){
 }
 
 # make sure data ref can be imputed
-check_missingness <- function(miss_indx, N, P, label){
+check_missingness <- function(miss_indx, N, P, label, new_data = FALSE){
 
   if(is_empty(miss_indx)) return(NULL)
 
@@ -269,7 +269,7 @@ check_missingness <- function(miss_indx, N, P, label){
   # the columns that contain only missing values
   miss_cols <- names( which( sapply(miss_nobs, function(x) x==N) ) )
 
-  if(!is_empty(miss_cols)){
+  if(!new_data && !is_empty(miss_cols)){
     stop("columns in ", label, " are missing data for all values: ",
       list_things(miss_cols), call. = FALSE)
   }

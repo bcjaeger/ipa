@@ -159,9 +159,6 @@ scrimp_mdl <- function(
 
   if(!user_supplied_fun) args$.dots <- .fun_args
 
-  # there is no 'else', there is only 'if'
-  # -- Yoda
-
   if(user_supplied_fun && !purrr::is_empty(.fun_args)){
 
     for(i in seq_along(.fun_args)){
@@ -247,17 +244,16 @@ net_args <- function(
 
 }
 
-net_gnrl <- function(
+net_eval <- function(
   .trn,
   .tst,
   outcome,
   family,
   eval_fun,
   .dots
-  ) {
+) {
 
   x_var <- setdiff(names(.trn), outcome)
-
   x_trn <- as.matrix(one_hot(dplyr::select(.trn, tidyselect::all_of(x_var))))
   x_tst <- as.matrix(one_hot(dplyr::select(.tst, tidyselect::all_of(x_var))))
 
@@ -277,9 +273,9 @@ net_gnrl <- function(
 
     if(!('time' %in% colnames(y_tst)) | !('status' %in% colnames(y_trn))){
       warning("if family = 'cox', outcomes should be named 'time' and",
-      "'status'.\n scrimp_mdls() will try to guess which column is which",
-      "based on unique values.\n Rename your outcome columns as 'time'",
-      "and 'status' to avoid this warning.", call. = FALSE)
+        "'status'.\n scrimp_mdls() will try to guess which column is which",
+        "based on unique values.\n Rename your outcome columns as 'time'",
+        "and 'status' to avoid this warning.", call. = FALSE)
       colnames(y_trn) <- guess_surv_names(y_trn)
       colnames(y_tst) <- guess_surv_names(y_tst)
     }
@@ -335,7 +331,6 @@ net_gnrl <- function(
 
   purrr::discard(output, is.null)
 
-
 }
 
 multi_prob <- function(prd){
@@ -359,22 +354,19 @@ cnc_index <- function(truth, estimate){
   glmnet::Cindex(pred = estimate, y=truth)
 }
 
-net_surv <- function(.trn, .tst, outcome, .dots) net_gnrl(
+net_surv <- function(.trn, .tst, outcome, .dots) net_eval(
   .trn, .tst, outcome, 'cox', cnc_index, .dots)
 
-net_bnry <- function(.trn, .tst, outcome, .dots) net_gnrl(
+net_bnry <- function(.trn, .tst, outcome, .dots) net_eval(
   .trn, .tst, outcome, 'binomial', yardstick::roc_auc_vec, .dots)
 
-net_bnry <- function(.trn, .tst, outcome, .dots) net_gnrl(
-  .trn, .tst, outcome, 'binomial', yardstick::roc_auc_vec, .dots)
-
-net_catg <- function(.trn, .tst, outcome, .dots) net_gnrl(
+net_catg <- function(.trn, .tst, outcome, .dots) net_eval(
   .trn, .tst, outcome, 'multinomial', yardstick::roc_auc_vec, .dots)
 
-net_ctns <- function(.trn, .tst, outcome, .dots) net_gnrl(
+net_ctns <- function(.trn, .tst, outcome, .dots) net_eval(
   .trn, .tst, outcome, 'gaussian', yardstick::rsq_vec, .dots)
 
-net_intg <- function(.trn, .tst, outcome, .dots) net_gnrl(
+net_intg <- function(.trn, .tst, outcome, .dots) net_eval(
   .trn, .tst, outcome, 'gaussian', yardstick::rsq_vec, .dots)
 
 
@@ -390,6 +382,7 @@ net_intg <- function(.trn, .tst, outcome, .dots) net_gnrl(
 #' @param data_missing the unimputed data frame.
 #' @param data_complete a data frame containing the 'true' values
 #'   that were 'missing'.
+#' @param miss_indx an object returned from the [mindx] function applied to `data_missing`.
 #' @param fun_ctns_error a function that will evaluate errors for
 #'   continuous variables. Continuous variables have type `double`.
 #'   Default is to use R-squared (see [yardstick::rsq()]).
@@ -436,6 +429,7 @@ scrimp_vars <- function(
   data_imputed,
   data_missing,
   data_complete,
+  miss_indx = NULL,
   fun_ctns_error = yardstick::rsq_trad_vec,
   fun_intg_error = yardstick::rsq_trad_vec,
   fun_bnry_error = yardstick::kap_vec,
@@ -462,38 +456,51 @@ scrimp_vars <- function(
     label_ref = 'imputed data', label_new = 'complete data'
   )
 
-  output <- vector(mode = 'list', length = ncol(data_imputed))
-  names(output) <- names(data_imputed)
+  miss_indx <- miss_indx %||% mindx(data_missing)
+  output <- vector(mode = 'list', length = length(miss_indx))
+  names(output) <- names(miss_indx)
 
-  for(i in seq_along(output)){
+  for(i in names(output)){
 
-    missing_indx <- is.na(data_missing[[i]])
-
-    if(!any(missing_indx)){
+    if(!any(miss_indx[[i]])){
 
       output[[i]] <- NA_real_
 
     } else {
 
-      truth <- data_complete[[i]][missing_indx]
-      estimate <- data_imputed[[i]][missing_indx]
-
-      output[[i]] <- switch(get_var_type(data_complete[[i]]),
-        'ctns' = fun_ctns_error(estimate = estimate, truth = truth),
-        'intg' = fun_intg_error(estimate = estimate, truth = truth),
-        'bnry' = fun_bnry_error(estimate = estimate, truth = truth),
-        'catg' = fun_catg_error(estimate = estimate, truth = truth))
+      output[[i]] <- switch(
+        get_var_type(data_complete[[i]]),
+        'ctns' = fun_ctns_error(
+          estimate = data_imputed[[i]][miss_indx[[i]]],
+          truth    = data_complete[[i]][miss_indx[[i]]]
+        ),
+        'intg' = fun_intg_error(
+          estimate = data_imputed[[i]][miss_indx[[i]]],
+          truth    = data_complete[[i]][miss_indx[[i]]]
+        ),
+        'bnry' = fun_bnry_error(
+          estimate = data_imputed[[i]][miss_indx[[i]]],
+          truth    = data_complete[[i]][miss_indx[[i]]]
+        ),
+        'catg' = fun_catg_error(
+          estimate = data_imputed[[i]][miss_indx[[i]]],
+          truth    = data_complete[[i]][miss_indx[[i]]]
+        )
+      )
     }
 
   }
 
-  tibble::enframe(output, name = 'variable', value = 'score') %>%
-    dplyr::transmute(
-      variable = factor(variable, levels = names(data_imputed)),
-      type = purrr::map_chr(variable, ~get_var_type(data_imputed[[.x]])),
-      score = as.numeric(score)
-    ) %>%
-    dplyr::arrange(variable) %>%
-    dplyr::mutate(variable = as.character(variable))
+  output <- as.data.table(output) %>%
+    melt(measure.vars = 1:length(output), value.name = 'score') %>%
+    .[,variable := factor(variable, levels = names(data_imputed))] %>%
+    .[,type := sapply(variable, function(x) get_var_type(data_imputed[[x]]))] %>%
+    .[,score := as.numeric(score)] %>%
+    set(i = which(.$score == -Inf), j = 'score', value = NA_real_) %>%
+    .[order(variable)] %>%
+    .[, variable := as.character(variable)] %>%
+    setcolorder(neworder = c('variable', 'type', 'score'))
+
+  output
 
 }

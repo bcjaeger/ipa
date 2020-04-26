@@ -1,5 +1,25 @@
 
 
+
+#' Missing index
+#'
+#' @param data a data set with missing values.
+#' @param drop_empty a logical value. If `TRUE`, columns in `data` with no
+#'   missing values will be dropped from the output. If `FALSE`, all column
+#'   names in `data` will be present in the output.
+#'
+#' @return a list with indices of missing values in `data`.
+#'
+#' @export
+#'
+#' @examples
+#'
+#' dat <- data.frame(a = c(1, NA), b = c(NA, 2), c = c(1,2))
+#'
+#' mindx(dat)
+#' mindx(dat, drop_empty = FALSE)
+#'
+#'
 mindx <- function(data, drop_empty = TRUE){
 
   out <- purrr::map(data, ~which(is.na(.x)))

@@ -1,0 +1,321 @@
+---
+title: "Just impute the data"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{no_brew}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7, 
+  fig.height = 4
+)
+```
+
+This vignette shows how to use functions in `ipa` that are not in the `brew` family. These can provide more flexibility and higher performance. 
+
+```{r setup}
+
+library(ipa, warn.conflicts = FALSE)
+library(dplyr, warn.conflicts = FALSE)
+library(purrr, warn.conflicts = FALSE)
+library(tidyr, warn.conflicts = FALSE)
+library(ggplot2, warn.conflicts = FALSE)
+library(yardstick, warn.conflicts = FALSE)
+library(data.table, warn.conflicts = FALSE)
+
+data("ames", package = 'ipa')
+
+# we'll use data.table for efficiency, and we'll use
+# one-hot encoding for categorical data. This makes 
+# it much less demanding to do soft imputation and 
+# fit glmnet models
+df_cplt <- one_hot(as.data.table(ames$complete))
+df_miss <- one_hot(as.data.table(ames$missing))
+
+# we'll want every column to be uniformly coded as 
+# a double for this analysis because softImpute will
+# not impute integers with integers unless we force it to. 
+intg_vars <- names(which(df_cplt[, sapply(.SD, is.integer)]))
+df_cplt[, (intg_vars) := lapply(.SD, as.double), .SDcols = intg_vars]
+df_miss[, (intg_vars) := lapply(.SD, as.double), .SDcols = intg_vars]
+
+# random seed for reproducing these results
+set.seed(329730)
+train_index <- sample(nrow(df_miss), 2000)
+
+# data to impute
+training <- df_miss[train_index, ]
+testing  <- df_miss[-train_index, ]
+# complete data (used to evaluate accuracy of imputations)
+training_cplt <- df_cplt[train_index, ]
+testing_cplt  <- df_cplt[-train_index, ]
+
+# some columns are all 0, these should be dropped
+is_const <- function(x) length(unique(na.omit(x))) == 1
+drop <- names(which(training[, sapply(.SD, is_const)]))
+
+training[, (drop) := NULL]
+testing[, (drop) := NULL]
+training_cplt[, (drop) := NULL]
+testing_cplt[, (drop) := NULL]
+
+```
+
+We'll re-visit the housing data from Ames, Iowa in this vignette, and show how to score imputations more quickly and without using as much memory. To start, we fit imputation models to the training data. 
+
+# Fitting imputation models
+
+```{r}
+
+start <- Sys.time()
+
+# SI stands for soft imputation
+training_SI <- impute_soft(training,
+  cols = -Sale_Price, # don't use outcome to impute missing values
+  rank_stp_size = 3, # increase max rank by 3 for each fit
+  verbose = 1, # print general messages to console
+  bs_col.scale = FALSE, # centering columns only, not scaling.
+  restore_data = FALSE # keep data in one-hot form
+)
+
+stop <- Sys.time()
+
+print(stop-start)
+
+training_SI
+
+```
+
+Two things worth mentioning:
+
+- This is faster than `brew` because we are doing some data-processing beforehand and we are not restoring data to their original types. 
+
+- Since imputed data are not restored to their original type, factors with $K$ categories are left in a $K$ column format, and are not strictly one-hot encoded because `softImpute` does not restrict imputed values for these types of data. 
+
+# Filling in missing values
+
+Instead of creating all the imputed data sets at the same time (requires a lot of memory), we'll impute the the datasets one at a time. To keep track of where the missing values are, we create a missing index object:
+
+```{r}
+
+training_mindx <- mindx(data = training)
+
+```
+
+```{r}
+
+training_impute <- fill_na(training,# create an imputed training set
+  vals = training_SI$imputed_values[[1]],    # imputes from first fit
+  na_indx = training_mindx          # indices of missing values in training data
+)
+
+# soft imputed values are not strictly 0/1 for categorical variables
+training_impute[1:5, 1:5]
+
+```
+
+# Scoring imputed values
+
+We'll score each imputed set while it is in memory, then we will re-impute the data, score, and repeat until we've cycled through all imputed sets. Here is what that code looks like for a single set of imputed data:
+
+```{r}
+
+# evaluate the accuracy of imputations for each variable.
+# Summarize overall accuracy by taking the mean
+score <- scrimp_vars(training_impute, 
+  data_missing = training, 
+  data_complete = training_cplt,
+  fun_ctns_error = rsq_vec) %>% 
+  .[, mean(score, na.rm = TRUE)]
+
+score
+
+```
+
+and here is the same code in a loop
+
+```{r}
+
+# initialize the score for imputed variables
+training_SI[, var_score := 0]
+
+for(i in seq(nrow(training_SI))){
+  
+  training_SI$var_score[i] <- training_impute %>% 
+    fill_na(
+      vals = training_SI$imputed_values[[i]], 
+      na_indx = training_mindx,
+      make_copy = FALSE
+    ) %>% 
+    scrimp_vars(
+      data_missing = training, 
+      data_complete = training_cplt,
+      fun_ctns_error = rsq_vec) %>% 
+    .[, mean(score, na.rm = TRUE)]
+  
+}
+
+training_SI
+
+```
+
+# Scoring models
+
+To score an imputation method based on downstream model accuracy, we first need to impute the testing data (so we have something to evaluate models with):
+
+```{r}
+
+testing_SI <- impute_soft(
+  data_ref = training,
+  data_new = testing,
+  restore_data = FALSE,
+  cols = -Sale_Price,
+  rank_stp_size = 3,
+  bs_col.scale = FALSE
+)
+
+```
+
+Next we'll go through a similar procedure, filling in training and testing sets one by one, scoring, and iterating. The testing data are filled in the same manner as the training data:
+
+```{r}
+
+testing_mindx <- mindx(testing)
+
+testing_impute <- fill_na(testing, na_indx = testing_mindx,
+  vals = testing_SI$imputed_values[[1]])
+
+testing_impute[1:5, 1:5]
+
+```
+
+Model scoring is completed using glmnet, filling in pairs of training and testing sets one by one:
+
+```{r}
+
+training_SI[, mdl_score := 0]
+
+# this vector determines the cross-validation folds for glmnet models.
+# Will use later when we compare softImpute with imputation to the mean.
+foldid <- sample(1:10, size = nrow(training), replace = TRUE)
+
+for(i in seq(nrow(training_SI))){
+
+  training_impute <- fill_na(training, 
+    na_indx = training_mindx,
+    vals = training_SI$imputed_values[[i]],
+    make_copy = FALSE
+  )
+  
+  testing_impute <- fill_na(testing, 
+    na_indx = testing_mindx,
+    vals = testing_SI$imputed_values[[i]],
+    make_copy = FALSE
+  )
+  
+  training_SI$mdl_score[i] <- scrimp_mdl(
+    train_imputed = training_impute,
+    test_imputed = testing_impute,
+    outcome = Sale_Price,
+    .fun_args = net_args(cmplx = 'lambda.min', foldid = foldid)
+  )$score_ex
+  
+}
+
+```
+
+# Interesting questions
+
+Now that we've finished imputing and scoring, there are some interesting things we can investigate. First, __how correlated is the accuracy of an imputation method with the accuracy of downstream models?__ We can visualize their relationship:
+
+```{r}
+
+ggplot(training_SI) + 
+  aes(x = var_score, y = mdl_score) + 
+  geom_point() +
+  geom_smooth(method = 'lm')
+
+```
+
+And we can also quantify the squared correlation between them:
+
+```{r}
+
+squared_corr <- rsq(training_SI, mdl_score, var_score)
+
+squared_corr
+
+```
+
+So, in this example, imputation accuracy explained about `r paste0(round(100 * squared_corr$.estimate, 1), '%')` of the variance in downstream model accuracy. 
+
+Another interesting question: __Was it worth it?__ More specifically, could we have gotten the same accuracy with our `glmnet` model if we had just used imputation to the mean? We'll need to do some extra work to answer this:
+
+```{r}
+
+# create datasets for mean imputation
+training_meanimpute <- copy(training)
+testing_meanimpute <- copy(testing)
+
+for(i in names(training_mindx)){
+  
+  # creat an imputation value based on mean of observed values in training
+  ival <- mean(training[[i]][-training_mindx[[i]]])
+  # modify training/testing data at missing indices, replacing with ival
+  training_meanimpute[[i]][training_mindx[[i]]] <- ival
+  testing_meanimpute[[i]][testing_mindx[[i]]] <- ival
+  
+}
+
+# compute a score for the mean imputation model
+mean_score <- scrimp_mdl(
+    train_imputed = training_meanimpute,
+    test_imputed = testing_meanimpute,
+    outcome = Sale_Price,
+    .fun_args = net_args(cmplx = 'lambda.min', foldid = foldid)
+)
+
+# print it out
+mean_score$score_ex
+
+```
+
+We can show the difference in accuracy of downstream models most effectively with a visual:
+
+```{r}
+
+ggplot(training_SI) + 
+  aes(x = lambda, y = mdl_score, size = rank_fit) + 
+  geom_line(color = 'grey', size = 1) + 
+  geom_point(fill = 'red', color = 'grey', shape = 21) + 
+  geom_hline(yintercept = mean_score$score_ex, linetype = 2) + 
+  theme_bw() + 
+  theme(panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank()) +
+  labs(size = 'Rank of\nsoftImpute\nmodel',
+    x = 'Penalization for softImpute model (lambda)',
+    y = 'R-squared statistic for external testing data') +
+  annotate(geom = 'text', 
+    x = 55, 
+    y = mean_score$score_ex + 0.002, 
+    label = 'R-squared statistic using mean imputation') + 
+  scale_y_continuous(limits = c(0.58, 0.64), 
+    breaks = seq(0.58, 0.64, by = 0.01),
+    labels = paste0(100*seq(0.58, 0.64, by = 0.01), '%'))
+
+```
+
+So, yes, it was worth a little extra trouble imputing the missing values with `softImpute`. 
+
+
+
+
+
+
+
+

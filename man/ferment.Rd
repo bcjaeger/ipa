@@ -4,12 +4,16 @@
 \alias{ferment}
 \title{Ferment a brew}
 \usage{
-ferment(brew, data_new = NULL)
+ferment(brew, data_new = NULL, timer = FALSE)
 }
 \arguments{
 \item{brew}{an \code{ipa_brew} object.}
 
 \item{data_new}{a data frame with missing values.}
+
+\item{timer}{a logical value. If \code{TRUE}, then the amount of time it takes
+to fit the imputation models will be tracked and saved as an attribute
+of the resulting \code{ipa_brew} object.}
 }
 \description{
 Missing values can occur in training data and

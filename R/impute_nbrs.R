@@ -97,10 +97,8 @@ impute_nbrs <- function(
   keep_cols <- names(data_ref) %>%
     tidyselect::vars_select(!!rlang::enquo(cols))
 
-  if(length(keep_cols) == 1)
-    stop("1 column was selected (", keep_cols,
-      ") but 2+ are needed", call. = FALSE)
-
+  if(length(keep_cols) == 1) stop("1 column was selected (",
+    keep_cols, ") but 2+ are needed", call. = FALSE)
 
   # convert data frames into data.table objects if needed
   # subset to the columns we are imputing
@@ -153,7 +151,7 @@ impute_nbrs <- function(
       }
     }
 
-    # should have exactly the Same names and types as reference data
+    # should have exactly the same names and types as reference data
     check_data_new_names(DT_ref, DT_new)
     check_data_new_types(DT_ref, DT_new)
 
@@ -330,13 +328,9 @@ impute_nbrs <- function(
 #'
 mode_est <- function(x, random_ties = FALSE){
 
-  stopifnot(is.character(x) | is.integer(x))
+ # stopifnot(is.character(x) | is.integer(x))
 
-  if(any(is.na(x)))
-    stop("missing values should not be passed to mode_est",
-      call. = FALSE)
-
-  tab <- table(x)
+  tab <- table(x, useNA = 'no')
   modes <- names(tab)[tab == max(tab)]
 
   if(random_ties){

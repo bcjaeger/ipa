@@ -28,8 +28,8 @@ test_that("scrimp_vars() works, real data", {
     scrimp_vars(data_complete = diabetes$complete[1:200, check_cols],
       data_missing = diabetes$missing[1:200, check_cols])
 
-  expect_is(score_vars, 'tbl_df')
-  expect_equal(nrow(score_vars), nrow(na.omit(score_vars)))
+  expect_is(score_vars, 'data.table')
+  expect_equal(nrow(score_vars), nrow(score_vars))
 
 })
 
@@ -176,7 +176,7 @@ test_that("scrimp_vars() works, artificial data", {
 
   expect_true(all(na.omit(scored$score) == 1))
   expect_true(all(scored$type[1:3] == 'intg'))
-  expect_true(scored$type[4] == 'bnry')
+  expect_true(scored$type[scored$variable=='fctr'] == 'bnry')
 
 
 })

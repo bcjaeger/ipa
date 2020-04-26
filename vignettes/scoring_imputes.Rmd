@@ -1,5 +1,5 @@
 ---
-title: "scoring_imputes"
+title: "Scoring imputation methods"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{scoring_imputes}
@@ -55,20 +55,15 @@ testing <- df_miss[-train_index, ]
 training_cplt <- df_cplt[train_index, ]
 testing_cplt  <- df_cplt[-train_index, ]
 
-# drop unused factor levels from training and testing sets
-# this often happens when training/testing data are made, and
-# it can cause problems if the testing data do not have factor
-# levels that are observed in the training data. However,
-# impute_soft will automatically add the training data factor
-# levels to the testing data when the testing data are imputed.
+# a soft brew using softImpute algorithm
 
 sft_brew <- training %>%              
   brew_soft(outcome = Sale_Price) %>% 
-  verbose_on(level = 2) %>% 
-  spice(with = spicer_soft(grid = TRUE, rank_stp_size = 10)) %>%       
+  verbose_on(level = 1) %>% 
+  spice(with = spicer_soft(rank_stp_size = 10)) %>%       
   mash(with = masher_soft(bs_col.scale = FALSE)) %>%  
   stir(timer = TRUE) %>%              
-  ferment(data_new = testing) %>%     
+  ferment(data_new = testing, timer = TRUE) %>%     
   bottle(type = 'tibble')             
 
 ```
@@ -104,14 +99,15 @@ Save the scores as a tibble outside of the brew so that they are easier to analy
 
 ```{r}
 
+# unnest_wider sub
+# set(j = .col, value = sapply(.$pars, function(x) x[[.col]]))
+
 impute_accuracy <- sft_brew %>% 
   pluck('wort') %>%
-  .[, lambda := lapply(pars, function(x) x[1])]
-  .[ , c('lambda', 'rank_max', 'rank_fit') := transpose(pars)]
-  
-  
-  select(impute, score = training_score) %>% 
-  unnest(cols = score)
+  as_tibble() %>% 
+  unnest_wider(col = pars) %>% 
+  select(lambda, rank_fit, training_score) %>% 
+  unnest(cols = training_score)
 
 impute_accuracy
 
@@ -122,29 +118,28 @@ Is there an ideal number of neighbors to use for the imputation of missing value
 ```{r}
 
 impute_accuracy_ovrl <- impute_accuracy %>% 
-  group_by(impute) %>% 
+  group_by(lambda, rank_fit) %>% 
   summarize(score_overall = mean(score, na.rm = TRUE)) %>% 
   arrange(desc(score_overall))
 
 ggplot(impute_accuracy_ovrl) + 
-  aes(x = impute, y = score_overall) + 
-  geom_smooth(method = 'lm', col = 'grey90', formula = y~poly(x,3)) +
-  geom_point(shape = 21, size = 2.4, col = 'black', fill = 'red') + 
+  aes(x = lambda, y = score_overall, size = rank_fit) + 
+  geom_point(shape = 21, col = 'black', fill = 'red') + 
   theme_classic() +
   theme(text = element_text(size = 12)) +
   labs(y = 'Overall accuracy of imputed training values',
-    x = 'Number of neighbors used to impute missing values')
+    x = 'Regularization of softImpute (lambda)')
 
 
 ```
 
-It looks like `r pull(impute_accuracy_ovrl, impute)[1]` neighbors has the best overall score. We can also look at the accuracy of imputations for individual variables:
+It looks like using `lambda` = `r pull(impute_accuracy_ovrl, lambda)[which.max(impute_accuracy_ovrl$score_overall)]` and `rank` = `r pull(impute_accuracy_ovrl, rank_fit)[which.max(impute_accuracy_ovrl$score_overall)]` has the best overall score. We can also look at the accuracy of imputations for individual variables:
 
 ```{r}
 
 impute_accuracy %>% 
   filter(variable %in% c('Longitude', 'Neighborhood')) %>% 
-  ggplot(aes(x=impute, y=score)) + 
+  ggplot(aes(x=lambda, y=score)) + 
   geom_point() + 
   geom_smooth() + 
   facet_wrap(~variable)
@@ -153,21 +148,22 @@ impute_accuracy %>%
 
 # Chug
 
-In applied settings where `sip`ing isn't feasible, `chug` provides a more direct way to assess the quality of imputed data. Specifically, `chug` will fit a learning algorithm to the `training` set and predict outcomes in the corresponding `testing` set, then summarize the accuracy of those predictions:
+In applied settings where `sip`ing isn't feasible, `chug` provides a more direct way to assess the quality of imputed data. Specifically, `chug` will fit a learning algorithm to the `training` set and predict outcomes in the corresponding `testing` set, then summarize the accuracy of those predictions in the `score_ex` column, which will be added to the brew's `wort`:
 
 ```{r}
 
 sft_brew <- chug(sft_brew)
 
-mdl_scores <- sft_brew$wort %>% 
-  select(impute, model_score) %>% 
+mdl_scores <- sft_brew$wort %>%
+  unnest_wider(pars) %>% 
+  select(lambda, rank_fit, model_score) %>% 
   unnest_wider(model_score)
 
-arrange(mdl_scores, desc(score_ex))
+arrange(mdl_scores, desc(score_ex)) 
 
 ```
 
-Under the hood, `chug` is using `cv.glmnet` to internally validate a regression model using the training data and then externally validate the model using the testing data, returning a list with 
+Under the hood, `chug` is using `cv.glmnet` to internally validate a regression model using each training and testing set, returning a list with 
 
 - `model_cv`: a model tuned by cross-validation, fitted to the training data
 
@@ -205,19 +201,19 @@ arrange(mdl_scores, desc(score_ex))
 ```{r}
 
 # a function to fit logit model, and predict on new data
-fit_logit <- function(.trn, .tst, outcome){
-  f = as.formula(paste(outcome, '~ .'))
-  glm(formula = f, data = .trn, family = 'binomial') %>% 
+fit_lm <- function(.trn, .tst, outcome){
+  lm(formula = Sale_Price ~ Longitude + Latitude, data = .trn) %>% 
     predict(.tst, type = 'response') %>% 
-    roc_auc_vec(truth = .tst$diabetes, estimate = .)
+    rsq_trad_vec(truth = .tst$Sale_Price, estimate = .)
 }
 
-knn_brew <- chug(knn_brew, .fun = fit_logit)
+sft_brew <- chug(sft_brew, .fun = fit_lm)
 
-model_scores <- knn_brew$wort %>% 
-  select(k_neighbors = impute, model_score) %>% 
+model_scores <- sft_brew$wort %>% 
+  unnest_wider(pars) %>% 
+  select(lambda, rank_fit, model_score) %>% 
   mutate(model_score = as.numeric(model_score)) %>% 
-  select(-starts_with('pred'))
+  arrange(model_score)
 
 ```
 
@@ -226,17 +222,15 @@ The model scores are graphed here, showing a maximum AUC statistic when `r model
 ```{r}
 
 ggplot(model_scores) + 
-  aes(x=k_neighbors, y = model_score) + 
+  aes(x = lambda, y = model_score) + 
   geom_smooth(method = 'lm', col = 'grey90', formula = y~poly(x,3)) +
   geom_point(shape = 21, size = 2.4, col = 'black', fill = 'red') + 
   theme_classic() +
   theme(text = element_text(size = 12)) +
-  labs(y = 'Area underneath ROC curve',
-    x = 'Number of neighbors used to impute missing values')
+  labs(y = 'Variability explained in external data',
+    x = 'Regularization of softImpute (lambda)')
 
 ```
-
-# Distill
 
 
 

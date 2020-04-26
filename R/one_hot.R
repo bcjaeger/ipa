@@ -160,3 +160,19 @@ insert_vals <- function(vec, where, what){
 
 }
 
+one_hot_chr <- function(x, lvls){
+
+  mt <- matrix(0, nrow = length(x), ncol = length(lvls))
+
+  for(i in seq_along(lvls)){
+
+    indx <- which(x == lvls[i])
+    if(!is_empty(indx)) mt[indx, i] <- 1
+
+  }
+
+  mt
+
+}
+
+

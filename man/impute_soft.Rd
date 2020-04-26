@@ -14,6 +14,7 @@ impute_soft(
   lambda = seq(rank_max_ovrl * 0.6, 1, length.out = 10),
   grid = FALSE,
   restore_data = TRUE,
+  verbose = 1,
   bs = TRUE,
   bs_maxit = 20,
   bs_thresh = 1e-09,
@@ -21,11 +22,9 @@ impute_soft(
   bs_col.center = TRUE,
   bs_row.scale = FALSE,
   bs_col.scale = TRUE,
-  bs_trace = FALSE,
   si_type = "als",
   si_thresh = 1e-05,
   si_maxit = 100,
-  si_trace = FALSE,
   si_final.svd = TRUE
 )
 }
@@ -65,6 +64,12 @@ ranks are paired with decreasing values of \code{lambda}.}
 of the imputed values will match those of the original data. If \code{FALSE},
 the imputed values are returned in a one-hot encoded format.}
 
+\item{verbose}{an integer value of 0, 1, or 2. If \code{verbose = 0}, nothing
+is printed. If \code{verbose = 1}, messages are printed to the console showing
+what general steps are being taken in the imputation process. If
+\code{verbose = 2}, all relevant information on convergence is printed in
+addition to general messages.}
+
 \item{bs}{a logical value. If \code{TRUE}, \code{\link[softImpute:biScale]{softImpute::biScale()}} is applied
 to \code{data_ref} or \code{rbind(data_ref, data_new)} prior to fitting \code{softImpute}
 models.}
@@ -86,9 +91,6 @@ will be performed. If \code{FALSE} (default), then nothing is done.}
 \item{bs_col.scale}{a logical value. If \code{TRUE} (default), column scaling
 will be performed. If \code{FALSE}, then nothing is done.}
 
-\item{bs_trace}{with \code{bs_trace = TRUE}, convergence progress is reported
-for the \code{biScale} algorithm.}
-
 \item{si_type}{two algorithms are implemented, type="svd" or the default
 type="als". The "svd" algorithm repeatedly computes the svd of the
 completed matrix, and soft thresholds its singular values. Each new
@@ -108,9 +110,6 @@ successive estimates.}
 \item{si_maxit}{maximum number of iterations for the \code{softImpute}
 algorithm.}
 
-\item{si_trace}{with \code{si_trace = TRUE}, convergence progress is reported
-for the \code{softImpute} algorithm.}
-
 \item{si_final.svd}{only applicable to \code{si_type = "als"}. The alternating
 ridge-regressions do not lead to exact zeros. With the default
 \code{final.svd = TRUE}, at the final iteration, a one step unregularized
@@ -121,9 +120,8 @@ singular values, leading to hard zeros.}
 a data frame with fitting parameters and imputed values.
 }
 \description{
-The \code{softImpute} algorithm is used to impute missing values with this
-For more details on this strategy to handle missing values, see
-\link[softImpute:softImpute]{softImpute}
+The \code{softImpute} algorithm is used to impute missing values.
+For more details, see \link[softImpute:softImpute]{softImpute}
 }
 \details{
 \strong{Multiple imputation}: The number of imputations returned depends on

@@ -19,8 +19,14 @@ verbose_on <- function(brew, level){
   if(!is_brew(brew)) stop("the input is not an ipa_brew object")
 
   if(!level %in% c(1:2)) stop(
-    'level should be 1 (a little verbose) or 2 (a lot verbose)'
+    'level should be 1 (a little verbose) or 2 (a lot verbose).',
+    '\nIf you want verbosity to be 0, please use verbose_off()'
   )
+
+  message(switch(level,
+    '1' = "your brew will now tell you generally what it's doing.",
+    '2' = "your brew will now tell you everything that it's doing."
+  ))
 
   attr(brew, 'verbose') <- level
 
@@ -31,6 +37,8 @@ verbose_on <- function(brew, level){
 #' @rdname verbose_on
 #' @export
 verbose_off <- function(brew){
+
+  message("your brew will no longer print any messages.")
 
   attr(brew, 'verbose') <- 0
 

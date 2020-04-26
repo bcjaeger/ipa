@@ -22,7 +22,7 @@
 #'   in the `spice` and `mash` steps will automatically be implemented
 #'   in the `ferment` step.
 #'
-#' @param brew an `ipa_brew` object.
+#' @inheritParams stir
 #'
 #' @param data_new a data frame with missing values.
 #'
@@ -63,7 +63,7 @@
 #'
 #' @export
 
-ferment <- function(brew, data_new = NULL){
+ferment <- function(brew, data_new = NULL, timer = FALSE){
 
   # brew should be spiced and mashed by now
   check_brew(brew, expected_stage = 'ferment')
@@ -130,14 +130,40 @@ ferment <- function(brew, data_new = NULL){
   impute_args$data_ref <- brew$data$training
   impute_args$data_new <- brew$data$testing
 
+  if(timer){
+
+    start <- Sys.time()
+
+    if(get_verbosity(brew) > 0){
+
+      .flavor <- switch(get_flavor(brew),
+        'kneighbors' = 'k-nearest-neighbors',
+        'softImpute' = 'soft imputation')
+
+      message("Fitting ", .flavor, " models to testing data...")
+
+    }
+
+  }
+
   brew$wort$iv_testing <- do.call(
-    what = switch(
-      get_flavor(brew),
+    what = switch(get_flavor(brew),
       'kneighbors' = impute_nbrs,
-      'softImpute' = impute_soft
-    ),
-    args = impute_args
-  )$imputed_values
+      'softImpute' = impute_soft),
+    args = impute_args)$imputed_values
+
+  if(timer){
+
+    stop <- Sys.time()
+    dt_val <- as.difftime(stop-start)
+    attr(brew, 'ferment_time') <- dt_val
+
+    if(get_verbosity(brew) > 0){
+      dt_msg <- paste(round(dt_val, 2), attr(dt_val, 'units'))
+      message("Finished after ", dt_msg)
+    }
+
+  }
 
   attr(brew, 'fermented_cols') <- c(attr(brew, 'fermented_cols'), "testing")
   attr(brew, 'fermented') <- TRUE

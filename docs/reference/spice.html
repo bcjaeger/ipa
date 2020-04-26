@@ -95,6 +95,9 @@ are designated and saved in the pars component of the brew." />
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -123,9 +126,7 @@ are designated and saved in the pars component of the brew." />
 are designated and saved in the <code>pars</code> component of the <code>brew</code>.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>spice</span>(<span class='no'>brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='no'>...</span>)
-
-<span class='fu'>is_spiced</span>(<span class='no'>brew</span>)</pre>
+    <pre class="usage"><span class='fu'>spice</span>(<span class='no'>brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='no'>...</span>)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -136,9 +137,8 @@ are designated and saved in the <code>pars</code> component of the <code>brew</c
     </tr>
     <tr>
       <th>with</th>
-      <td><p>the output of a helper function for spicing brews.
-The helper functions are <a href='spicer_nbrs.html'>spicer_nbrs</a>, <a href='spicer_soft.html'>spicer_soft</a>, and
-<a href='spicer_rngr.html'>spicer_rngr</a>.</p></td>
+      <td><p>a helper function for mashing brews.
+See <a href='spicer_nbrs.html'>spicer_nbrs</a> and <a href='spicer_soft.html'>spicer_soft</a>)</p></td>
     </tr>
     <tr>
       <th>...</th>
@@ -148,8 +148,7 @@ The helper functions are <a href='spicer_nbrs.html'>spicer_nbrs</a>, <a href='sp
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>a spiced <code>ipa_brew</code>, with imputation
-parameters just how you like them.</p>
+    <p>an <code>ipa_brew</code> object with values added to <code>pars</code>.</p>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
     <pre class="examples"><div class='input'>
@@ -163,10 +162,15 @@ parameters just how you like them.</p>
 <span class='no'>data</span>[<span class='fl'>1</span>:<span class='fl'>2</span>, <span class='fl'>1</span>:<span class='fl'>2</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
 
 <span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'kneighbors'</span>)
-<span class='no'>spicy_knn</span> <span class='kw'>&lt;-</span> <span class='fu'>spice</span>(<span class='no'>knn_brew</span>, <span class='kw'>neighbors</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>3</span>, <span class='fl'>5</span>), <span class='kw'>aggr_neighbors</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
-
 <span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'softImpute'</span>)
-<span class='no'>spicy_sft</span> <span class='kw'>&lt;-</span> <span class='fu'>spice</span>(<span class='no'>sft_brew</span>, <span class='kw'>n_impute</span> <span class='kw'>=</span> <span class='fl'>2</span>)</div></pre>
+
+<span class='co'># these two calls are equivalent</span>
+<span class='no'>spicy_knn</span> <span class='kw'>&lt;-</span> <span class='fu'>spice</span>(<span class='no'>knn_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='spicer_nbrs.html'>spicer_nbrs</a></span>(<span class='kw'>k_neighbors</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>3</span>, <span class='fl'>5</span>)))
+<span class='no'>spicy_knn</span> <span class='kw'>&lt;-</span> <span class='fu'>spice</span>(<span class='no'>knn_brew</span>, <span class='kw'>k_neighbors</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>3</span>, <span class='fl'>5</span>))
+
+<span class='co'># these two calls are equivalent</span>
+<span class='no'>spicy_sft</span> <span class='kw'>&lt;-</span> <span class='fu'>spice</span>(<span class='no'>sft_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='spicer_soft.html'>spicer_soft</a></span>(<span class='kw'>grid</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>))
+<span class='no'>spicy_sft</span> <span class='kw'>&lt;-</span> <span class='fu'>spice</span>(<span class='no'>sft_brew</span>, <span class='kw'>grid</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>

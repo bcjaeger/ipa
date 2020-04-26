@@ -36,9 +36,18 @@
 
 
 <meta property="og:title" content="Neighbor's masher — masher_nbrs" />
-<meta property="og:description" content="It can be a little overwhelming to remember which sets of
-parameters go with each ipa_brew flavor, so just pair your
-flavor with its masher function and get on with your brew." />
+<meta property="og:description" content="If you use Rstudio, the masher and spicer functions can help
+remind you which parameters go along with which ipa_brew flavor.
+The basic idea is to write spice(brew, with = spicer_&amp;lt;flavor&amp;gt;())
+and mash(brew, with = masher_&amp;lt;flavor&amp;gt;()). Hitting the tab key with
+your curser inside the parentheses of masher_flavor()will create a
+drop-down menu that shows a list of the arguments that go along with
+your brew's flavor.
+If you have no trouble remembering the parameters that go along
+with your brew's flavor, or if you just want your code to be more concise,
+you don't have to use the with argument. Instead, you can just
+specify parameter values directly using the ... argument in the mash
+and spice functions. In the examples below, both approaches are shown." />
 <meta name="twitter:card" content="summary" />
 
 
@@ -96,6 +105,9 @@ flavor with its masher function and get on with your brew." />
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -120,42 +132,145 @@ flavor with its masher function and get on with your brew." />
     </div>
 
     <div class="ref-description">
-    <p>It can be a little overwhelming to remember which sets of
-parameters go with each <code>ipa_brew</code> flavor, so just pair your
-flavor with its <code>masher</code> function and get on with your <code>brew</code>.</p>
+    <p>If you use Rstudio, the <code>masher</code> and <code>spicer</code> functions can help
+remind you which parameters go along with which <code>ipa_brew</code> flavor.
+The basic idea is to write <code>spice(brew, with = spicer_&lt;flavor&gt;())</code>
+and <code>mash(brew, with = masher_&lt;flavor&gt;())</code>. Hitting the tab key with
+your curser inside the parentheses of <code>masher_flavor()</code>will create a
+drop-down menu that shows a list of the arguments that go along with
+your brew's flavor.</p>
+<p>If you have no trouble remembering the parameters that go along
+with your brew's flavor, or if you just want your code to be more concise,
+you don't have to use the <code>with</code> argument. Instead, you can just
+specify parameter values directly using the <code>...</code> argument in the <code>mash</code>
+and <code>spice</code> functions. In the examples below, both approaches are shown.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>masher_nbrs</span>(<span class='kw'>eps</span> <span class='kw'>=</span> <span class='fl'>1e-08</span>, <span class='kw'>nthread</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/options.html'>getOption</a></span>(<span class='st'>"gd_num_thread"</span>))</pre>
+    <pre class="usage"><span class='fu'>masher_nbrs</span>(
+  <span class='kw'>epsilon</span> <span class='kw'>=</span> <span class='fl'>1e-08</span>,
+  <span class='kw'>nthread</span> <span class='kw'>=</span> <span class='kw'>NULL</span>,
+  <span class='kw'>fun_aggr_ctns</span> <span class='kw'>=</span> <span class='no'>mean</span>,
+  <span class='kw'>fun_aggr_intg</span> <span class='kw'>=</span> <span class='no'>medn_est</span>,
+  <span class='kw'>fun_aggr_catg</span> <span class='kw'>=</span> <span class='no'>mode_est</span>
+)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
-      <th>eps</th>
-      <td><p>A numeric value &gt; 0. Computed numbers (variable ranges)
-smaller than <code>eps</code> are treated as zero</p></td>
+      <th>epsilon</th>
+      <td><p>Computed numbers (variable ranges) smaller than eps are
+treated as zero</p></td>
     </tr>
     <tr>
       <th>nthread</th>
-      <td><p>Number of threads to use for parallelization.
-By default, for a dual-core machine, 2 threads are used.
-For any other machine n-1 cores are used so your machine doesn't
-freeze during a big computation. The maximum number of threads
-are determined using <code>omp_get_max_threads</code> at C level.</p></td>
+      <td><p>Number of threads to use for parallelization. By default,
+for a dual-core machine, 2 threads are used. For any other machine n-1
+cores are used so your machine doesn't freeze during a big computation.
+The maximum nr of threads are determined using omp_get_max_threads
+at C level.</p></td>
+    </tr>
+    <tr>
+      <th>fun_aggr_ctns</th>
+      <td><p>a function used to aggregate neighbors for continuous
+variables. If unspecified, the <code><a href='https://rdrr.io/r/base/mean.html'>mean()</a></code> function is used.</p></td>
+    </tr>
+    <tr>
+      <th>fun_aggr_intg</th>
+      <td><p>a function used to aggregate neighbors for integer
+values variables. If unspecified, the <code><a href='mode_est.html'>medn_est()</a></code> function is used.
+This function returns the median of neighbor values, rounded to the
+nearest integer. <code><a href='mode_est.html'>medn_est_conserve()</a></code> goes one step further and
+identifies which neighbor value is closest to the median, and returns
+that value. Both of these options can be helpful for integer valued
+columns if you want to make sure the imputed values do not contain
+impossible quantities, e.g. no. of children = 3/4.</p></td>
+    </tr>
+    <tr>
+      <th>fun_aggr_catg</th>
+      <td><p>a function used to aggregate neighbors for categorical
+variables. If unspecified, the <code><a href='mode_est.html'>mode_est()</a></code> function is used.</p></td>
     </tr>
     </table>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>a list with <a href='https://rdrr.io/pkg/gower/man/gower_topn.html'>gower_topn</a> input values
-that can be passed directly into <code>kneighbors_brew</code> objects via <a href='mash.html'>mash</a>.</p>
+    <p>a list with input values that can be passed directly into
+<a href='mash.html'>mash</a>, e.g <code><a href='mash.html'>mash(brew, with = masher_nbrs())</a></code> for a neighbors brew or
+<code><a href='mash.html'>mash(brew, with = masher_soft())</a></code> for a soft brew.</p>
 
+    <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
+    <pre class="examples"><div class='input'>
+<span class='no'>x1</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>)
+<span class='no'>x2</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span>
+<span class='no'>x3</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span> + <span class='no'>x2</span>
+
+<span class='no'>outcome</span> <span class='kw'>=</span> <span class='fl'>0.5</span> * (<span class='no'>x1</span> - <span class='no'>x2</span> + <span class='no'>x3</span>)
+
+<span class='no'>data</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(<span class='kw'>x1</span><span class='kw'>=</span><span class='no'>x1</span>, <span class='kw'>x2</span><span class='kw'>=</span><span class='no'>x2</span>, <span class='kw'>x3</span><span class='kw'>=</span><span class='no'>x3</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>)
+
+<span class='no'>n_miss</span> <span class='kw'>=</span> <span class='fl'>10</span>
+
+<span class='no'>data</span>[<span class='fl'>1</span>:<span class='no'>n_miss</span>,<span class='st'>'x1'</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew_soft</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)
+
+<span class='co'># these two calls are equivalent</span>
+<span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='masher_soft.html'>masher_soft</a></span>(<span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>))</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;              x1         x2        x3
+#&gt;           &lt;num&gt;      &lt;num&gt;     &lt;num&gt;
+#&gt;   1:         NA  1.6155571  3.579510
+#&gt;   2:         NA  3.1508703  5.762276
+#&gt;   3:         NA -1.7713596 -2.425330
+#&gt;   4:         NA -0.8826988 -2.854109
+#&gt;   5:         NA -1.4809443 -2.610147
+#&gt;  ---                                
+#&gt;  96: -0.9222974 -1.5030021 -1.626649
+#&gt;  97: -1.0601146 -2.6531995 -1.962740
+#&gt;  98: -1.7871996 -2.2762422 -3.798112
+#&gt;  99: -1.0665518 -1.8192519 -2.568649
+#&gt; 100: -1.1298292 -0.4644504 -1.743016</div><div class='input'><span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;              x1         x2        x3
+#&gt;           &lt;num&gt;      &lt;num&gt;     &lt;num&gt;
+#&gt;   1:         NA  1.6155571  3.579510
+#&gt;   2:         NA  3.1508703  5.762276
+#&gt;   3:         NA -1.7713596 -2.425330
+#&gt;   4:         NA -0.8826988 -2.854109
+#&gt;   5:         NA -1.4809443 -2.610147
+#&gt;  ---                                
+#&gt;  96: -0.9222974 -1.5030021 -1.626649
+#&gt;  97: -1.0601146 -2.6531995 -1.962740
+#&gt;  98: -1.7871996 -2.2762422 -3.798112
+#&gt;  99: -1.0665518 -1.8192519 -2.568649
+#&gt; 100: -1.1298292 -0.4644504 -1.743016</div><div class='input'>
+<span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew_nbrs</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>) <span class='kw'>%&gt;%</span>
+
+<span class='co'># these two calls are equivalent</span>
+<span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>knn_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'>masher_nbrs</span>(<span class='kw'>fun_aggr_ctns</span> <span class='kw'>=</span> <span class='no'>median</span>))
+<span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>knn_brew</span>, <span class='kw'>fun_aggr_ctns</span> <span class='kw'>=</span> <span class='no'>median</span>)</div><div class='output co'>#&gt; A brew to handle missing data using k-nearest-neighbors. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;              x1         x2        x3 x1_missing
+#&gt;           &lt;num&gt;      &lt;num&gt;     &lt;num&gt;      &lt;int&gt;
+#&gt;   1:         NA  1.6155571  3.579510          1
+#&gt;   2:         NA  3.1508703  5.762276          1
+#&gt;   3:         NA -1.7713596 -2.425330          1
+#&gt;   4:         NA -0.8826988 -2.854109          1
+#&gt;   5:         NA -1.4809443 -2.610147          1
+#&gt;  ---                                           
+#&gt;  96: -0.9222974 -1.5030021 -1.626649          0
+#&gt;  97: -1.0601146 -2.6531995 -1.962740          0
+#&gt;  98: -1.7871996 -2.2762422 -3.798112          0
+#&gt;  99: -1.0665518 -1.8192519 -2.568649          0
+#&gt; 100: -1.1298292 -0.4644504 -1.743016          0</div><div class='input'>
+</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>
     <ul class="nav nav-pills nav-stacked">
       <li><a href="#arguments">Arguments</a></li>
       <li><a href="#value">Value</a></li>
+      <li><a href="#examples">Examples</a></li>
     </ul>
 
   </div>

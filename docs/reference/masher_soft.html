@@ -36,9 +36,18 @@
 
 
 <meta property="og:title" content="Soft masher — masher_soft" />
-<meta property="og:description" content="It can be a little overwhelming to remember which sets of
-parameters go with each ipa_brew flavor, so just pair your
-flavor with its masher function and get on with your brew." />
+<meta property="og:description" content="If you use Rstudio, the masher and spicer functions can help
+remind you which parameters go along with which ipa_brew flavor.
+The basic idea is to write spice(brew, with = spicer_&amp;lt;flavor&amp;gt;())
+and mash(brew, with = masher_&amp;lt;flavor&amp;gt;()). Hitting the tab key with
+your curser inside the parentheses of masher_flavor()will create a
+drop-down menu that shows a list of the arguments that go along with
+your brew's flavor.
+If you have no trouble remembering the parameters that go along
+with your brew's flavor, or if you just want your code to be more concise,
+you don't have to use the with argument. Instead, you can just
+specify parameter values directly using the ... argument in the mash
+and spice functions. In the examples below, both approaches are shown." />
 <meta name="twitter:card" content="summary" />
 
 
@@ -96,6 +105,9 @@ flavor with its masher function and get on with your brew." />
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -120,21 +132,75 @@ flavor with its masher function and get on with your brew." />
     </div>
 
     <div class="ref-description">
-    <p>It can be a little overwhelming to remember which sets of
-parameters go with each <code>ipa_brew</code> flavor, so just pair your
-flavor with its <code>masher</code> function and get on with your <code>brew</code>.</p>
+    <p>If you use Rstudio, the <code>masher</code> and <code>spicer</code> functions can help
+remind you which parameters go along with which <code>ipa_brew</code> flavor.
+The basic idea is to write <code>spice(brew, with = spicer_&lt;flavor&gt;())</code>
+and <code>mash(brew, with = masher_&lt;flavor&gt;())</code>. Hitting the tab key with
+your curser inside the parentheses of <code>masher_flavor()</code>will create a
+drop-down menu that shows a list of the arguments that go along with
+your brew's flavor.</p>
+<p>If you have no trouble remembering the parameters that go along
+with your brew's flavor, or if you just want your code to be more concise,
+you don't have to use the <code>with</code> argument. Instead, you can just
+specify parameter values directly using the <code>...</code> argument in the <code>mash</code>
+and <code>spice</code> functions. In the examples below, both approaches are shown.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>masher_soft</span>(<span class='kw'>type</span> <span class='kw'>=</span> <span class='st'>"als"</span>, <span class='kw'>maxit</span> <span class='kw'>=</span> <span class='fl'>100L</span>, <span class='kw'>thresh</span> <span class='kw'>=</span> <span class='fl'>1e-05</span>,
-  <span class='kw'>final.svd</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>, <span class='kw'>scale_data</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>, <span class='kw'>scale_iter</span> <span class='kw'>=</span> <span class='fl'>20</span>,
-  <span class='kw'>scale_lambda</span> <span class='kw'>=</span> <span class='fl'>0.95</span>, <span class='kw'>lambda_sequence</span> <span class='kw'>=</span> <span class='kw'>NULL</span>)</pre>
+    <pre class="usage"><span class='fu'>masher_soft</span>(
+  <span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>,
+  <span class='kw'>bs_maxit</span> <span class='kw'>=</span> <span class='fl'>20</span>,
+  <span class='kw'>bs_thresh</span> <span class='kw'>=</span> <span class='fl'>1e-09</span>,
+  <span class='kw'>bs_row.center</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
+  <span class='kw'>bs_col.center</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>,
+  <span class='kw'>bs_row.scale</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>,
+  <span class='kw'>bs_col.scale</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>,
+  <span class='kw'>si_type</span> <span class='kw'>=</span> <span class='st'>"als"</span>,
+  <span class='kw'>si_thresh</span> <span class='kw'>=</span> <span class='fl'>1e-05</span>,
+  <span class='kw'>si_maxit</span> <span class='kw'>=</span> <span class='fl'>100</span>,
+  <span class='kw'>si_final.svd</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>
+)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
     <colgroup><col class="name" /><col class="desc" /></colgroup>
     <tr>
-      <th>type</th>
-      <td><p>two algorithms are implements, type="svd" or the default
+      <th>bs</th>
+      <td><p>a logical value. If <code>TRUE</code>, <code><a href='https://rdrr.io/pkg/softImpute/man/biScale.html'>softImpute::biScale()</a></code> is applied
+to <code>data_ref</code> or <code><a href='https://rdrr.io/r/base/cbind.html'>rbind(data_ref, data_new)</a></code> prior to fitting <code>softImpute</code>
+models.</p></td>
+    </tr>
+    <tr>
+      <th>bs_maxit</th>
+      <td><p>an integer indicating the maximum number of iterations
+for the <code>biScale</code> algorithm.</p></td>
+    </tr>
+    <tr>
+      <th>bs_thresh</th>
+      <td><p>convergence threshold for the <code>biScale</code> algorithm.</p></td>
+    </tr>
+    <tr>
+      <th>bs_row.center</th>
+      <td><p>a logical value. If <code>TRUE</code>, row centering
+will be performed. If <code>FALSE</code> (default), then nothing is done.</p></td>
+    </tr>
+    <tr>
+      <th>bs_col.center</th>
+      <td><p>a logical value. If <code>TRUE</code> (default), column centering
+will be performed. If <code>FALSE</code>, then nothing is done.</p></td>
+    </tr>
+    <tr>
+      <th>bs_row.scale</th>
+      <td><p>a logical value. If <code>TRUE</code>, row scaling
+will be performed. If <code>FALSE</code> (default), then nothing is done.</p></td>
+    </tr>
+    <tr>
+      <th>bs_col.scale</th>
+      <td><p>a logical value. If <code>TRUE</code> (default), column scaling
+will be performed. If <code>FALSE</code>, then nothing is done.</p></td>
+    </tr>
+    <tr>
+      <th>si_type</th>
+      <td><p>two algorithms are implemented, type="svd" or the default
 type="als". The "svd" algorithm repeatedly computes the svd of the
 completed matrix, and soft thresholds its singular values. Each new
 soft-thresholded svd is used to re-impute the missing entries. For
@@ -147,59 +213,104 @@ have the same theoretical convergence guarantees as the
 "svd" approach.</p></td>
     </tr>
     <tr>
-      <th>maxit</th>
+      <th>si_thresh</th>
+      <td><p>convergence threshold for the <code>softImpute</code> algorithm,
+measured as the relative change in the Frobenius norm between two
+successive estimates.</p></td>
+    </tr>
+    <tr>
+      <th>si_maxit</th>
       <td><p>maximum number of iterations for the <code>softImpute</code>
 algorithm.</p></td>
     </tr>
     <tr>
-      <th>thresh</th>
-      <td><p>convergence threshold, measured as the relative
-change in the Frobenius norm between two successive estimates.</p></td>
-    </tr>
-    <tr>
-      <th>final.svd</th>
-      <td><p>only applicable to type="als". The alternating
+      <th>si_final.svd</th>
+      <td><p>only applicable to <code>si_type = "als"</code>. The alternating
 ridge-regressions do not lead to exact zeros. With the default
-final.svd=TRUE, at the final iteration, a one step unregularized
+<code>final.svd = TRUE</code>, at the final iteration, a one step unregularized
 iteration is performed, followed by soft-thresholding of the
 singular values, leading to hard zeros.</p></td>
-    </tr>
-    <tr>
-      <th>scale_data</th>
-      <td><p>(<code>TRUE</code> / <code>FALSE</code>) if <code>TRUE</code>, the
-<a href='https://rdrr.io/pkg/softImpute/man/biScale.html'>biScale</a> function will be applied
-to <code>data</code> before soft imputation is applied.</p></td>
-    </tr>
-    <tr>
-      <th>scale_iter</th>
-      <td><p>the maximum number of iterations for the
-<code>biScale</code> algorithm.</p></td>
-    </tr>
-    <tr>
-      <th>scale_lambda</th>
-      <td><p>A number that will scale the maximum value of
-<code>lambda</code>, a regularization parameter for <code>softImpute</code>.</p></td>
-    </tr>
-    <tr>
-      <th>lambda_sequence</th>
-      <td><p>A numeric vector of <code>lambda</code> values.
-This input is optional. If it is not specified, a sequence
-of <code>lambda</code> values will be generated automatically.</p></td>
     </tr>
     </table>
 
     <h2 class="hasAnchor" id="value"><a class="anchor" href="#value"></a>Value</h2>
 
-    <p>a list with <a href='https://rdrr.io/pkg/softImpute/man/softImpute.html'>softImpute</a> and
-<a href='https://rdrr.io/pkg/softImpute/man/biScale.html'>biScale</a> inputs values that can be
-passed directly into <code>softImpute_brew</code> objects via <a href='mash.html'>mash</a>.</p>
+    <p>a list with input values that can be passed directly into
+<a href='mash.html'>mash</a>, e.g <code><a href='mash.html'>mash(brew, with = masher_nbrs())</a></code> for a neighbors brew or
+<code><a href='mash.html'>mash(brew, with = masher_soft())</a></code> for a soft brew.</p>
 
+    <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
+    <pre class="examples"><div class='input'>
+<span class='no'>x1</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>)
+<span class='no'>x2</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span>
+<span class='no'>x3</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span> + <span class='no'>x2</span>
+
+<span class='no'>outcome</span> <span class='kw'>=</span> <span class='fl'>0.5</span> * (<span class='no'>x1</span> - <span class='no'>x2</span> + <span class='no'>x3</span>)
+
+<span class='no'>data</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(<span class='kw'>x1</span><span class='kw'>=</span><span class='no'>x1</span>, <span class='kw'>x2</span><span class='kw'>=</span><span class='no'>x2</span>, <span class='kw'>x3</span><span class='kw'>=</span><span class='no'>x3</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>)
+
+<span class='no'>n_miss</span> <span class='kw'>=</span> <span class='fl'>10</span>
+
+<span class='no'>data</span>[<span class='fl'>1</span>:<span class='no'>n_miss</span>,<span class='st'>'x1'</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew_soft</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)
+
+<span class='co'># these two calls are equivalent</span>
+<span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'>masher_soft</span>(<span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>))</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;               x1          x2         x3
+#&gt;            &lt;num&gt;       &lt;num&gt;      &lt;num&gt;
+#&gt;   1:          NA -1.51265576 -1.3208307
+#&gt;   2:          NA  1.08698578  1.7135815
+#&gt;   3:          NA -0.40352826 -0.7160933
+#&gt;   4:          NA -0.03375898  0.2829920
+#&gt;   5:          NA -1.74378020 -3.4624022
+#&gt;  ---                                   
+#&gt;  96:  0.19962995 -1.09237095 -1.8065284
+#&gt;  97:  1.71290679 -0.01762329  1.4226881
+#&gt;  98:  0.55273636  1.68516114  2.9889841
+#&gt;  99: -0.86873581  0.08666271 -0.8589293
+#&gt; 100:  0.09863716 -0.61537112 -0.3696324</div><div class='input'><span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;               x1          x2         x3
+#&gt;            &lt;num&gt;       &lt;num&gt;      &lt;num&gt;
+#&gt;   1:          NA -1.51265576 -1.3208307
+#&gt;   2:          NA  1.08698578  1.7135815
+#&gt;   3:          NA -0.40352826 -0.7160933
+#&gt;   4:          NA -0.03375898  0.2829920
+#&gt;   5:          NA -1.74378020 -3.4624022
+#&gt;  ---                                   
+#&gt;  96:  0.19962995 -1.09237095 -1.8065284
+#&gt;  97:  1.71290679 -0.01762329  1.4226881
+#&gt;  98:  0.55273636  1.68516114  2.9889841
+#&gt;  99: -0.86873581  0.08666271 -0.8589293
+#&gt; 100:  0.09863716 -0.61537112 -0.3696324</div><div class='input'>
+<span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew_nbrs</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>) <span class='kw'>%&gt;%</span>
+
+<span class='co'># these two calls are equivalent</span>
+<span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>knn_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='masher_nbrs.html'>masher_nbrs</a></span>(<span class='kw'>fun_aggr_ctns</span> <span class='kw'>=</span> <span class='no'>median</span>))
+<span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>knn_brew</span>, <span class='kw'>fun_aggr_ctns</span> <span class='kw'>=</span> <span class='no'>median</span>)</div><div class='output co'>#&gt; A brew to handle missing data using k-nearest-neighbors. 
+#&gt; Data used for imputation (outcomes are wittheld): 
+#&gt;               x1          x2         x3 x1_missing
+#&gt;            &lt;num&gt;       &lt;num&gt;      &lt;num&gt;      &lt;int&gt;
+#&gt;   1:          NA -1.51265576 -1.3208307          1
+#&gt;   2:          NA  1.08698578  1.7135815          1
+#&gt;   3:          NA -0.40352826 -0.7160933          1
+#&gt;   4:          NA -0.03375898  0.2829920          1
+#&gt;   5:          NA -1.74378020 -3.4624022          1
+#&gt;  ---                                              
+#&gt;  96:  0.19962995 -1.09237095 -1.8065284          0
+#&gt;  97:  1.71290679 -0.01762329  1.4226881          0
+#&gt;  98:  0.55273636  1.68516114  2.9889841          0
+#&gt;  99: -0.86873581  0.08666271 -0.8589293          0
+#&gt; 100:  0.09863716 -0.61537112 -0.3696324          0</div><div class='input'>
+</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>
     <ul class="nav nav-pills nav-stacked">
       <li><a href="#arguments">Arguments</a></li>
       <li><a href="#value">Value</a></li>
+      <li><a href="#examples">Examples</a></li>
     </ul>
 
   </div>

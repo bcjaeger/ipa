@@ -1,3 +1,4 @@
+
 test_that(
   "inputs work",
   {
@@ -32,4 +33,12 @@ test_that('text pillar works', {
 
 })
 
+test_that('df_unique_indx works', {
 
+  vec <- c(0, 1, 1, 2, 4, 4, 4, 5)
+  expect_equal(df_unique_indx(vec), c(1, 3, 4, 7, 8))
+
+  vec <- c(1:10)
+  expect_equal(vec, df_unique_indx(vec))
+
+})

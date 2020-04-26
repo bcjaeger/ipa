@@ -81,9 +81,11 @@ sip <- function(
   # compute a score for every training or testing set,
   # then attach that score to the corresponding row
   # of the wort
-  brew$wort[[new_col]] <- brew$wort[[.col]] %>%
-    purrr::map(
-      .f = scrimp_vars,
+
+  set(brew$wort, j = new_col,
+    value = lapply(
+      X = brew$wort[[.col]],
+      FUN = scrimp_vars,
       data_missing   = data_missing,
       data_complete  = data_complete,
       fun_ctns_error = fun_ctns_error,
@@ -91,6 +93,7 @@ sip <- function(
       fun_bnry_error = fun_bnry_error,
       fun_catg_error = fun_catg_error
     )
+  )
 
   brew
 

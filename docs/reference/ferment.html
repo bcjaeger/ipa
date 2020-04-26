@@ -36,23 +36,24 @@
 
 
 <meta property="og:title" content="Ferment a brew — ferment" />
-<meta property="og:description" content="Missing values can occur in the training data,
-testing data, and validation data. An important requirement
-for missing value strategies is that only information from
-the training data should be used to impute missing data.
-Unfortunately, some imputation strategies are not designed to
-work this way! For example, softImpute imputes missing
-values based on the index of the missing value in the training
-data, and this doesn't generalize to testing data because
-testing data (by definition) are not in the training data.
-Fortunately, ferment gives you options. For example, you
-can use softImpute to impute missing training data, and then
-use kneighbors to impute the testing data by matching the
-testing observations to their nearest neighbors in the training
-data. More specifically, you can tell ferment to impute the
-testing data using either the original unimputed training data
-or using each of the imputed training datasets, separately.
-The same options apply for all ipa_brew objects." />
+<meta property="og:description" content="Missing values can occur in training data and
+testing data.
+Unfortunately, some imputation strategies are only designed
+to impute missing training data. For example, softImpute
+imputes missing values based on the index of the missing
+value in the training data, and this doesn't generalize
+to testing data because testing data (by definition)
+do not have indices in the training data.
+ferment generally adheres to the principle of using only
+training data to impute missing testing data, except when it
+can't (i.e., when flavor = 'softImpute').
+ferment automatically copies the data-processing and imputation
+arguments used in previous brewing steps. Specifically, if brew
+was called with bind_miss = TRUE, then the missing value indicator
+matrix for data_new will be bound to data_new and used in the
+imputation procedure. Additionally, imputation parameters specified
+in the spice and mash steps will automatically be implemented
+in the ferment step." />
 <meta name="twitter:card" content="summary" />
 
 
@@ -110,6 +111,9 @@ The same options apply for all ipa_brew objects." />
     <li>
       <a href="../articles/getting_started.html">Getting started with `ipa`</a>
     </li>
+    <li>
+      <a href="../articles/scoring_imputes.html">scoring_imputes</a>
+    </li>
   </ul>
 </li>
       </ul>
@@ -134,28 +138,27 @@ The same options apply for all ipa_brew objects." />
     </div>
 
     <div class="ref-description">
-    <p>Missing values can occur in the training data,
-testing data, and validation data. An important requirement
-for missing value strategies is that only information from
-the training data should be used to impute missing data.</p>
-<p>Unfortunately, some imputation strategies are not designed to
-work this way! For example, <code>softImpute</code> imputes missing
-values based on the index of the missing value in the training
-data, and this doesn't generalize to testing data because
-testing data (by definition) are not in the training data.</p>
-<p>Fortunately, <code>ferment</code> gives you options. For example, you
-can use <code>softImpute</code> to impute missing training data, and then
-use <code>kneighbors</code> to impute the testing data by matching the
-testing observations to their nearest neighbors in the training
-data. More specifically, you can tell <code>ferment</code> to impute the
-testing data using either the original unimputed training data
-or using each of the imputed training datasets, separately.
-The same options apply for all <code>ipa_brew</code> objects.</p>
+    <p>Missing values can occur in training data and
+testing data.</p>
+<p>Unfortunately, some imputation strategies are only designed
+to impute missing training data. For example, <code>softImpute</code>
+imputes missing values based on the index of the missing
+value in the training data, and this doesn't generalize
+to testing data because testing data (by definition)
+do not have indices in the training data.</p>
+<p><code>ferment</code> generally adheres to the principle of using only
+training data to impute missing testing data, except when it
+can't (i.e., when <code>flavor = 'softImpute'</code>).</p>
+<p><code>ferment</code> automatically copies the data-processing and imputation
+arguments used in previous brewing steps. Specifically, if <code>brew</code>
+was called with <code>bind_miss = TRUE</code>, then the missing value indicator
+matrix for <code>data_new</code> will be bound to <code>data_new</code> and used in the
+imputation procedure. Additionally, imputation parameters specified
+in the <code>spice</code> and <code>mash</code> steps will automatically be implemented
+in the <code>ferment</code> step.</p>
     </div>
 
-    <pre class="usage"><span class='fu'>ferment</span>(<span class='no'>brew</span>, <span class='no'>...</span>)
-
-<span class='fu'>is_fermented</span>(<span class='no'>brew</span>)</pre>
+    <pre class="usage"><span class='fu'>ferment</span>(<span class='no'>brew</span>, <span class='kw'>data_new</span> <span class='kw'>=</span> <span class='kw'>NULL</span>, <span class='kw'>timer</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)</pre>
 
     <h2 class="hasAnchor" id="arguments"><a class="anchor" href="#arguments"></a>Arguments</h2>
     <table class="ref-arguments">
@@ -165,13 +168,14 @@ The same options apply for all <code>ipa_brew</code> objects.</p>
       <td><p>an <code>ipa_brew</code> object.</p></td>
     </tr>
     <tr>
-      <th>...</th>
-      <td><p>Name-value pairs of expressions. The name of each
-argument will be the name of a new variable in the <code>wort</code>
-of the <code>ipa_brew</code> object. The value of each argument should be
-an object created using the <a href='test_nbrs.html'>test_nbrs</a> or <a href='test_stkr.html'>test_stkr</a> functions.
-The inputs of these functions will determine how testing data
-are imputed.</p></td>
+      <th>data_new</th>
+      <td><p>a data frame with missing values.</p></td>
+    </tr>
+    <tr>
+      <th>timer</th>
+      <td><p>a logical value. If <code>TRUE</code>, then the amount of time it takes
+to fit the imputation models will be tracked and saved as an attribute
+of the resulting <code>ipa_brew</code> object.</p></td>
     </tr>
     </table>
 
@@ -183,47 +187,58 @@ and the corresponding hyper-parameters of those models.</p>
 
     <h2 class="hasAnchor" id="examples"><a class="anchor" href="#examples"></a>Examples</h2>
     <pre class="examples"><div class='input'>
-<span class='no'>data</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(
-  <span class='kw'>x1</span> <span class='kw'>=</span> <span class='fl'>1</span>:<span class='fl'>10</span>,
-  <span class='kw'>x2</span> <span class='kw'>=</span> <span class='fl'>10</span>:<span class='fl'>1</span>,
-  <span class='kw'>x3</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>10</span>),
-  <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='fl'>11</span> + <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span>(<span class='fl'>10</span>)
+<span class='no'>x1</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>)
+<span class='no'>x2</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span>
+<span class='no'>x3</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>100</span>) + <span class='no'>x1</span> + <span class='no'>x2</span>
+
+<span class='no'>outcome</span> <span class='kw'>=</span> <span class='fl'>0.5</span> * (<span class='no'>x1</span> - <span class='no'>x2</span> + <span class='no'>x3</span>)
+
+<span class='no'>n_miss</span> <span class='kw'>=</span> <span class='fl'>10</span>
+<span class='no'>x1</span>[<span class='fl'>1</span>:<span class='no'>n_miss</span>] <span class='kw'>&lt;-</span> <span class='fl'>NA</span>
+
+<span class='no'>data</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(<span class='kw'>x1</span><span class='kw'>=</span><span class='no'>x1</span>, <span class='kw'>x2</span><span class='kw'>=</span><span class='no'>x2</span>, <span class='kw'>x3</span><span class='kw'>=</span><span class='no'>x3</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>)
+
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew_soft</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span><span class='kw'>=</span><span class='no'>outcome</span>, <span class='kw'>bind_miss</span> <span class='kw'>=</span> <span class='fl'>FALSE</span>)
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>with</span> <span class='kw'>=</span> <span class='fu'><a href='masher_soft.html'>masher_soft</a></span>(<span class='kw'>bs</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>))
+<span class='no'>sft_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='stir.html'>stir</a></span>(<span class='no'>sft_brew</span>, <span class='kw'>timer</span> <span class='kw'>=</span> <span class='fl'>TRUE</span>)
+
+<span class='fu'>ferment</span>(<span class='no'>sft_brew</span>)</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt;     impute   lambda rank_max rank_fit    fit iv_training
+#&gt;      &lt;int&gt;    &lt;num&gt;    &lt;int&gt;    &lt;int&gt; &lt;list&gt;      &lt;list&gt;
+#&gt;  1:      1 1.200000        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  2:      2 1.177778        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  3:      3 1.155556        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  4:      4 1.133333        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  5:      5 1.111111        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  6:      6 1.088889        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  7:      7 1.066667        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  8:      8 1.044444        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt;  9:      9 1.022222        2        2 &lt;list&gt;      &lt;list&gt;
+#&gt; 10:     10 1.000000        2        2 &lt;list&gt;      &lt;list&gt;</div><div class='input'>
+<span class='no'>data_new</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(
+  <span class='kw'>x1</span>      <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>1</span>/<span class='fl'>2</span>, <span class='fl'>NA_real_</span>),
+  <span class='kw'>x2</span>      <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>NA_real_</span>, <span class='fl'>2</span>/<span class='fl'>3</span>),
+  <span class='kw'>x3</span>      <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>5</span>/<span class='fl'>2</span>, <span class='fl'>2</span>/<span class='fl'>3</span>),
+  <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>1</span>/<span class='fl'>3</span>, <span class='fl'>2</span>/<span class='fl'>3</span>)
 )
 
-<span class='no'>data</span>[<span class='fl'>1</span>:<span class='fl'>2</span>, <span class='fl'>1</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
-<span class='no'>data</span>[<span class='fl'>5</span>:<span class='fl'>6</span>, <span class='fl'>2</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
+<span class='co'># soft models are re-fitted after stacking data_new with data_ref</span>
 
-<span class='no'>new_data</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/data.frame.html'>data.frame</a></span>(
-  <span class='kw'>x1</span> <span class='kw'>=</span> <span class='fl'>1</span>:<span class='fl'>10</span>,
-  <span class='kw'>x2</span> <span class='kw'>=</span> <span class='fl'>10</span>:<span class='fl'>1</span>,
-  <span class='kw'>x3</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/stats/Normal.html'>rnorm</a></span>(<span class='fl'>10</span>),
-  <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='fl'>11</span> + <span class='fu'><a href='https://rdrr.io/r/stats/Uniform.html'>runif</a></span>(<span class='fl'>10</span>)
-)
+<span class='fu'>ferment</span>(<span class='no'>sft_brew</span>, <span class='kw'>data_new</span> <span class='kw'>=</span> <span class='no'>data_new</span>)</div><div class='output co'>#&gt; A brew to handle missing data using soft imputation. 
+#&gt;     impute   lambda rank_max rank_fit    fit iv_training iv_testing
+#&gt;      &lt;int&gt;    &lt;num&gt;    &lt;int&gt;    &lt;int&gt; &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  1:      1 1.200000        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  2:      2 1.177778        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  3:      3 1.155556        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  4:      4 1.133333        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  5:      5 1.111111        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  6:      6 1.088889        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  7:      7 1.066667        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  8:      8 1.044444        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt;  9:      9 1.022222        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;
+#&gt; 10:     10 1.000000        2        2 &lt;list&gt;      &lt;list&gt;     &lt;list&gt;</div><div class='input'>
 
-<span class='no'>new_data</span>[<span class='fl'>6</span>:<span class='fl'>7</span>, <span class='fl'>1</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
-<span class='no'>new_data</span>[<span class='fl'>2</span>:<span class='fl'>3</span>, <span class='fl'>2</span>] <span class='kw'>=</span> <span class='fl'>NA</span>
-
-<span class='no'>knn_brew</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='brew.html'>brew</a></span>(<span class='no'>data</span>, <span class='kw'>outcome</span> <span class='kw'>=</span> <span class='no'>outcome</span>, <span class='kw'>flavor</span> <span class='kw'>=</span> <span class='st'>'kneighbors'</span>)
-
-<span class='no'>knn_spiced</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='spice.html'>spice</a></span>(
-  <span class='kw'>brew</span> <span class='kw'>=</span> <span class='no'>knn_brew</span>,
-  <span class='kw'>neighbors</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>3</span>, <span class='fl'>5</span>),
-  <span class='kw'>aggr_neighbors</span> <span class='kw'>=</span> <span class='fu'><a href='https://rdrr.io/r/base/c.html'>c</a></span>(<span class='fl'>TRUE</span>, <span class='fl'>FALSE</span>)
-)
-
-<span class='no'>knn_mashed</span> <span class='kw'>&lt;-</span> <span class='fu'><a href='mash.html'>mash</a></span>(<span class='no'>knn_spiced</span>)
-
-<span class='co'># use test_nbrs to impute new data with nearest neighbors</span>
-<span class='no'>knn_fermed</span> <span class='kw'>&lt;-</span> <span class='fu'>ferment</span>(<span class='no'>knn_mashed</span>, <span class='kw'>test</span> <span class='kw'>=</span> <span class='fu'><a href='test_nbrs.html'>test_nbrs</a></span>(<span class='no'>new_data</span>))
-
-<span class='co'># new column called 'test' is in the wort now</span>
-<span class='no'>knn_fermed</span>$<span class='no'>wort</span></div><div class='output co'>#&gt; <span style='color: #555555;'># A tibble: 2 x 5</span><span>
-#&gt;   impute fit               args             training          test             
-#&gt;    </span><span style='color: #555555;font-style: italic;'>&lt;int&gt;</span><span> </span><span style='color: #555555;font-style: italic;'>&lt;list&gt;</span><span>            </span><span style='color: #555555;font-style: italic;'>&lt;list&gt;</span><span>           </span><span style='color: #555555;font-style: italic;'>&lt;list&gt;</span><span>            </span><span style='color: #555555;font-style: italic;'>&lt;list&gt;</span><span>           
-#&gt; </span><span style='color: #555555;'>1</span><span>      1 </span><span style='color: #555555;'>&lt;tibble [10 x 3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [2]&gt;</span><span> </span><span style='color: #555555;'>&lt;tibble [10 x 3]&gt;</span><span> </span><span style='color: #555555;'>&lt;tibble [10 x 3]&gt;</span><span>
-#&gt; </span><span style='color: #555555;'>2</span><span>      2 </span><span style='color: #555555;'>&lt;tibble [10 x 3]&gt;</span><span> </span><span style='color: #555555;'>&lt;named list [2]&gt;</span><span> </span><span style='color: #555555;'>&lt;tibble [10 x 3]&gt;</span><span> </span><span style='color: #555555;'>&lt;tibble [10 x 3]&gt;</span><span></div><div class='input'>
-
-</div></span></pre>
+</div></pre>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="sidebar">
     <h2>Contents</h2>
